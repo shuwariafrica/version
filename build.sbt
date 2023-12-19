@@ -8,16 +8,38 @@ lazy val `version-root` =
   project
     .in(file("."))
     .shuwariProject
+    .notPublished
     .apacheLicensed
     .aggregate(version.jvm, version.js, version.native)
+    .settings(sonatypeProfileSetting)
+
+lazy val jvmProjects =
+  project
+    .in(file(".jvm"))
+    .notPublished
+    .aggregate(version.jvm)
+
+lazy val nativeProjects =
+  project
+    .in(file(".native"))
+    .notPublished
+    .aggregate(version.native)
+
+lazy val jsProjects =
+  project
+    .in(file(".js"))
+    .notPublished
+    .aggregate(version.js)
 
 lazy val version =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/core"))
-    .jsConfigure(_.disablePlugins(ScalafmtPlugin, ScalafixPlugin, HeaderPlugin))
+    .jsConfigure(disableStaticAnalysisPlugins)
+    .nativeConfigure(disableStaticAnalysisPlugins)
     .settings(unitTestSettings)
+    .settings(publishSettings)
     .settings(libraryDependency(libraries.`zio-prelude`))
 
 inThisBuild(
@@ -25,7 +47,16 @@ inThisBuild(
     Keys.version := VersionPlugin.versionSetting.value,
     scalaVersion := crossScalaVersions.value.head,
     crossScalaVersions := List(libraries.scalaVersion),
-    semanticdbEnabled := true
+    organization := "africa.shuwari",
+    description := "Simple utilities and data structures for the management of application versioning.",
+    homepage := Some(url("https://github.com/shuwarifrica/version")),
+    startYear := Some(2023),
+    semanticdbEnabled := true,
+    scmInfo := ScmInfo(
+      url("https://github.com/shuwariafrica/version"),
+      "scm:git:https://github.com/shuwariafrica/version.git",
+      Some("scm:git:git@github.com:shuwariafrica/version.git")
+    ).some
   ) ++ formattingSettings
 )
 
@@ -41,6 +72,46 @@ def formattingSettings =
   )
 
 def libraryDependency(library: Def.Initialize[ModuleID]) = libraryDependencies += library.value
+
+def publishCredentials = credentials := List(
+  Credentials(
+    "Sonatype Nexus Repository Manager",
+    sonatypeCredentialHost.value,
+    System.getenv("PUBLISH_USER"),
+    System.getenv("PUBLISH_USER_PASSPHRASE")
+  )
+)
+
+def publishSettings = publishCredentials +: pgpSettings ++: List(
+  packageOptions += Package.ManifestAttributes(
+    "Created-By" -> "Simple Build Tool",
+    "Built-By" -> System.getProperty("user.name"),
+    "Build-Jdk" -> System.getProperty("java.version"),
+    "Specification-Title" -> name.value,
+    "Specification-Version" -> Keys.version.value,
+    "Specification-Vendor" -> organizationName.value,
+    "Implementation-Title" -> name.value,
+    "Implementation-Version" -> VersionPlugin.implementationVersionSetting.value,
+    "Implementation-Vendor-Id" -> organization.value,
+    "Implementation-Vendor" -> organizationName.value
+  ),
+  publishTo := sonatypePublishToBundle.value,
+  pomIncludeRepository := (_ => false),
+  publishMavenStyle := true,
+  sonatypeProfileSetting
+)
+
+def sonatypeProfileSetting = sonatypeProfileName := "africa.shuwari"
+
+def pgpSettings = List(
+  PgpKeys.pgpSelectPassphrase :=
+    sys.props
+      .get("SIGNING_KEY_PASSPHRASE")
+      .map(_.toCharArray),
+  usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
+)
+
+def disableStaticAnalysisPlugins(p: Project) = p.disablePlugins(HeaderPlugin, ScalafixPlugin, ScalafmtPlugin)
 
 addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")
 
