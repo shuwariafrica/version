@@ -10,7 +10,6 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  SBT_OPTS: -J-Xmx5G -J-Xms1G -J-Xss2M
 
 jobs:
   test_jvm:

@@ -7,5 +7,6 @@ target/
 .bloop/
 .bsp
 .metals
+.sbtopts
 null/
 metals.sbt
