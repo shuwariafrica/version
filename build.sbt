@@ -52,6 +52,8 @@ inThisBuild(
     homepage := Some(url("https://github.com/shuwarifrica/version")),
     startYear := Some(2023),
     semanticdbEnabled := true,
+    sonatypeCredentialHost := "s01.oss.sonatype.org",
+    publishCredentials,
     scmInfo := ScmInfo(
       url("https://github.com/shuwariafrica/version"),
       "scm:git:https://github.com/shuwariafrica/version.git",
