@@ -127,7 +127,7 @@ jobs:
         run: sbt clean coverage "jvmProjects/test" "jvmProjects/coverageReport"
 
       - name: Generate Coverage Reports Summary
-        uses: irongut/CodeCoverageSummary@v1
+        uses: irongut/CodeCoverageSummary@v1.3.0
         with:
          filename: modules/*/.jvm/target/**/cobertura.xml
          format: markdown
