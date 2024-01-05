@@ -104,10 +104,47 @@ jobs:
       - name: Package Project Products
         run: sbt "jsProjects/package"
 
+  generate_coverage_report:
+    name: Generate Code Coverage Report
+    needs: [ test_jvm, test_native, test_js ]
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 11
+          check-latest: true
+
+      - name: Generate Coverage Reports
+        run: sbt clean coverage "jvmProjects/test" "jvmProjects/coverageReport"
+
+      - name: Generate Coverage Reports Summary
+        uses: irongut/CodeCoverageSummary@v1
+        with:
+         filename: modules/*/.jvm/target/**/cobertura.xml
+         format: markdown
+         hide_branch_rate: true
+         output: both
+         badge: true
+
+      - name: Add Coverage PR Comment
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          hide_and_recreate: true
+          path: code-coverage-results.md
 
   publish:
     name: Publish Release
-    needs: [ test_jvm, test_native, test_js ]
+    needs: [ test_jvm, test_native, test_js, generate_coverage_report ]
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-22.04
 
