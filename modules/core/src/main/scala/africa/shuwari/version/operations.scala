@@ -17,18 +17,20 @@
  *****************************************************************/
 package africa.shuwari.version
 
-import zio.prelude.Newtype
+import zio.prelude.*
 
 import scala.annotation.targetName
 
 extension [A <: Newtype[Int]](a: A) def increment(v: a.Type): a.Type = a.wrap(a.unwrap(v) + 1)
 
-extension [A <: VersionNumberField](a: A) def zero: a.Type = a(0)
-
+extension [A <: VersionNumberField](a: A)
+  def zero: a.Type = a(0)
+  
 extension (num: MajorVersion)
   @targetName("majorVersionValue") def value: Int = MajorVersion.unwrap(num)
   @targetName("majorVersionIncrement") def increment: MajorVersion = MajorVersion.increment(num)
-
+  def isZero(implicit equal: Equal[MajorVersion]): Boolean = num === MajorVersion(0)
+  
 extension (num: MinorVersion)
   @targetName("minorVersionValue") def value: Int = MinorVersion.unwrap(num)
   @targetName("minorVersionIncrement") def increment: MinorVersion = MinorVersion.increment(num)

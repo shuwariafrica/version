@@ -17,6 +17,8 @@
  *****************************************************************/
 package africa.shuwari.version
 
+import zio.prelude.EqualOps
+
 class VersionOperationsSuite extends munit.FunSuite:
   private inline def zero = 0
   private inline def initial = 10
@@ -37,6 +39,11 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(MinorVersion(zero), MinorVersion.zero)
     assertEquals(PatchNumber(zero), PatchNumber.zero)
 //    assertEquals(PreReleaseNumber(zero), PreReleaseNumber.zero)
+  }
+
+  test("MajorVersion instances provide a method to determine if value is zero.") {
+    assertEquals(MajorVersion(zero) === MajorVersion.zero, true)
+    assertEquals(MajorVersion(initial) === MajorVersion.zero, false)
   }
 
   test("MajorVersion instances provide an unwrapping method.")(assertEquals(zero, MajorVersion.zero.value))
