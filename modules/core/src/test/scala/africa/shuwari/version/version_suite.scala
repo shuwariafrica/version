@@ -113,6 +113,17 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(preReleases, preReleases.sorted)
   }
 
+  test("PreRelease instances cannot be initialised with PreReleaseNumbers for non numbered classifiers") {
+    intercept[AssertionError](PreRelease(PreReleaseClassifier.Snapshot, Some(PreReleaseNumber.wrap(1))))
+  }
+
+  test("PreRelease instances cannot be initialised without PreReleaseNumbers for numbered classifiers") {
+    intercept[AssertionError](PreRelease(PreReleaseClassifier.Milestone, None))
+    intercept[AssertionError](PreRelease(PreReleaseClassifier.Alpha, None))
+    intercept[AssertionError](PreRelease(PreReleaseClassifier.Beta, None))
+    intercept[AssertionError](PreRelease(PreReleaseClassifier.ReleaseCandidate, None))
+  }
+
   test("Version has correct Ordering") {
     val versions = List(
       Version(MajorVersion(0), MinorVersion(1), PatchNumber(0), PreRelease.milestone(PreReleaseNumber(10))),
