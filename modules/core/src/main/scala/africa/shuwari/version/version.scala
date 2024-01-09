@@ -21,6 +21,8 @@ import zio.prelude
 import zio.prelude.{Ordering as _, *}
 
 import africa.shuwari.version
+import africa.shuwari.version.PreRelease.validNonNumberedInstances
+import africa.shuwari.version.PreRelease.validNumberedInstances
 
 sealed abstract private class VersionNumberField extends Newtype[Int]:
   override inline def assertion: Assertion[Int] = Assertion.greaterThanOrEqualTo(0)
@@ -41,15 +43,20 @@ object PatchNumber extends VersionNumberField:
 type PatchNumber = PatchNumber.Type
 
 sealed abstract class PreReleaseClassifier(val aliases: NonEmptyList[String]) extends Product with Serializable:
+  private inline def matches(str: String): Boolean = aliases.find(str.equalsIgnoreCase).isDefined
   override def toString: String = aliases.head
 
 object PreReleaseClassifier:
+
+  def unapply(string: String): Option[PreReleaseClassifier] =
+    List(Milestone, Alpha, Beta, ReleaseCandidate, Snapshot, Unclassified).find(_.matches(string))
+
   case object Milestone extends PreReleaseClassifier(NonEmptyList("m", "milestone"))
   case object Alpha extends PreReleaseClassifier(NonEmptyList("alpha", "a"))
   case object Beta extends PreReleaseClassifier(NonEmptyList("beta", "b"))
   case object ReleaseCandidate extends PreReleaseClassifier(NonEmptyList("rc", "cr"))
   case object Snapshot extends PreReleaseClassifier(NonEmptyList("snapshot"))
-  case object Unclassified extends PreReleaseClassifier(NonEmptyList("prerelease"))
+  case object Unclassified extends PreReleaseClassifier(NonEmptyList("unclassified"))
 
   given Ord[PreReleaseClassifier] with
     override protected def checkCompare(l: PreReleaseClassifier, r: PreReleaseClassifier): prelude.Ordering =
@@ -75,10 +82,27 @@ object PreReleaseNumber extends Newtype[Int]:
 
 type PreReleaseNumber = PreReleaseNumber.Type
 
-final case class PreRelease private (classifier: PreReleaseClassifier, number: Option[PreReleaseNumber]):
+final case class PreRelease(classifier: PreReleaseClassifier, number: Option[PreReleaseNumber]):
+  assert(validNonNumberedInstances(classifier, number), "Snapshot PreRelease instances cannot have a number defined.")
+  assert(validNumberedInstances(classifier, number), "Only Snapshot PreRelease instances cannot have a number defined.")
   override def toString: String = s"$classifier${number.getOrElse("")}"
 
 object PreRelease:
+
+  private inline def nonNumberedPreReleaseClassifier(classifier: PreReleaseClassifier): Boolean =
+    classifier === PreReleaseClassifier.Snapshot || classifier === PreReleaseClassifier.Unclassified
+
+  private inline def validNonNumberedInstances(
+    classifier: PreReleaseClassifier,
+    number: Option[PreReleaseNumber]): Boolean =
+    if nonNumberedPreReleaseClassifier(classifier) then if number.isEmpty then true else false
+    else true
+
+  private inline def validNumberedInstances(
+    classifier: PreReleaseClassifier,
+    number: Option[PreReleaseNumber]): Boolean =
+    if !nonNumberedPreReleaseClassifier(classifier) then if number.nonEmpty then true else false
+    else true
 
   def snapshot: PreRelease = PreRelease(PreReleaseClassifier.Snapshot, None)
   def unclassified: PreRelease = PreRelease(PreReleaseClassifier.Unclassified, None)
@@ -95,6 +119,7 @@ object PreRelease:
       case _ => Ord[PreReleaseClassifier].compare(l.classifier, r.classifier)
 
   given Ordering[PreRelease] = Ord[PreRelease].toScala
+end PreRelease
 
 final case class Version(
   majorVersion: MajorVersion,
