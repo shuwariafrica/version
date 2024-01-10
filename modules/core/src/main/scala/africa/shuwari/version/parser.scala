@@ -24,7 +24,7 @@ import africa.shuwari.version.MinorVersion
 import africa.shuwari.version.PatchNumber
 import africa.shuwari.version.PreReleaseNumber
 
-object Parser:
+object VersionParser:
 
   def version(version: String): Option[Version] =
     def pattern: Regex =
@@ -36,9 +36,10 @@ object Parser:
             MajorVersion.wrap(major.toInt),
             MinorVersion.wrap(minor.toInt),
             PatchNumber.wrap(patch.toInt),
-            Option(pre).map(Parser.preRelease(_))))
+            Option(pre).map(VersionParser.preRelease(_))))
       case _ => None
 
+  // FIXME: Handle validation of non supported pre-release classifiers/patterns
   private inline def preRelease(str: String): PreRelease = str match
     case alphaPreReleasePattern(_, ver)     => PreRelease.alpha(PreReleaseNumber.wrap(ver.toInt))
     case betaPreReleasePattern(_, ver)      => PreRelease.beta(PreReleaseNumber.wrap(ver.toInt))
@@ -61,4 +62,4 @@ object Parser:
   private inline def snapshotPattern: Regex = """(?i)^(snapshot)$""".r
 
   private inline def genericPreReleasePattern = """(.+)""".r
-end Parser
+end VersionParser

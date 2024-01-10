@@ -17,7 +17,7 @@
  *****************************************************************/
 package africa.shuwari.version
 
-class ParserSuite extends munit.FunSuite:
+class VersionParserSuite extends munit.FunSuite:
 
   val baseVersionStrings = Map(
     "0.0.1" -> Version(MajorVersion.wrap(0), MinorVersion.wrap(0), PatchNumber.wrap(1)),
@@ -85,29 +85,29 @@ class ParserSuite extends munit.FunSuite:
   test("Non-PreRelease versions are parsed correctly")(assertVersionsEqual(baseVersionStrings))
 
   test("'alpha' PreRelease versions are parsed correctly")(
-    alphaVersions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    alphaVersions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   test("'beta' PreRelease versions are parsed correctly")(
-    betaVersions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    betaVersions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   test("'milestone' PreRelease versions are parsed correctly")(
-    milestoneVersions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    milestoneVersions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   test("'rc' PreRelease versions are parsed correctly")(
-    releaseCandidateVersions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    releaseCandidateVersions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   test("'snapshot' PreRelease versions are parsed correctly")(
-    snapshotVersions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    snapshotVersions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   test("'unclassified' PreRelease versions are parsed correctly")(
-    unclassifiedPreReleases.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2))))
+    unclassifiedPreReleases.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2))))
 
   private inline def assertVersionsEqual(versions: Map[String, Version]): Unit =
-    versions.foreach(kv => assertEquals(Parser.version(kv._1), Some(kv._2)))
+    versions.foreach(kv => assertEquals(VersionParser.version(kv._1), Some(kv._2)))
 
   private inline def joinVersions(pair: Map[String, PreRelease]): Map[String, Version] = pair.flatMap { kv =>
     baseVersionStrings
       .map(ver => (s"${ver._1}-${kv._1}", ver._2.copy(preRelease = Some(kv._2))))
   }
 
-end ParserSuite
+end VersionParserSuite
