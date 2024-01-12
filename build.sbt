@@ -5,6 +5,7 @@ val libraries = new {
   val `jsoniter-scala-macros` =
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.27.1" % Provided)
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.0.0-M10")
+  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.6.2")
   val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC21")
 }
 
@@ -21,19 +22,19 @@ lazy val jvmProjects =
   project
     .in(file(".jvm"))
     .notPublished
-    .aggregate(version.jvm, `version-codecs-jsoniter`.jvm)
+    .aggregate(version.jvm, `version-codecs-jsoniter`.jvm, `version-codecs-zio`.jvm)
 
 lazy val nativeProjects =
   project
     .in(file(".native"))
     .notPublished
-    .aggregate(version.native, `version-codecs-jsoniter`.native)
+    .aggregate(version.native, `version-codecs-jsoniter`.native, `version-codecs-zio`.native)
 
 lazy val jsProjects =
   project
     .in(file(".js"))
     .notPublished
-    .aggregate(version.js, `version-codecs-jsoniter`.js)
+    .aggregate(version.js, `version-codecs-jsoniter`.js, `version-codecs-zio`.js)
 
 lazy val version =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -58,6 +59,18 @@ lazy val `version-codecs-jsoniter` =
     .dependsOn(version)
     .settings(libraryDependency(libraries.`jsoniter-scala`))
     .settings(libraryDependency(libraries.`jsoniter-scala-macros`))
+
+lazy val `version-codecs-zio` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/codecs-zio"))
+    .jsConfigure(disableStaticAnalysisPlugins)
+    .nativeConfigure(disableStaticAnalysisPlugins)
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+    .dependsOn(version)
+    .settings(libraryDependency(libraries.`zio-json`))
 
 inThisBuild(
   List(
