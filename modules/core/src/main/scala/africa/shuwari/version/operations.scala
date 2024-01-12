@@ -28,7 +28,7 @@ extension [A <: VersionNumberField](a: A) def zero: a.Type = a(0)
 extension (num: MajorVersion)
   @targetName("majorVersionValue") def value: Int = MajorVersion.unwrap(num)
   @targetName("majorVersionIncrement") def increment: MajorVersion = MajorVersion.increment(num)
-  def isZero: Boolean = num === MajorVersion(0)
+  def preRelease: Boolean = num === MajorVersion(0)
 
 extension (num: MinorVersion)
   @targetName("minorVersionValue") def value: Int = MinorVersion.unwrap(num)

@@ -79,7 +79,7 @@ object jsoniter:
       input match
         case PreReleaseClassifier(v) => v
         case _                       => in.decodeError("Error decoding PreReleaseClassifier instance.")
-    override def encodeValue(x: PreReleaseClassifier, out: JsonWriter): Unit = out.writeVal(x.aliases.head)
+    override def encodeValue(x: PreReleaseClassifier, out: JsonWriter): Unit = out.writeVal(x.toString)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
     override def nullValue: PreReleaseClassifier = null.asInstanceOf[PreReleaseClassifier]
     // scalafix:on
