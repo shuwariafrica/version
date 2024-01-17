@@ -6,7 +6,7 @@ val libraries = new {
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.27.1" % Provided)
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.0.0-M10")
   val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.6.2")
-  val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC21")
+  val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC22")
 }
 
 lazy val `version-root` =
