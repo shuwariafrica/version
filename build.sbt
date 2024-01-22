@@ -1,9 +1,9 @@
 val libraries = new {
   val scalaVersion = "3.3.1"
   val `jsoniter-scala` =
-    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.27.1")
+    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.27.4")
   val `jsoniter-scala-macros` =
-    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.27.1" % Provided)
+    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.27.4" % Provided)
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.0.0-M10")
   val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.6.2")
   val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC21")
