@@ -1,5 +1,5 @@
 val libraries = new {
-  val scalaVersion = "3.3.3"
+  val scalaVersion = "3.3.5"
   val `jsoniter-scala` =
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.27.7")
   val `jsoniter-scala-macros` =
