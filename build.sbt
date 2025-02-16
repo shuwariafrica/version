@@ -1,12 +1,11 @@
 val libraries = new {
-  val scalaVersion = "3.3.3"
   val `jsoniter-scala` =
-    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.27.7")
+    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.33.2")
   val `jsoniter-scala-macros` =
-    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.27.7" % Provided)
-  val munit = Def.setting("org.scalameta" %%% "munit" % "1.0.0-M11")
-  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.6.2")
-  val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC23")
+    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-macros" % "2.33.2" % Provided)
+  val munit = Def.setting("org.scalameta" %%% "munit" % "1.1.0")
+  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.7.21")
+  val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC39")
 }
 
 lazy val `version-root` =
@@ -22,27 +21,34 @@ lazy val jvmProjects =
   project
     .in(file(".jvm"))
     .notPublished
-    .aggregate(version.jvm, `version-codecs-jsoniter`.jvm, `version-codecs-zio`.jvm)
+    .aggregate(version.jvm, `version-zio-prelude`.jvm, `version-codecs-jsoniter`.jvm, `version-codecs-zio`.jvm)
 
 lazy val nativeProjects =
   project
     .in(file(".native"))
     .notPublished
-    .aggregate(version.native, `version-codecs-jsoniter`.native, `version-codecs-zio`.native)
+    .aggregate(version.native, `version-zio-prelude`.native, `version-codecs-jsoniter`.native, `version-codecs-zio`.native)
 
 lazy val jsProjects =
   project
     .in(file(".js"))
     .notPublished
-    .aggregate(version.js, `version-codecs-jsoniter`.js, `version-codecs-zio`.js)
+    .aggregate(version.js, `version-zio-prelude`.js, `version-codecs-jsoniter`.js, `version-codecs-zio`.js)
 
 lazy val version =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/core"))
-    .jsConfigure(disableStaticAnalysisPlugins)
-    .nativeConfigure(disableStaticAnalysisPlugins)
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+
+lazy val `version-zio-prelude` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/zio-prelude"))
+    .dependsOn(version)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.`zio-prelude`))
@@ -52,8 +58,6 @@ lazy val `version-codecs-jsoniter` =
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-jsoniter"))
-    .jsConfigure(disableStaticAnalysisPlugins)
-    .nativeConfigure(disableStaticAnalysisPlugins)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .dependsOn(version)
@@ -65,8 +69,6 @@ lazy val `version-codecs-zio` =
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-zio"))
-    .jsConfigure(disableStaticAnalysisPlugins)
-    .nativeConfigure(disableStaticAnalysisPlugins)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .dependsOn(version)
@@ -74,9 +76,8 @@ lazy val `version-codecs-zio` =
 
 inThisBuild(
   List(
-    Keys.version := VersionPlugin.versionSetting.value,
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List(libraries.scalaVersion),
+    crossScalaVersions := List("3.3.5"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
@@ -123,7 +124,7 @@ def publishSettings = publishCredentials +: pgpSettings ++: List(
     "Specification-Version" -> Keys.version.value,
     "Specification-Vendor" -> organizationName.value,
     "Implementation-Title" -> name.value,
-    "Implementation-Version" -> VersionPlugin.implementationVersionSetting.value,
+    "Implementation-Version" -> fullVersion.value,
     "Implementation-Vendor-Id" -> organization.value,
     "Implementation-Vendor" -> organizationName.value
   ),
