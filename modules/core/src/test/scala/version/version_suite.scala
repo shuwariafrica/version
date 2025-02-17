@@ -144,6 +144,7 @@ class VersionSuite extends munit.FunSuite:
     type E = InvalidNumberedPreRelease
     intercept[E](PreRelease(PreReleaseClassifier.ReleaseCandidate, None))
   }
+
   test("Version has correct Ordering") {
     val versions = List(
       Version(MajorVersion(0), MinorVersion(1), PatchNumber(0), PreRelease.milestone(PreReleaseNumber(10))),
@@ -162,8 +163,14 @@ class VersionSuite extends munit.FunSuite:
 
   test("Stable versions identified correctly") {
     val version = Version(MajorVersion(0), MinorVersion(1), PatchNumber(0), PreRelease.milestone(PreReleaseNumber(10)))
-    assertEquals(version.stable, false)
-    assertEquals(version.copy(preRelease = None).stable, true)
+    assertEquals(Version.isStable(version), false)
+    assertEquals(Version.isStable(version.copy(major = MajorVersion(1), preRelease = None)), true)
+  }
+
+  test("Pre-release versions identified correctly") {
+    val version = Version(MajorVersion(0), MinorVersion(1), PatchNumber(0), PreRelease.milestone(PreReleaseNumber(10)))
+    assertEquals(Version.isPreRelease(version), true)
+    assertEquals(Version.isPreRelease(version.copy(major = MajorVersion(1))), true)
   }
 
 end VersionSuite

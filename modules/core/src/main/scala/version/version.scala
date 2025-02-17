@@ -22,13 +22,7 @@ import scala.language.strictEquality
 import version.PreReleaseClassifier.aliases
 import version.errors.*
 
-/** Parses a pre-release string into a `PreRelease` object.
-  *
-  * @param str
-  *   the pre-release string to parse.
-  * @return
-  *   a `PreRelease` object.
-  */
+/** Represents a major version number. */
 opaque type MajorVersion = Int
 
 /** Represents a minor version number. */
@@ -40,48 +34,25 @@ opaque type PatchNumber = Int
 /** Represents a pre-release number. */
 opaque type PreReleaseNumber = Int
 
-/** Trait for version number field objects.
-  *
-  * @tparam T
-  *   the type of the version number field.
-  */
 sealed trait VersionNumberField[T]:
-  /** The initial value of the version number field. */
-  def initial: T
+  /** The reset value for the field. */
+  def reset: T
 
   /** Creates a version number field from an integer value.
-    * @return
-    *   the version number field.
     * @throws InvalidNumericField
     *   if the value is invalid.
     */
-  def apply(v: Int): T
+  inline def apply(v: Int): T
 
-  /** Extracts the integer value from a version number field.
-    *
-    * @param v
-    *   the version number field.
-    * @return
-    *   the integer value.
+  /** Creates a version number field from an integer value, returning an [[InvalidNumericField]] if the value is
+    * invalid.
     */
-  def unnapply(v: T): Int = unwrap(v)
+  inline def make(v: Int): Either[InvalidNumericField, T]
 
-  /** Creates a version number field from an integer value, returning an error if the value is invalid.
-    * @return
-    *   either the version number field or an [[InvalidNumericField]] error.
-    */
-  def make(v: Int): Either[InvalidNumericField, T]
+  /** Unwraps the version number field to its integer value. */
+  inline def unwrap(v: T): Int
 
-  /** Unwraps the version number field to its integer value.
-    *
-    * @param v
-    *   the version number field.
-    * @return
-    *   the integer value.
-    */
-  def unwrap(v: T): Int
-
-  def increment(v: T): T = apply(unwrap(v) + 1)
+  inline def increment(v: T): T = apply(unwrap(v) + 1)
 
   /** Combines two version number fields by adding their integer values.
     *
@@ -92,9 +63,9 @@ sealed trait VersionNumberField[T]:
     * @return
     *   the combined version number field.
     */
-  def combine(v1: T, v2: T): T = apply(unwrap(v1) + unwrap(v2))
+  inline def combine(v1: T, v2: T): T = apply(unwrap(v1) + unwrap(v2))
   given CanEqual[T, T] = CanEqual.derived
-  given Ordering[T] = Ordering[Int].on(unwrap)
+  inline given Ordering[T] = Ordering[Int].on(unwrap)
 end VersionNumberField
 
 private inline def versionNumber[T](v: Int, minimumValue: Int, f: Int => T, e: Int => VersionError): T =
@@ -104,31 +75,33 @@ private inline def makeVersionNumber[T, E <: VersionError](v: Int, minimumValue:
   Either.cond(v >= minimumValue, f(v), e(v))
 
 object MajorVersion extends VersionNumberField[MajorVersion]:
-  final override val initial = MajorVersion(0)
-  override def apply(value: Int): MajorVersion = versionNumber(value, 0, identity, InvalidMajorVersion.apply)
-  override def make(value: Int): Either[InvalidMajorVersion, MajorVersion] =
+  final override val reset = MajorVersion(0)
+  override inline def apply(value: Int): MajorVersion = versionNumber(value, 0, identity, InvalidMajorVersion.apply)
+  override inline def make(value: Int): Either[InvalidMajorVersion, MajorVersion] =
     makeVersionNumber(value, 0, MajorVersion.apply, InvalidMajorVersion.apply)
-  override def unwrap(v: MajorVersion): Int = v
+  override inline def unwrap(v: MajorVersion): Int = v
+  def isStable(v: MajorVersion): Boolean = v != MajorVersion(0) // scalafix:ok
 
 object MinorVersion extends VersionNumberField[MinorVersion]:
-  final val initial = MinorVersion(0)
-  override def apply(value: Int): MinorVersion = versionNumber(value, 0, identity, InvalidMinorVersion.apply)
-  override def make(value: Int): Either[InvalidMinorVersion, MinorVersion] =
+  final val reset = MinorVersion(0)
+  override inline def apply(value: Int): MinorVersion = versionNumber(value, 0, identity, InvalidMinorVersion.apply)
+  override inline def make(value: Int): Either[InvalidMinorVersion, MinorVersion] =
     makeVersionNumber(value, 0, MinorVersion.apply, InvalidMinorVersion.apply)
-  override def unwrap(v: MinorVersion): Int = v
+  override inline def unwrap(v: MinorVersion): Int = v
 
 object PatchNumber extends VersionNumberField[PatchNumber]:
-  final val initial = PatchNumber(0)
-  def apply(value: Int): PatchNumber = versionNumber(value, 0, identity, InvalidPatchNumber.apply)
-  def make(value: Int): Either[InvalidPatchNumber, PatchNumber] = makeVersionNumber(value, 0, PatchNumber.apply, InvalidPatchNumber.apply)
-  def unwrap(v: PatchNumber): Int = v
+  final val reset = PatchNumber(0)
+  inline def apply(value: Int): PatchNumber = versionNumber(value, 0, identity, InvalidPatchNumber.apply)
+  inline def make(value: Int): Either[InvalidPatchNumber, PatchNumber] =
+    makeVersionNumber(value, 0, PatchNumber.apply, InvalidPatchNumber.apply)
+  inline def unwrap(v: PatchNumber): Int = v
 
 object PreReleaseNumber extends VersionNumberField[PreReleaseNumber]:
-  final val initial = PreReleaseNumber(1)
-  def apply(value: Int): PreReleaseNumber = versionNumber(value, 1, identity, InvalidPreReleaseNumber.apply)
-  def make(value: Int): Either[InvalidPreReleaseNumber, PreReleaseNumber] =
+  final val reset = PreReleaseNumber(1)
+  inline def apply(value: Int): PreReleaseNumber = versionNumber(value, 1, identity, InvalidPreReleaseNumber.apply)
+  inline def make(value: Int): Either[InvalidPreReleaseNumber, PreReleaseNumber] =
     makeVersionNumber(value, 1, PreReleaseNumber.apply, InvalidPreReleaseNumber.apply)
-  def unwrap(v: PreReleaseNumber): Int = v
+  inline def unwrap(v: PreReleaseNumber): Int = v
 
 /** Enum representing supported pre-release classifiers. */
 enum PreReleaseClassifier:
@@ -143,7 +116,7 @@ object PreReleaseClassifier:
     * @param string
     *   the string representation of the classifier.
     * @return
-    *   an `Option[PreReleaseClassifier]` if the string matches a classifier, None otherwise.
+    *   an `Option[PreReleaseClassifier]` if the string matches a supported classifier alias, None otherwise.
     */
   def unapply(string: String): Option[PreReleaseClassifier] = classifierMap.get(string.toLowerCase)
 
@@ -223,75 +196,37 @@ end PreRelease
   * @param patch
   *   the patch number. Incremented for backwards-compatible bug fixes.
   * @param preRelease
-  *   the optional pre-release component. Used to denote pre-release versions (e.g., alpha, beta).
+  *   the optional pre-release component. Used to denote pre-release versions (e.g., alpha1, rc5).
   */
 final case class Version(major: MajorVersion, minor: MinorVersion, patch: PatchNumber, preRelease: Option[PreRelease]):
-  /** Retrieves the components of the version as a tuple.
-    *
-    * @return
-    *   a tuple containing the major, minor, patch, and optional pre-release components.
-    */
-  def parts: (MajorVersion, MinorVersion, PatchNumber, Option[PreRelease]) = (major, minor, patch, preRelease)
-
-  /** Checks if the version is stable (i.e., does not have a pre-release component). */
-  def stable: Boolean = preRelease.isEmpty
-
   override def toString: String =
     s"$major.$minor.$patch${preRelease.map(preRelease => "-" + preRelease).getOrElse("")}"
 
-/** Companion object for [[Version]].
-  *
-  * Provides factory methods for creating `Version` instances and related functionality.
-  */
+/** Provides factory methods for creating and interacting with [[Version]] instances. */
 object Version:
-  /** Creates a `Version` instance without a pre-release component.
-    *
-    * @param majorVersion
-    *   the major version.
-    * @param minorVersion
-    *   the minor version.
-    * @param patchNumber
-    *   the patch number.
-    * @return
-    *   a `Version` instance.
-    */
-  def apply(majorVersion: MajorVersion, minorVersion: MinorVersion, patchNumber: PatchNumber): Version =
+  /** Creates a `Version` instance without a pre-release component. */
+  inline def apply(majorVersion: MajorVersion, minorVersion: MinorVersion, patchNumber: PatchNumber): Version =
     apply(majorVersion, minorVersion, patchNumber, None)
 
-  /** Creates a `Version` instance from a tuple without a pre-release component.
-    *
-    * @param parts
-    *   a tuple containing the major, minor, and patch components.
-    * @return
-    *   a `Version` instance.
-    */
-  def apply(parts: (MajorVersion, MinorVersion, PatchNumber)): Version = apply(parts._1, parts._2, parts._3, None)
+  /** Creates a `Version` instance from a tuple without a pre-release component. */
+  inline def apply(parts: (MajorVersion, MinorVersion, PatchNumber)): Version = apply(parts._1, parts._2, parts._3, None)
 
-  /** Creates a `Version` instance from a tuple with a pre-release component.
-    *
-    * @param parts
-    *   a tuple containing the major, minor, patch, and pre-release components.
-    * @return
-    *   a `Version` instance.
-    */
-  def apply(parts: (MajorVersion, MinorVersion, PatchNumber, PreRelease)): Version =
+  /** Creates a `Version` instance from a tuple with a pre-release component. */
+  inline def apply(parts: (MajorVersion, MinorVersion, PatchNumber, PreRelease)): Version =
     apply(parts._1, parts._2, parts._3, Some(parts._4))
 
-  /** Creates a `Version` instance with a pre-release component.
-    *
-    * @param majorVersion
-    *   the major version.
-    * @param minorVersion
-    *   the minor version.
-    * @param patchNumber
-    *   the patch number.
-    * @param preRelease
-    *   the pre-release component.
-    * @return
-    *   a `Version` instance.
-    */
-  def apply(majorVersion: MajorVersion, minorVersion: MinorVersion, patchNumber: PatchNumber, preRelease: PreRelease): Version =
+  /** Creates a `Version` instance with a pre-release component. */
+  inline def apply(majorVersion: MajorVersion, minorVersion: MinorVersion, patchNumber: PatchNumber, preRelease: PreRelease): Version =
     apply(majorVersion, minorVersion, patchNumber, Some(preRelease))
+
+  /** Retrieves the components of the version as a tuple. */
+  inline def parts(v: Version): (MajorVersion, MinorVersion, PatchNumber, Option[PreRelease]) = (v.major, v.minor, v.patch, v.preRelease)
+
+  /** Returns true if the major version of the provided version is not 0, false otherwise. */
+  inline def isStable(v: Version): Boolean = MajorVersion.isStable(v.major)
+
+  /** Returns true if the version is a pre-release version, false otherwise. */
+  inline def isPreRelease(v: Version): Boolean = v.preRelease.nonEmpty
 
   given Ordering[Version] =
     given Ordering[Option[PreRelease]] with
