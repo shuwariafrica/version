@@ -25,41 +25,29 @@ class VersionOperationsSuite extends munit.FunSuite:
   private val testVersion =
     Version(MajorVersion(1), MinorVersion(1), PatchNumber(1), PreRelease.snapshot)
 
-  test("Newtype[Int] instances provide an increment function.") {
-    assertEquals(MajorVersion(incremented), MajorVersion.increment(MajorVersion(testValue)))
-    assertEquals(MinorVersion(incremented), MinorVersion.increment(MinorVersion(testValue)))
-    assertEquals(PatchNumber(incremented), PatchNumber.increment(PatchNumber(testValue)))
-    assertEquals(PreReleaseNumber(incremented), PreReleaseNumber.increment(PreReleaseNumber(testValue)))
+  test("VersionNumberField instances provide a factory for the respective initial supported version.") {
+    assertEquals(MajorVersion.reset, MajorVersion(zero))
+    assertEquals(MinorVersion.reset, MinorVersion(zero))
+    assertEquals(PatchNumber.reset, PatchNumber(zero))
+    assertEquals(PreReleaseNumber.reset, PreReleaseNumber(zero + 1))
   }
 
-  test("VersionNumberField instances provide a factory for zero.") {
-    assertEquals(MajorVersion(zero), MajorVersion.initial)
-    assertEquals(MinorVersion(zero), MinorVersion.initial)
-    assertEquals(PatchNumber(zero), PatchNumber.initial)
-//    assertEquals(PreReleaseNumber(zero), PreReleaseNumber.zero)
-  }
+  test("MajorVersion instances provide an unwrapping method.")(assertEquals(MajorVersion.reset.value, zero))
 
-  test("MajorVersion instances provide a method to determine if value is zero.") {
-    assertEquals(MajorVersion(zero) == MajorVersion.initial, true) // scalafix:ok
-    assertEquals(MajorVersion(testValue) == MajorVersion.initial, false) // scalafix:ok
-  }
+  test("MinorVersion instances provide an unwrapping method.")(assertEquals(MinorVersion.reset.value, zero))
 
-  test("MajorVersion instances provide an unwrapping method.")(assertEquals(zero, MajorVersion.initial.value))
+  test("PatchNumber instances provide an unwrapping method.")(assertEquals(PatchNumber.reset.value, zero))
 
-  test("MinorVersion instances provide an unwrapping method.")(assertEquals(zero, MinorVersion.initial.value))
+  test("PreReleaseNumber instances provide an unwrapping method.")(assertEquals(PreReleaseNumber(10).value, testValue))
 
-  test("PatchNumber instances provide an unwrapping method.")(assertEquals(zero, PatchNumber.initial.value))
+  test("MajorVersion instances provide an increment method.")(assertEquals(MajorVersion(testValue).increment, MajorVersion(incremented)))
 
-  test("PreReleaseNumber instances provide an unwrapping method.")(assertEquals(testValue, PreReleaseNumber(10).value))
+  test("MinorVersion instances provide an increment method.")(assertEquals(MinorVersion(testValue).increment, MinorVersion(incremented)))
 
-  test("MajorVersion instances provide an increment method.")(assertEquals(MajorVersion(incremented), MajorVersion(testValue).increment))
-
-  test("MinorVersion instances provide an increment method.")(assertEquals(MinorVersion(incremented), MinorVersion(testValue).increment))
-
-  test("PatchNumber instances provide an increment method.")(assertEquals(PatchNumber(incremented), PatchNumber(testValue).increment))
+  test("PatchNumber instances provide an increment method.")(assertEquals(PatchNumber(testValue).increment, PatchNumber(incremented)))
 
   test("PreReleaseNumber instances provide an increment method.")(
-    assertEquals(PreReleaseNumber(incremented), PreReleaseNumber(testValue).increment))
+    assertEquals(PreReleaseNumber(testValue).increment, PreReleaseNumber(incremented)))
 
   test("Version instances provide a 'MajorVersion' increment method.")(
     assertEquals(testVersion.incrementMajorVersion, Version(MajorVersion(2), MinorVersion(0), PatchNumber(0)))
@@ -69,7 +57,34 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(testVersion.incrementMinorVersion, Version(MajorVersion(1), MinorVersion(2), PatchNumber(0)))
   )
 
-  test("Version instances provide a 'MajorVersion' increment method.")(
+  test("Version instances provide a 'PatchNumber' increment method.")(
     assertEquals(testVersion.incrementPatchNumber, Version(MajorVersion(1), MinorVersion(1), PatchNumber(2)))
   )
+
+  test("PreReleaseClassifier instances provide a method to retrieve aliases.") {
+    assertEquals(PreReleaseClassifier.Milestone.aliases.sorted, List("milestone", "m").sorted)
+    assertEquals(PreReleaseClassifier.Alpha.aliases.sorted, List("alpha", "a").sorted)
+    assertEquals(PreReleaseClassifier.Beta.aliases.sorted, List("beta", "b").sorted)
+    assertEquals(PreReleaseClassifier.ReleaseCandidate.aliases.sorted, List("rc", "cr").sorted)
+    assertEquals(PreReleaseClassifier.Snapshot.aliases.sorted, List("snapshot").sorted)
+    assertEquals(PreReleaseClassifier.Unclassified.aliases, List("unclassified"))
+  }
+
+  test("PreReleaseClassifier instances provide a method to check versioned status.") {
+    PreReleaseClassifier.values.foreach { classifier =>
+      val expected = classifier != PreReleaseClassifier.Snapshot && classifier != PreReleaseClassifier.Unclassified // scalafix:ok
+      assertEquals(classifier.versioned, expected)
+    }
+  }
+
+  test("PreRelease instances provide methods to determine their classifier.") {
+    val preRelease = PreRelease.milestone(PreReleaseNumber(1))
+    assert(preRelease.milestone)
+    assert(!preRelease.alpha)
+    assert(!preRelease.beta)
+    assert(!preRelease.rc)
+    assert(!preRelease.snapshot)
+    assert(!preRelease.unclassified)
+  }
+
 end VersionOperationsSuite
