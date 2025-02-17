@@ -105,7 +105,7 @@ object PreReleaseNumber extends VersionNumberField[PreReleaseNumber]:
 
 /** Enum representing supported pre-release classifiers. */
 enum PreReleaseClassifier:
-  case Milestone, Alpha, Beta, ReleaseCandidate, Snapshot, Unclassified
+  case Unclassified, Milestone, Alpha, Beta, ReleaseCandidate, Snapshot
   override def toString: String = aliases(this).head
 
 object PreReleaseClassifier:
