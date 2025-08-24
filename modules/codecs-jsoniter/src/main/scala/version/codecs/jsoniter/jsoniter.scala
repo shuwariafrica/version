@@ -1,20 +1,3 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
 package version.codecs.jsoniter
 
 import com.github.plokhotnyuk.jsoniter_scala.core.*
@@ -26,11 +9,11 @@ import version.*
 
 given JsonValueCodec[MajorVersion] =
   new JsonValueCodec[MajorVersion]:
-    override def decodeValue(in: JsonReader, default: MajorVersion): MajorVersion =
-      MajorVersion.make(in.readInt()) match
+    override inline def decodeValue(in: JsonReader, default: MajorVersion): MajorVersion =
+      MajorVersion.from(in.readInt()) match
         case Right(v) => v
         case Left(e)  => in.decodeError("Error decoding MajorVersion instance. See: " + e.message)
-    override def encodeValue(x: MajorVersion, out: JsonWriter): Unit = out.writeVal(MajorVersion.unwrap(x))
+    override inline def encodeValue(x: MajorVersion, out: JsonWriter): Unit = out.writeVal(x.value)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
     override def nullValue: MajorVersion = null.asInstanceOf[MajorVersion]
     // scalafix:on
@@ -38,10 +21,10 @@ given JsonValueCodec[MajorVersion] =
 given JsonValueCodec[MinorVersion] =
   new JsonValueCodec[MinorVersion]:
     override def decodeValue(in: JsonReader, default: MinorVersion): MinorVersion =
-      MinorVersion.make(in.readInt()) match
+      MinorVersion.from(in.readInt()) match
         case Right(v) => v
         case Left(e)  => in.decodeError("Error decoding MinorVersion instance. " + e.message)
-    override def encodeValue(x: MinorVersion, out: JsonWriter): Unit = out.writeVal(MinorVersion.unwrap(x))
+    override def encodeValue(x: MinorVersion, out: JsonWriter): Unit = out.writeVal(x.value)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
     override def nullValue: MinorVersion = null.asInstanceOf[MinorVersion]
     // scalafix:on
@@ -49,10 +32,10 @@ given JsonValueCodec[MinorVersion] =
 given JsonValueCodec[PatchNumber] =
   new JsonValueCodec[PatchNumber]:
     override def decodeValue(in: JsonReader, default: PatchNumber): PatchNumber =
-      PatchNumber.make(in.readInt()) match
+      PatchNumber.from(in.readInt()) match
         case Right(v) => v
         case Left(e)  => in.decodeError("Error decoding PatchNumber instance. " + e.message)
-    override def encodeValue(x: PatchNumber, out: JsonWriter): Unit = out.writeVal(PatchNumber.unwrap(x))
+    override def encodeValue(x: PatchNumber, out: JsonWriter): Unit = out.writeVal(x.value)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
     override def nullValue: PatchNumber = null.asInstanceOf[PatchNumber]
     // scalafix:on
@@ -60,10 +43,10 @@ given JsonValueCodec[PatchNumber] =
 given JsonValueCodec[PreReleaseNumber] =
   new JsonValueCodec[PreReleaseNumber]:
     override def decodeValue(in: JsonReader, default: PreReleaseNumber): PreReleaseNumber =
-      PreReleaseNumber.make(in.readInt()) match
+      PreReleaseNumber.from(in.readInt()) match
         case Right(v) => v
         case Left(e)  => in.decodeError("Error decoding PreReleaseNumber instance. " + e.message)
-    override def encodeValue(x: PreReleaseNumber, out: JsonWriter): Unit = out.writeVal(PreReleaseNumber.unwrap(x))
+    override def encodeValue(x: PreReleaseNumber, out: JsonWriter): Unit = out.writeVal(x.value)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
     override def nullValue: PreReleaseNumber = null.asInstanceOf[PreReleaseNumber]
     // scalafix:on
@@ -79,6 +62,23 @@ given JsonValueCodec[PreReleaseClassifier] = new JsonValueCodec[PreReleaseClassi
   override def nullValue: PreReleaseClassifier = null.asInstanceOf[PreReleaseClassifier]
   // scalafix:on
 
+// BuildMetadata is an opaque type over List[String]; encode/decode as a JSON array of strings
+given JsonValueCodec[BuildMetadata] =
+  // Use a codec for the underlying representation List[String]
+  val listCodec = JsonCodecMaker.make[List[String]]
+  new JsonValueCodec[BuildMetadata]:
+    override def decodeValue(in: JsonReader, default: BuildMetadata): BuildMetadata =
+      val ids = listCodec.decodeValue(in, Nil)
+      BuildMetadata.from(ids) match
+        case Right(v) => v
+        case Left(e)  => in.decodeError("Error decoding BuildMetadata instance. " + e.message)
+    override def encodeValue(x: BuildMetadata, out: JsonWriter): Unit =
+      // Use identifiers extension to unwrap
+      listCodec.encodeValue(x.identifiers, out)
+    // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
+    override def nullValue: BuildMetadata = null.asInstanceOf[BuildMetadata]
+    // scalafix:on
+
 given JsonValueCodec[PreRelease] =
   val underlying = JsonCodecMaker.make[PreRelease]
   new JsonValueCodec[PreRelease]:
@@ -90,4 +90,4 @@ given JsonValueCodec[PreRelease] =
     override def nullValue: PreRelease = null.asInstanceOf[PreRelease]
     // scalafix:on
 
-given JsonValueCodec[Version] = JsonCodecMaker.make
+given JsonValueCodec[Version] = JsonCodecMaker.make[Version]
