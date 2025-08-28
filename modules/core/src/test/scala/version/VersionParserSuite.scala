@@ -75,6 +75,33 @@ class VersionParserSuite extends munit.FunSuite:
     }
   }
 
+  test("Reject trailing dot in pre-release or build identifiers") {
+    val invalid = List(
+      "1.0.0-alpha.", // trailing dot
+      "1.0.0-alpha.1.", // trailing dot after numeric
+      "1.0.0+meta.", // trailing dot in build
+      "1.0.0+meta..build" // empty identifier in build
+    )
+    invalid.foreach(in => assert(in.toVersion.isLeft, clues(in)))
+  }
+
+  test("Reject numeric identifiers with leading zeros in pre-release") {
+    assertEquals("1.0.0-alpha.01".toVersion, Left(InvalidVersionFormat("1.0.0-alpha.01")))
+  }
+
+  test("Accept combined classifier+number forms (case-insensitive) and reject leading zero after split") {
+    val ok = "1.0.0-RC10".toVersion
+    assert(ok.exists(_.preRelease.exists(_.classifier == PreReleaseClassifier.ReleaseCandidate)))
+    // RC01 should split into RC + 01 then leading zero numeric invalid => unrecognized OR invalid format?
+    // After split we get identifiers List("RC", "01") -> numeric identifier has leading zero => structural invalid
+    assertEquals("1.0.0-RC01".toVersion, Left(InvalidVersionFormat("1.0.0-RC01")))
+  }
+
+  test("Build metadata multi identifiers accepted and rendered") {
+    val v = "1.2.3+build.abc-xyz.20250101".toVersion.toOption.get
+    assertEquals(v.buildMetadata.map(_.identifiers), Some(List("build", "abc-xyz", "20250101")))
+  }
+
   test("Reject leading zeros in numeric components (SemVer violation)") {
     assertEquals("01.2.3".toVersion, Left(InvalidVersionFormat("01.2.3")))
     assertEquals("1.02.3".toVersion, Left(InvalidVersionFormat("1.02.3")))

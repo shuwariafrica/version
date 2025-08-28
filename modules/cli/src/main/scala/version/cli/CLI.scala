@@ -1,25 +1,26 @@
 package version.cli
 
-import scopt.OParser
-import version.Version
-import version.cli.core.{VersionCliCore => Core}
-import version.cli.core.domain.CliConfig
-import version.cli.core.ResolutionError
-import version.cli.Options.OutputFormat
-import version.codecs.jsoniter.given
 import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
 import org.virtuslab.yaml.*
+import scopt.OParser
+
+import version.Version
+import version.cli.Options.OutputFormat
+import version.cli.core.ResolutionError
+import version.cli.core.VersionCliCore as Core
+import version.cli.core.domain.CliConfig
+import version.codecs.jsoniter.given
 import version.codecs.yaml.given
 
 /** Command-line entry point for version-cli.
- *
- * This CLI:
- *  - Parses flags using scopt
- *  - Invokes version-cli-core to resolve a Version for a repository
- *  - Prints the result in one or more formats: pretty | compact | json | yaml
- *
- * Effects are confined to main; underlying core remains pure.
- */
+  *
+  * This CLI:
+  *   - Parses flags using scopt
+  *   - Invokes version-cli-core to resolve a Version for a repository
+  *   - Prints the result in one or more formats: pretty | compact | json | yaml
+  *
+  * Effects are confined to main; underlying core remains pure.
+  */
 object CLI:
 
   def main(args: Array[String]): Unit =
@@ -49,6 +50,8 @@ object CLI:
       case None =>
         // scopt already printed errors/help.
         sys.exit(2)
+    end match
+  end main
 
   // --- Rendering ---
 
@@ -84,3 +87,4 @@ object CLI:
 
   private def renderError(e: ResolutionError): String =
     s"ERROR: ${e.message}"
+end CLI

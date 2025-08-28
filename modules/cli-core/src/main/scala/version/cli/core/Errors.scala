@@ -26,4 +26,9 @@ object ResolutionError:
   /** Generic message wrapper for unexpected situations. */
   final case class Message(msg: String) extends ResolutionError:
     def message: String = msg
+
+  /** Specific CLI validation error: unsupported --format value. */
+  final case class InvalidOutputFormat(value: String) extends ResolutionError:
+    def message: String =
+      s"Unknown output format: $value (allowed: pretty, compact, json, yaml)"
 end ResolutionError

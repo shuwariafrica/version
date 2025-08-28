@@ -1,18 +1,20 @@
 package version.cli
 
-import scopt.*
 import os.Path
+import scopt.*
+
+import version.cli.core.ResolutionError
 
 /** CLI options for version-cli. Pure data. */
 final case class Options(
-                          workDir: os.Path,
-                          basisCommit: String,
-                          prNumber: Option[Int],
-                          branchOverride: Option[String],
-                          shaLength: Int,
-                          formats: List[Options.OutputFormat],
-                          verbose: Boolean
-                        ) derives CanEqual
+  workDir: os.Path,
+  basisCommit: String,
+  prNumber: Option[Int],
+  branchOverride: Option[String],
+  shaLength: Int,
+  formats: List[Options.OutputFormat],
+  verbose: Boolean
+) derives CanEqual
 
 object Options:
   given CanEqual[Options, Options] = CanEqual.derived
@@ -33,7 +35,7 @@ object Options:
       case "compact" => OutputFormat.Compact
       case "json"    => OutputFormat.Json
       case "yaml"    => OutputFormat.Yaml
-      case other     => throw new IllegalArgumentException(s"Unknown format: $other")
+      case other     => throw ResolutionError.InvalidOutputFormat(other) // scalafix:ok
   }
 
   /** Default options. */
@@ -88,3 +90,5 @@ object Options:
         else success
       }
     )
+  end parser
+end Options
