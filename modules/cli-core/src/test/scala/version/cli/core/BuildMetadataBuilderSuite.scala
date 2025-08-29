@@ -1,4 +1,3 @@
-
 package version.cli.core
 
 import munit.FunSuite

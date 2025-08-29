@@ -5,7 +5,7 @@ import org.virtuslab.yaml.*
 import scopt.OParser
 
 import version.Version
-import version.cli.Options.OutputFormat
+import version.cli.CliOptions.given
 import version.cli.core.ResolutionError
 import version.cli.core.VersionCliCore as Core
 import version.cli.core.domain.CliConfig
@@ -28,63 +28,99 @@ import version.codecs.yaml.given
 object CLI:
 
   def main(args: Array[String]): Unit =
-    val parser = Options.parser
-    OParser.parse(parser, args, Options.default) match
-      case Some(opts) =>
-        // Set up logging configuration
-        val logConfig = LogConfig(isVerbose = opts.verbose, isCI = opts.ci)
-        // In CI we disable colours explicitly
-        val colourConfig = if opts.ci then ColourConfig(enableColours = false, isCI = true) else ColourConfig.fromEnvironment(false)
-        val logger = StandardLogger(logConfig, colourConfig)
+    val parser = CliOptions.parser
+    OParser.parse(parser, args, CliOptions.default) match
+      case Some(opts0) =>
+        // Possibly inject default console sink already applied by checkConfig; ensure style override for CI if needed.
+        val resolvedOpts = applyPostParseDefaults(opts0)
 
-        given Boolean = opts.verbose
+        val logConfig = LogConfig(isVerbose = resolvedOpts.verbose, isCI = resolvedOpts.ci)
+        val colourCfg =
+          if resolvedOpts.ci || resolvedOpts.noColour then ColourConfig(enableColours = false, isCI = resolvedOpts.ci)
+          else ColourConfig.fromEnvironment(resolvedOpts.ci)
+        val logger = StandardLogger(logConfig, colourCfg)
+
+        given Boolean = resolvedOpts.verbose
 
         logger.verbose(
-          s"Resolving in ${opts.workDir} at ${opts.basisCommit}; rawFormats=${opts.formats.mkString(",")}; ci=${opts.ci}",
+          s"Resolving in ${resolvedOpts.repository} at ${resolvedOpts.basisCommit}; sinks=${renderSinkSummary(resolvedOpts)}; ci=${resolvedOpts.ci}",
           "CLI")
 
-        val cfg = CliConfig(
-          repo = opts.workDir,
-          basisCommit = opts.basisCommit,
-          prNumber = opts.prNumber,
-          branchOverride = opts.branchOverride,
-          shaLength = opts.shaLength,
-          verbose = opts.verbose
-        )
-
-        // Determine effective formats: in CI force compact unless user explicitly asked for others.
-        val effectiveFormats =
-          if opts.ci && (opts.formats.isEmpty || opts.formats == List(OutputFormat.Pretty)) then List(OutputFormat.Compact)
-          else if opts.formats.isEmpty then List(OutputFormat.Pretty)
-          else opts.formats
-
-        Core.resolve(cfg, logger, opts.verbose) match
-          case Left(err) =>
-            logger.error(renderError(err))
-            sys.exit(1)
-          case Right(v) =>
-            val outputs = renderAll(v, effectiveFormats, opts.ci)
-            outputs.foreach(println)
-            sys.exit(0)
-      case None =>
-        // scopt already printed errors/help.
-        sys.exit(2)
+        resolvedOpts.command match
+          case rc: ResolveConfig =>
+            val cfg = CliConfig(
+              repo = resolvedOpts.repository,
+              basisCommit = resolvedOpts.basisCommit,
+              prNumber = resolvedOpts.prNumber,
+              branchOverride = resolvedOpts.branchOverride,
+              shaLength = resolvedOpts.shaLength,
+              verbose = resolvedOpts.verbose
+            )
+            Core.resolve(cfg, logger, resolvedOpts.verbose) match
+              case Left(err) =>
+                logger.error(renderError(err))
+                sys.exit(1)
+              case Right(version) =>
+                val (consoleOutputs, fileWrites) = render(version, rc, logger)(using resolvedOpts.verbose)
+                val failed = fileWrites.collect { case Left(m) => m }
+                if failed.nonEmpty then
+                  failed.foreach(logger.error(_))
+                  consoleOutputs.foreach(println)
+                  sys.exit(1)
+                consoleOutputs.foreach(println)
+                sys.exit(0)
+          case _: ReleaseConfig =>
+            logger.error("The 'release' command is not yet implemented.")
+            sys.exit(2)
+        end match
+      case None => sys.exit(2)
     end match
   end main
 
-  // --- Rendering ---
+  private def applyPostParseDefaults(o: CliOptions): CliOptions =
+    o.command match
+      case rc: ResolveConfig =>
+        val style =
+          if rc.consoleStyleExplicit then rc.consoleStyle
+          else if o.ci then ConsoleStyle.Compact
+          else rc.consoleStyle
+        val sinks1 = if rc.sinks.isEmpty then List(OutputSink(SinkKind.Console, None)) else rc.sinks
+        o.copy(command = rc.copy(sinks = dedupeSinks(sinks1), consoleStyle = style))
+      case _ => o
 
-  private def renderAll(v: Version, formats: List[OutputFormat], isCI: Boolean): List[String] =
-    formats.distinct.map {
-      case OutputFormat.Pretty  => renderPretty(v, isCI)
-      case OutputFormat.Compact => renderCompact(v)
-      case OutputFormat.Json    => renderJson(v)
-      case OutputFormat.Yaml    => renderYaml(v)
+  private def dedupeSinks(sinks: List[OutputSink]): List[OutputSink] =
+    // Allow duplicates when destinations differ; dedupe identical (kind, None)
+    sinks.foldLeft(List.empty[OutputSink]) { (acc, s) =>
+      if s.destination.isEmpty && acc.exists(o => o.kind == s.kind && o.destination.isEmpty) then acc else acc :+ s
     }
 
-  private def renderPretty(v: Version, isCI: Boolean): String =
-    // Human-readable multi-line summary. Currently we don't vary output by CI, but keep the param to allow future adjustments.
-    val _ = isCI // mark as used to satisfy -Werror unused parameter policy
+  private def render(version: Version, rc: ResolveConfig, logger: Logger)(using Boolean): (List[String], List[Either[String, Unit]]) =
+    val consoleBuf = scala.collection.mutable.ListBuffer.empty[String]
+    val fileResults = scala.collection.mutable.ListBuffer.empty[Either[String, Unit]]
+    rc.sinks.foreach { sink =>
+      val content = sink.kind match
+        case SinkKind.Console => renderConsole(version, rc.consoleStyle)
+        case SinkKind.Raw     => version.toString
+        case SinkKind.Json    => writeToString(version)
+        case SinkKind.Yaml    => version.asYaml
+      sink.destination match
+        case Some(path) =>
+          try
+            // ensure parent directories exist
+            os.makeDir.all(path / os.up)
+            os.write.over(path, content)
+            logger.verbose(s"Wrote ${sink.kind.toString.toLowerCase} output to $path", "CLI")
+            fileResults += Right(())
+          catch case t: Throwable => fileResults += Left(s"Failed to write $path: ${t.getMessage}")
+        case None => consoleBuf += content
+    }
+    (consoleBuf.toList, fileResults.toList)
+
+  private def renderConsole(v: Version, style: ConsoleStyle): String = style match
+    case ConsoleStyle.Pretty  => renderConsolePretty(v)
+    case ConsoleStyle.Compact => v.toString
+
+  private def renderConsolePretty(v: Version): String =
     val b = new StringBuilder
     b.append("Version:\n")
     b.append(s"  full      : ${v.toString}\n")
@@ -93,18 +129,15 @@ object CLI:
     b.append(s"  metadata  : ${v.buildMetadata.map(_.render).getOrElse("none")}\n")
     b.result()
 
-  private def renderCompact(v: Version): String =
-    // SemVer as a single line
-    v.toString
+  private def renderSinkSummary(o: CliOptions): String = o.command match
+    case rc: ResolveConfig =>
+      rc.sinks
+        .map {
+          case OutputSink(k, Some(p)) => s"${k.toString.toLowerCase}=$p"
+          case OutputSink(k, None)    => k.toString.toLowerCase
+        }
+        .mkString(",")
+    case _ => "<non-resolve>"
 
-  private def renderJson(v: Version): String =
-    // JSON via jsoniter-scala codecs from version.codecs.jsoniter
-    writeToString(v)
-
-  private def renderYaml(v: Version): String =
-    // YAML via scala-yaml codecs from version.codecs.yaml; .asYaml provided by the library
-    v.asYaml
-
-  private def renderError(e: ResolutionError): String =
-    s"ERROR: ${e.message}"
+  private def renderError(e: ResolutionError): String = s"ERROR: ${e.message}"
 end CLI

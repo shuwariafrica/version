@@ -27,8 +27,15 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
 
   // Basic repository presence heuristic; commands will still fail with details if not a repo
   private def checkRepo(): Either[ResolutionError, Unit] =
-    if os.exists(repoPath / ".git") || os.exists(repoPath / "HEAD") then Right(())
-    else Left(NotAGitRepository(repoPath))
+    // Use git plumbing so that any subdirectory within a repository is supported.
+    // "rev-parse --is-inside-work-tree" prints "true" when inside a work tree and exits 0.
+    if !os.exists(repoPath) then Left(NotAGitRepository(repoPath))
+    else
+      run(List("rev-parse", "--is-inside-work-tree"), check = false).flatMap { res =>
+        val txt = res.out.text().trim.toLowerCase
+        if res.exitCode == 0 && txt == "true" then Right(())
+        else Left(NotAGitRepository(repoPath))
+      }
 
   def resolveRev(rev: String): Either[ResolutionError, CommitSha] =
     for

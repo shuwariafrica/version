@@ -31,4 +31,16 @@ object ResolutionError:
   final case class InvalidOutputFormat(value: String) extends ResolutionError:
     def message: String =
       s"Unknown output format: $value (allowed: pretty, compact, json, yaml)"
+
+  /** CLI: unknown emit sink value. */
+  final case class InvalidSink(value: String) extends ResolutionError:
+    def message: String = s"Unknown sink '$value' (expected console|raw|json|yaml)"
+
+  /** CLI: invalid console style value. */
+  final case class InvalidConsoleStyle(value: String) extends ResolutionError:
+    def message: String = s"Invalid console-style '$value' (expected pretty|compact)"
+
+  /** CLI: empty path after '=' in an --emit specification. */
+  final case class EmptyEmitPath(spec: String) extends ResolutionError:
+    def message: String = s"Empty path after '=' in --emit $spec"
 end ResolutionError

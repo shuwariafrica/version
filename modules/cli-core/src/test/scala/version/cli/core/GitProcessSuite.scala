@@ -5,7 +5,8 @@ import munit.FunSuite
 import version.PreRelease
 import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
-import version.cli.core.logging.{NullLogger, Logger}
+import version.cli.core.logging.Logger
+import version.cli.core.logging.NullLogger
 
 final class GitProcessSuite extends FunSuite with TestRepoSupport:
 

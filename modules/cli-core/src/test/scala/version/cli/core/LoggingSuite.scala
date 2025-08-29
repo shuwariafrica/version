@@ -1,6 +1,7 @@
 package version.cli.core
 
 import munit.FunSuite
+
 import version.*
 import version.cli.core.domain.*
 import version.cli.core.git.GitProcess

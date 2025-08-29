@@ -257,47 +257,80 @@ Shorthand synonyms accepted: `breaking:`, `feature:`, `fix:`.
 
 ## 6. Module: `version-cli` (Pre‑Release)
 
-CLI wrapper; multiple output formats.
+High-level executable that wraps `version-cli-core`, handling argument parsing, multi-sink output, CI ergonomics and
+human vs machine readable formats.
+
+### Design Overview
+
+The CLI now separates **what** to emit (sinks) from **how** the human console is rendered (style):
+
+| Concept          | Flag / Argument                     | Notes |
+|------------------|-------------------------------------|-------|
+| Repository path  | `-r, --repository <path>`           | Any path inside the git repo (default: current dir) |
+| Basis commit     | `-b, --basis-commit <rev>`          | Commit-ish to resolve against (default: `HEAD`) |
+| PR number        | `--pr <n>`                          | Adds `pr<n>` metadata segment |
+| Branch override  | `--branch-override <name>`          | Bypass branch detection (e.g. CI env) |
+| SHA length       | `--sha-length <7..40>`              | Abbrev length for `sha<abbr>` metadata (default 12) |
+| Verbose logs     | `-v, --verbose`                     | Diagnostic tracing to stderr |
+| CI mode          | `--ci`                              | Forces compact console style & disables colours |
+| Disable colour   | `--no-colour` / `--no-color`        | Independent of `--ci` |
+| Emit sink        | `-e, --emit sink[=path]` (repeat)   | `console` | `raw` | `json` | `yaml` optionally with file target |
+| Console style    | `--console-style pretty|compact`    | Affects only `console` sink (default pretty; compact in CI) |
+| Help / Version   | `--help` / `--version`              | Standard scopt behaviours |
+
+Sinks:
+
+| Sink     | Description                                           | Default Destination |
+|----------|-------------------------------------------------------|---------------------|
+| console  | Human readable multi-line (pretty or compact)         | stdout              |
+| raw      | Pure SemVer string (no adornment)                     | stdout              |
+| json     | Structured JSON (stable fields subject to 1.0 final)  | stdout or file      |
+| yaml     | YAML representation                                   | stdout or file      |
+
+If no `--emit` is provided, a single `console` sink is assumed.
+
+`--console-style` only matters if at least one `console` sink is present (otherwise it is ignored).
+
+In CI (`--ci`), a missing explicit style auto-switches `console` to `compact`. You can still force pretty:
+`--ci --console-style pretty`.
 
 ### Usage Synopsis
 
 ```
-version-cli [options]
+version-cli [global options] [--emit sink[=file]]...
 
-Options:
-  -f, --format <fmt>         Output format (repeatable): pretty | compact | json | yaml
-  -d, --work-dir <path>      Repository working directory (default: .)
-  -b, --basis-commit <rev>   Commit-ish to resolve (default: HEAD)
-  -p, --pr <n>               PR number for metadata (pr<n>)
-  -B, --branch-override <s>  Override branch name used in metadata
-  -s, --sha-length <n>       Abbrev SHA length [7..40] (default: 12)
-  -v, --verbose              Verbose diagnostics
-      --version              Show CLI version
-      --help                 Help text
+Examples:
+  version-cli                          # pretty console output
+  version-cli --ci                     # compact console output
+  version-cli --emit raw               # just the version string
+  version-cli --emit console --console-style compact
+  version-cli --emit json=dist/version.json --emit yaml=dist/version.yaml
+  version-cli -r ../repo --pr 42 --emit console --emit raw
+  version-cli --basis-commit abcdef1234567890 --emit json
 ```
 
-### Examples
-
-**Compact single line:**
+### Sink Spec Grammar
 
 ```
-version-cli --format compact
-2.4.1
+<spec>  ::= <sink> ["=" <path>]
+<sink>  ::= console | raw | json | yaml
+<path>  ::= POSIX-like path (no spaces recommended)
 ```
 
-**Multiple formats:**
+Examples:
 
 ```
-version-cli -f compact -f json -f yaml
+--emit console              # console to stdout
+--emit raw                  # raw version to stdout
+--emit json=build/ver.json  # write JSON to file (parents created)
+--emit yaml                 # yaml to stdout
 ```
 
-**Basis commit override with PR context:**
+Multiple emits are independent. Ordering is preserved as provided on the command line.
 
-```
-version-cli -p 123 -b abcdef1234567890 -f pretty
-```
+### Pretty vs Compact
 
-**Pretty sample output:**
+Pretty console output (multi-line, annotated):
 
 ```
 Version:
@@ -307,7 +340,38 @@ Version:
   metadata  : +pr123.branchmain.commits4.sha1a2b3c4d5e6
 ```
 
-> ⚠️ CLI output structure (pretty mode) is subject to refinement pre‑1.0.0.
+Compact console output (`--console-style compact`) is identical to the raw semver string:
+
+```
+3.2.0-snapshot+pr123.branchmain.commits4.sha1a2b3c4d5e6
+```
+
+If you only want the semver string with no formatting overhead use `--emit raw`.
+
+### File Outputs
+
+When `=path` is supplied the sink content is written to that file (overwritten if exists). Parent directories are
+created. Failures to write any file will cause a non-zero exit (after attempting all writes).
+
+### Exit Codes
+
+| Code | Meaning                           |
+|------|-----------------------------------|
+| 0    | Success                           |
+| 1    | Resolution failure (core layer)   |
+| 2    | CLI argument / command parse error |
+
+### Migration Notes
+
+Earlier versions used `--format` with values `pretty|compact|json|yaml`. That flag has been **removed** in favour of
+`--emit` + `--console-style` which removes ambiguous combinations and enables explicit file targets.
+
+### Future Commands
+
+The parser already reserves a hidden `release` command placeholder; future versions may introduce automated tagging /
+annotation without altering current resolve workflows.
+
+> ⚠️ Pretty layout & field ordering may evolve pre‑1.0.0. Machine formats aim for stability once the core model is stable.
 
 ---
 
@@ -459,8 +523,8 @@ Apache 2.0. See headers and associated licence metadata.
 | Next patch                | `v.next[PatchNumber]`                         |
 | Mark snapshot             | `v.toSnapshot`                                |
 | Remove pre-release        | `v.release`                                   |
-| CLI compact               | `version-cli -f compact`                      |
-| Add JSON output           | `version-cli -f compact -f json`              |
+| CLI compact               | `version-cli --emit console --console-style compact` |
+| Add JSON output           | `version-cli --emit console --emit json`      |
 | Branch override           | `version-cli --branch-override Release/2.1.x` |
 | Force target (if allowed) | `commit msg: target: 3.0.0`                   |
 
