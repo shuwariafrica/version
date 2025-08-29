@@ -60,6 +60,7 @@ lazy val version =
     .in(file("modules/core"))
     .settings(unitTestSettings)
     .settings(publishSettings)
+    .nativeSettings(nativeSettings)
 
 lazy val `version-zio-prelude` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -70,6 +71,7 @@ lazy val `version-zio-prelude` =
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.`zio-prelude`))
+    .nativeSettings(nativeSettings)
 
 lazy val `version-codecs-jsoniter` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -81,6 +83,7 @@ lazy val `version-codecs-jsoniter` =
     .dependsOn(version)
     .settings(libraryDependency(libraries.`jsoniter-scala`))
     .settings(libraryDependency(libraries.`jsoniter-scala-macros`(_.withConfigurations(Some(Provided.name)))))
+    .nativeSettings(nativeSettings)
 
 lazy val `version-codecs-zio` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -91,6 +94,7 @@ lazy val `version-codecs-zio` =
     .settings(publishSettings)
     .dependsOn(version)
     .settings(libraryDependency(libraries.`zio-json`))
+    .nativeSettings(nativeSettings)
 
 lazy val `version-codecs-yaml` =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -100,6 +104,7 @@ lazy val `version-codecs-yaml` =
     .settings(unitTestSettings)
     .dependsOn(version)
     .settings(libraryDependency(libraries.`scala-yaml`))
+    .nativeSettings(nativeSettings)
 
 lazy val `version-cli-core` =
   crossProject(JVMPlatform, NativePlatform)
@@ -109,6 +114,7 @@ lazy val `version-cli-core` =
     .dependsOn(version)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`os-lib`))
+    .nativeSettings(nativeSettings)
 
 lazy val `version-cli` =
   crossProject(JVMPlatform, NativePlatform)
@@ -120,9 +126,12 @@ lazy val `version-cli` =
     .dependsOn(`version-cli-core`)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.scopt))
-    .settings(Compile / mainClass := Some("version.cli.CLI"))
+    .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(publish / skip := true)
     .jvmSettings(run / fork := true)
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings)
+    .nativeSettings(nativeSettings)
 
 inThisBuild(
   List(
@@ -141,6 +150,10 @@ inThisBuild(
       Some("scm:git:git@github.com:shuwariafrica/version.git")
     ).some
   ) ++ formattingSettings
+)
+
+def nativeSettings = List(
+  Test / parallelExecution := false
 )
 
 def unitTestSettings: List[Setting[?]] = List(
@@ -204,3 +217,8 @@ def disableStaticAnalysisPlugins(p: Project) = p.disablePlugins(HeaderPlugin, Sc
 addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")
 
 addCommandAlias("staticCheck", "scalafixAll --check; scalafmtCheckAll; scalafmtSbtCheck; headerCheckAll")
+
+def buildInfoSettings = List(
+  buildInfoKeys := List[BuildInfoKey](name, Keys.version),
+  buildInfoPackage := "version.internal",
+)

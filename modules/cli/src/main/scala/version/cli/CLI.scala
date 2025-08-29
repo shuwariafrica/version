@@ -9,6 +9,10 @@ import version.cli.Options.OutputFormat
 import version.cli.core.ResolutionError
 import version.cli.core.VersionCliCore as Core
 import version.cli.core.domain.CliConfig
+import version.cli.core.logging.LogConfig
+import version.cli.core.logging.Logger
+import version.cli.logging.ColourConfig
+import version.cli.logging.StandardLogger
 import version.codecs.jsoniter.given
 import version.codecs.yaml.given
 
@@ -27,26 +31,41 @@ object CLI:
     val parser = Options.parser
     OParser.parse(parser, args, Options.default) match
       case Some(opts) =>
-        if opts.verbose then
-          Console.err.println(s"[version-cli] resolving in ${opts.workDir} at ${opts.basisCommit}; formats=${opts.formats.mkString(",")}")
+        // Set up logging configuration
+        val logConfig = LogConfig(isVerbose = opts.verbose, isCI = opts.ci)
+        // In CI we disable colours explicitly
+        val colourConfig = if opts.ci then ColourConfig(enableColours = false, isCI = true) else ColourConfig.fromEnvironment(false)
+        val logger = StandardLogger(logConfig, colourConfig)
+
+        given Boolean = opts.verbose
+
+        logger.verbose(
+          s"Resolving in ${opts.workDir} at ${opts.basisCommit}; rawFormats=${opts.formats.mkString(",")}; ci=${opts.ci}",
+          "CLI")
 
         val cfg = CliConfig(
           repo = opts.workDir,
           basisCommit = opts.basisCommit,
           prNumber = opts.prNumber,
           branchOverride = opts.branchOverride,
-          shaLength = opts.shaLength
+          shaLength = opts.shaLength,
+          verbose = opts.verbose
         )
 
-        Core.resolve(cfg) match
+        // Determine effective formats: in CI force compact unless user explicitly asked for others.
+        val effectiveFormats =
+          if opts.ci && (opts.formats.isEmpty || opts.formats == List(OutputFormat.Pretty)) then List(OutputFormat.Compact)
+          else if opts.formats.isEmpty then List(OutputFormat.Pretty)
+          else opts.formats
+
+        Core.resolve(cfg, logger, opts.verbose) match
           case Left(err) =>
-            Console.err.println(renderError(err))
+            logger.error(renderError(err))
             sys.exit(1)
           case Right(v) =>
-            val outputs = renderAll(v, opts.formats)
+            val outputs = renderAll(v, effectiveFormats, opts.ci)
             outputs.foreach(println)
             sys.exit(0)
-
       case None =>
         // scopt already printed errors/help.
         sys.exit(2)
@@ -55,16 +74,17 @@ object CLI:
 
   // --- Rendering ---
 
-  private def renderAll(v: Version, formats: List[OutputFormat]): List[String] =
+  private def renderAll(v: Version, formats: List[OutputFormat], isCI: Boolean): List[String] =
     formats.distinct.map {
-      case OutputFormat.Pretty  => renderPretty(v)
+      case OutputFormat.Pretty  => renderPretty(v, isCI)
       case OutputFormat.Compact => renderCompact(v)
       case OutputFormat.Json    => renderJson(v)
       case OutputFormat.Yaml    => renderYaml(v)
     }
 
-  private def renderPretty(v: Version): String =
-    // Human-readable multi-line summary.
+  private def renderPretty(v: Version, isCI: Boolean): String =
+    // Human-readable multi-line summary. Currently we don't vary output by CI, but keep the param to allow future adjustments.
+    val _ = isCI // mark as used to satisfy -Werror unused parameter policy
     val b = new StringBuilder
     b.append("Version:\n")
     b.append(s"  full      : ${v.toString}\n")

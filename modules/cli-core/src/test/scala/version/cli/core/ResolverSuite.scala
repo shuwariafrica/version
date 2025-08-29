@@ -12,7 +12,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
   given PreRelease.Resolver = PreRelease.Resolver.default
 
   private def cfg(repo: os.Path, pr: Option[Int] = None, shaLen: Int = 12) =
-    CliConfig(repo = repo, basisCommit = "HEAD", prNumber = pr, branchOverride = None, shaLength = shaLen)
+    CliConfig(repo = repo, basisCommit = "HEAD", prNumber = pr, branchOverride = None, shaLength = shaLen, verbose = false)
 
   test("Mode 1: HEAD at tag and clean emits exact version") {
     withFreshRepo("mode1") { repo =>
@@ -63,14 +63,15 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       os.proc("git", "commit", "--no-gpg-sign", "-m", "housekeeping").call(cwd = repo, check = true): Unit
       // Dirty the worktree (untracked) so Mode 1 cannot emit a concrete tag
       os.write.append(repo / "UNTRACKED.txt", "dirty"): Unit
-      val res = VersionCliCore.resolve(CliConfig(repo = repo, basisCommit = full, prNumber = None, branchOverride = None, shaLength = 12))
+      val res = VersionCliCore.resolve(
+        CliConfig(repo = repo, basisCommit = full, prNumber = None, branchOverride = None, shaLength = 12, verbose = false))
       assert(res.isRight)
       val v = res.toOption.get
       // Should include sha of the provided basis commit, abbreviated
       val abbrev12 = full.take(12)
       val meta = v.buildMetadata.map(_.render).getOrElse("")
-      assert(meta.contains(s"+branch"))
-      assert(meta.contains(s".sha$abbrev12"))
+      assert(meta.contains(s"+branch"), clues(meta))
+      assert(meta.contains(s".sha$abbrev12"), clues(meta))
       assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
     }
   }

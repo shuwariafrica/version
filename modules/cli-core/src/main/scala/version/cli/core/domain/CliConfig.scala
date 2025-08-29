@@ -12,13 +12,16 @@ package version.cli.core.domain
   *   Optional branch name override for metadata; when absent we detect via symbolic-ref.
   * @param shaLength
   *   Abbreviated SHA length for metadata. Must be in [7, 40]. Default 12.
+  * @param verbose
+  *   Enable verbose debug logging throughout resolution process.
   */
 final case class CliConfig(
   repo: os.Path,
   basisCommit: String,
   prNumber: Option[Int],
   branchOverride: Option[String],
-  shaLength: Int
+  shaLength: Int,
+  verbose: Boolean
 ) derives CanEqual
 
 object CliConfig:
@@ -30,5 +33,6 @@ object CliConfig:
       basisCommit = "HEAD",
       prNumber = None,
       branchOverride = None,
-      shaLength = 12
+      shaLength = 12,
+      verbose = false
     )

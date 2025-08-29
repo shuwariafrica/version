@@ -5,10 +5,13 @@ import munit.FunSuite
 import version.PreRelease
 import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
+import version.cli.core.logging.{NullLogger, Logger}
 
 final class GitProcessSuite extends FunSuite with TestRepoSupport:
 
   given PreRelease.Resolver = PreRelease.Resolver.default
+  given Logger = NullLogger
+  given Boolean = false
 
   test("listAllTags returns annotated and lightweight tags; ignores invalid") {
     withFreshRepo("listAllTags") { repo =>

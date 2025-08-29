@@ -5,14 +5,16 @@ import version.cli.core.ResolutionError.GitCommandFailed
 import version.cli.core.ResolutionError.InvalidShaLength
 import version.cli.core.ResolutionError.NotAGitRepository
 import version.cli.core.domain.*
+import version.cli.core.logging.Logger
 import version.parser.VersionParser
 
 /** Git implementation using os-lib and plumbing commands only. */
-final class GitProcess(repoPath: os.Path) extends Git:
+final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boolean) extends Git:
   import GitProcess.*
 
   private def run(args: List[String], check: Boolean): Either[ResolutionError, os.CommandResult] =
     val cmd = List("git") ++ args
+    logger.verbose(s"git ${args.mkString(" ")}", "Git")
     try
       val res = os.proc(cmd).call(cwd = repoPath, check = false)
       if check && res.exitCode != 0 then Left(GitCommandFailed(args, res.exitCode, res.out.text(), res.err.text()))
@@ -32,14 +34,18 @@ final class GitProcess(repoPath: os.Path) extends Git:
     for
       _ <- checkRepo()
       res <- run(List("rev-parse", s"${rev}^{commit}"), check = true)
-    yield CommitSha(res.out.text().trim)
+      sha = CommitSha(res.out.text().trim)
+      _ = logger.verbose(s"Resolved $rev -> ${sha.value}", "Git")
+    yield sha
 
   def getAbbreviatedSha(sha: CommitSha, length: Int): Either[ResolutionError, String] =
     for
       _ <- checkRepo()
       _ <- if length < 7 || length > 40 then Left(InvalidShaLength(length)) else Right(())
       r <- run(List("rev-parse", s"--short=$length", sha.value), check = true)
-    yield r.out.text().trim.toLowerCase
+      abbr = r.out.text().trim.toLowerCase
+      _ = logger.verbose(s"Abbreviated ${sha.value} ($length) -> $abbr", "Git")
+    yield abbr
 
   def listAllTags(): Either[ResolutionError, List[Tag]] =
     for
@@ -64,6 +70,7 @@ final class GitProcess(repoPath: os.Path) extends Git:
           case _ => accE
       }
       tags <- tagsE
+      _ = logger.verbose(s"Found ${tags.size} parsed SemVer tag(s)", "Git")
     yield tags
 
   def findReachableTags(from: CommitSha): Either[ResolutionError, List[Tag]] =
@@ -72,7 +79,11 @@ final class GitProcess(repoPath: os.Path) extends Git:
         for
           acc <- accE
           r <- ok(List("merge-base", "--is-ancestor", t.commitSha.value, from.value))
-        yield if r then acc :+ t else acc
+        yield
+          if r then
+            logger.verbose(s"Tag ${t.name.value} reachable from ${from.value}", "Git")
+            acc :+ t
+          else acc
       }
     }
 
@@ -81,13 +92,17 @@ final class GitProcess(repoPath: os.Path) extends Git:
       _ <- checkRepo()
       trackedClean <- run(List("diff-index", "--quiet", "HEAD", "--"), check = false).map(_.exitCode == 0)
       untrackedEmpty <- run(List("ls-files", "--others", "--exclude-standard"), check = false).map(_.out.text().trim.isEmpty)
-    yield trackedClean && untrackedEmpty
+      clean = trackedClean && untrackedEmpty
+      _ = logger.verbose(s"Worktree clean=$clean (tracked=$trackedClean, untrackedEmpty=$untrackedEmpty)", "Git")
+    yield clean
 
   def getBranchName(): Either[ResolutionError, Option[String]] =
     for
       _ <- checkRepo()
       r <- run(List("symbolic-ref", "--quiet", "--short", "HEAD"), check = false)
-    yield if r.exitCode == 0 then Some(r.out.text().trim) else None
+      branch = if r.exitCode == 0 then Some(r.out.text().trim) else None
+      _ = logger.verbose(s"Branch resolved: ${branch.getOrElse("<detached>")}", "Git")
+    yield branch
 
   def getCommitsSince(to: CommitSha, fromExclusive: Option[CommitSha]): Either[ResolutionError, List[Commit]] =
     for
@@ -111,6 +126,7 @@ final class GitProcess(repoPath: os.Path) extends Git:
           val msg = restIt.mkString("\n").trim
           Some(Commit(CommitSha(sha), msg))
       }
+      _ = logger.verbose(s"Collected ${commits.size} commit(s) since ${fromExclusive.fold("<root>")(_.value)}", "Git")
     yield commits
 
   def countCommitsSince(to: CommitSha, fromExclusive: Option[CommitSha]): Either[ResolutionError, Int] =
@@ -123,7 +139,9 @@ final class GitProcess(repoPath: os.Path) extends Git:
         check = true
       )
       nLong = scala.util.Try(r.out.text().trim.toLong).getOrElse(Long.MaxValue)
-    yield if nLong >= Int.MaxValue then Int.MaxValue else nLong.toInt
+      n = if nLong >= Int.MaxValue then Int.MaxValue else nLong.toInt
+      _ = logger.verbose(s"Counted $n commit(s) since ${fromExclusive.fold("<root>")(_.value)}", "Git")
+    yield n
 end GitProcess
 
 private object GitProcess:

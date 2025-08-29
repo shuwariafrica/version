@@ -4,6 +4,7 @@ import os.Path
 import scopt.*
 
 import version.cli.core.ResolutionError
+import version.internal.BuildInfo
 
 /** CLI options for version-cli. Pure data. */
 final case class Options(
@@ -13,7 +14,8 @@ final case class Options(
   branchOverride: Option[String],
   shaLength: Int,
   formats: List[Options.OutputFormat],
-  verbose: Boolean
+  verbose: Boolean,
+  ci: Boolean
 ) derives CanEqual
 
 object Options:
@@ -47,7 +49,8 @@ object Options:
       branchOverride = None,
       shaLength = 12,
       formats = List(OutputFormat.Pretty),
-      verbose = false
+      verbose = false,
+      ci = false
     )
 
   /** Build the scopt OParser for Options. */
@@ -56,7 +59,7 @@ object Options:
     import b.*
     OParser.sequence(
       programName("version-cli"),
-      head("version-cli", "semantic version resolver for Git repositories"),
+      head("version", BuildInfo.version),
       opt[OutputFormat]('f', "format")
         .unbounded()
         .action((fmt, c) => c.copy(formats = c.formats :+ fmt))
@@ -83,10 +86,13 @@ object Options:
       opt[Unit]('v', "verbose")
         .action((_, c) => c.copy(verbose = true))
         .text("Enable verbose output (diagnostics to stderr)."),
+      opt[Unit]("ci")
+        .action((_, c) => c.copy(ci = true))
+        .text("Enable CI mode (disable colours, compact output)."),
       help("help").text("Print this help message."),
       version("version").text("Show application version and exit."),
       checkConfig { c =>
-        if c.formats.isEmpty then failure("At least one --format must be specified (pretty|compact|json|yaml).")
+        if c.shaLength < 7 || c.shaLength > 40 then failure("sha-length must be within [7, 40]")
         else success
       }
     )

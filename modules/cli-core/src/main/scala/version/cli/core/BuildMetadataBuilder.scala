@@ -3,6 +3,7 @@ package version.cli.core
 import version.BuildMetadata
 import version.cli.core.domain.*
 import version.cli.core.git.Git
+import version.cli.core.logging.Logger
 
 // scalafix:off
 /** Constructs BuildMetadata for development versions according to the specification. */
@@ -17,7 +18,7 @@ object BuildMetadataBuilder:
     basisCommitSha: CommitSha,
     baseVersionCommitSha: Option[CommitSha],
     isDirty: Boolean
-  ): Either[ResolutionError, BuildMetadata] =
+  )(using logger: Logger, isVerbose: Boolean): Either[ResolutionError, BuildMetadata] =
     for
       _ <- if config.shaLength < 7 || config.shaLength > 40 then Left(ResolutionError.InvalidShaLength(config.shaLength)) else Right(())
       prId = config.prNumber.map(n => s"pr${Math.max(0, n)}")
@@ -26,6 +27,7 @@ object BuildMetadataBuilder:
       sha <- git.getAbbreviatedSha(basisCommitSha, config.shaLength).map(s => s"sha$s")
       dirtyId = if isDirty then Some("dirty") else None
       ids = List(prId, branchOpt, Some(commitsId), Some(sha), dirtyId).flatten
+      _ = logger.verbose(s"Build metadata identifiers: ${ids.mkString(",")}", "Metadata")
       meta <- BuildMetadata.from(ids) match
         case Right(bm) => Right(bm)
         case Left(err) => Left(ResolutionError.Message(s"Invalid build metadata identifiers: ${err.message}"))
