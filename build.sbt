@@ -77,7 +77,7 @@ lazy val `version-codecs-zio` =
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.3.5"),
+    crossScalaVersions := List("3.3.7"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
