@@ -1,19 +1,19 @@
 package africa.shuwari.version.git
 
-import zio.prelude._
+import zio.prelude.*
 
 import java.nio.file.Path
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
-import scala.sys.process._
+import scala.sys.process.*
 import scala.util.Try
 
 import africa.shuwari.version.codecs.VersionReader
 
 object executor:
 
-  private final case class Result(exitCode: Int, stdOut: String, stdErr: String)
+  final private case class Result(exitCode: Int, stdOut: String, stdErr: String)
 
   private def execute(workDir: Option[Path], env: List[(String, String)], commands: String*): Either[Throwable, Result] =
     scribe.debug(s"Executing command: ${commands.mkString(" ")} in workDir: $workDir with env: $env")
@@ -35,8 +35,7 @@ object executor:
 
     result match
       case Right(value) =>
-        scribe.debug(
-          s"Command execution completed. Exit code: ${value.exitCode}, stdout: ${value.stdOut}, stderr: ${value.stdErr}")
+        scribe.debug(s"Command execution completed. Exit code: ${value.exitCode}, stdout: ${value.stdOut}, stderr: ${value.stdErr}")
       case Left(error) =>
         scribe.error(s"Command execution failed. Error: ${error.getMessage}", error)
     result
@@ -44,7 +43,8 @@ object executor:
   end execute
 
   def readVersion(repository: Path, gitExecutable: Option[Path]): Either[Throwable, GitStatus] =
-    scribe.info(s"Reading Git version for repository '$repository'${gitExecutable.fold("")(exe => s" using provided git executable $exe")}.")
+    scribe.info(
+      s"Reading Git version for repository '$repository'${gitExecutable.fold("")(exe => s" using provided git executable $exe")}.")
 
     val git: String = gitExecutable.map(_.nn.toString.nn).getOrElse("git").nn
 
