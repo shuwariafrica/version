@@ -4,7 +4,7 @@ val libraries = new {
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.37.6")
   val `jsoniter-scala-macros` = `jsoniter-scala`(_.withName("jsoniter-scala-macros"))
   val `os-lib` = Def.setting("com.lihaoyi" %%% "os-lib" % "0.11.6")
-  val munit = Def.setting("org.scalameta" %%% "munit" % "1.1.0")
+  val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.1")
   val `scala-yaml` = Def.setting("org.virtuslab" %%% "scala-yaml" % "0.3.0")
   val scopt = Def.setting("com.github.scopt" %%% "scopt" % "4.1.1-M3")
   val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.7.23")
