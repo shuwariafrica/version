@@ -47,6 +47,7 @@ object VersionPlugin extends AutoPlugin:
   override def buildSettings: Seq[Setting[?]] =
     Seq(
       versionBranchOverride := sys.env.get("VERSION_BRANCH"),
+      versionShow := None,
       resolvedVersion :=
         {
           val log = sLog.value
@@ -65,7 +66,12 @@ object VersionPlugin extends AutoPlugin:
           val cfg = CliConfig.mergeWithCiMetadata(base, metadata)
           internal.resolveVersion(cfg, log)
         },
-      Keys.version := Version.Show.Standard.show(resolvedVersion.value),
+      Keys.version := {
+        val v = resolvedVersion.value
+        versionShow.value match
+          case Some(s) => s.show(v)
+          case None    => Version.Show.Standard.show(v)
+      },
       isSnapshot := resolvedVersion.value.isSnapshot
     )
 

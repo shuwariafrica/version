@@ -32,5 +32,8 @@ object VersionPluginImports:
   val versionBranchOverride: SettingKey[Option[String]] =
     settingKey("Optional branch override used when deriving build metadata.")
 
+  val versionShow: SettingKey[Option[Version.Show]] =
+    settingKey("Optional Version.Show instance for customising the version string. Defaults to Version.Show.Standard.")
+
   val resolvedVersion: SettingKey[Version] =
     settingKey("Resolved semantic version for the current repository state. Use Version.Show instances for rendering.")

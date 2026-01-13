@@ -1,6 +1,6 @@
 # version
 
-A modular Scala 3 toolkit for **intent-based Semantic Versioning (SemVer 2.0.0)**.
+A modular Scala 3 toolkit for **intent-based Versioning (conforming to SemVer 2.0.0)**.
 
 Cross-platform (JVM, Scala.js, Scala Native) with sbt integration, CLI tooling, and codec support.
 
@@ -8,7 +8,7 @@ Cross-platform (JVM, Scala.js, Scala Native) with sbt integration, CLI tooling, 
 
 ## Intent-Based Versioning
 
-Traditional versioning tools derive version numbers from repository _history_ â€” counting commits since the last tag, appending distance suffixes, or inferring from branch patterns. This approach answers "how far are we from the last release?" but leaves the _intended next version_ implicit.
+Traditional versioning tools derive version numbers from repository _history_ - counting commits since the last tag, appending distance suffixes, or inferring from branch patterns. This approach answers "how far are we from the last release?" but leaves the _intended next version_ implicit.
 
 `version` inverts this paradigm: developers declare the **target version** through commit message directives, and the system validates and enforces that intent. Snapshots represent pre-releases of the _upcoming_ version, not post-release distances from a _previous_ one.
 
@@ -17,7 +17,7 @@ Traditional versioning tools derive version numbers from repository _history_ â€
 | History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3) |
 | Intent-based (version) | "What are we releasing next?" | `1.3.0-snapshot+...` (working toward 1.3.0) |
 
-This design provides:
+This implementation aims to provide:
 
 - **Explicit control**: Developers state versioning intent in the commit history
 - **Validation**: Target directives are validated against regression rules
@@ -62,9 +62,10 @@ The plugin automatically derives and sets `version` for all projects. No additio
 | Key | Type | Description |
 |-----|------|-------------|
 | `resolvedVersion` | `Version` | Full resolved version object (with 40-char SHA for maximum flexibility) |
-| `version` | `String` | SemVer string (standard rendering, no build metadata) |
+| `version` | `String` | SemVer string rendered using `versionShow` (defaults to standard, no metadata) |
 | `isSnapshot` | `Boolean` | `true` if the resolved version is a snapshot |
 | `versionBranchOverride` | `Option[String]` | Override branch detection (defaults to `VERSION_BRANCH` env var) |
+| `versionShow` | `Option[Version.Show]` | Custom renderer for `version` key (defaults to `Version.Show.Standard`) |
 
 **Environment Variables:**
 
@@ -74,6 +75,22 @@ The plugin automatically derives and sets `version` for all projects. No additio
 | `VERSION_VERBOSE` | Enable verbose logging (`true`/`false`) |
 
 CI-specific variables (GitHub Actions, GitLab CI, etc.) are auto-detected for PR numbers and branch names.
+
+**Custom Version Rendering:**
+
+By default, `version` uses `Version.Show.Standard` which excludes build metadata. To include metadata or use a custom format:
+
+```scala
+// Use extended rendering (includes build metadata)
+versionShow := Some(Version.Show.Extended)
+
+// Or define a custom renderer
+versionShow := Some(new Version.Show {
+  extension (v: Version) def show: String =
+    s"v${v.major.value}.${v.minor.value}.${v.patch.value}" +
+      v.preRelease.fold("")(pr => s"-${pr.show}")
+})
+```
 
 **Extended Version Output:**
 
