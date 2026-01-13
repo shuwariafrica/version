@@ -1,25 +1,32 @@
-/** ************************************************************************** Copyright 2023 Shuwari Africa Ltd. * *
-  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance
-  * with the License. * You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 * *
-  * Unless required by applicable law or agreed to in writing, software * distributed under the License is distributed
-  * on an "AS IS" BASIS, * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the License
-  * for the specific language governing permissions and * limitations under the License. *
-  */
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version
 
 import version.PreReleaseClassifier.*
 import version.errors.*
-import version.operations.*
 
-/** Tests the ergonomic API provided by the extension methods in version.operations. */
+/** Tests the ergonomic API provided by the extension methods in [[version]]. */
 class VersionOperationsSuite extends munit.FunSuite:
 
   // --- Fixtures ---
-  private val V1_2_3 = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(2), PatchNumber.unsafe(3))
-  private val V0_1_0 = Version(MajorVersion.unsafe(0), MinorVersion.unsafe(1), PatchNumber.unsafe(0))
-  private val V1_2_3_M1 = V1_2_3.set(PreRelease.milestone(PreReleaseNumber.unsafe(1)))
-  private val V1_2_3_A5 = V1_2_3.set(PreRelease.alpha(PreReleaseNumber.unsafe(5)))
-  private val V1_2_3_RC1 = V1_2_3.set(PreRelease.releaseCandidate(PreReleaseNumber.unsafe(1)))
+  private val V1_2_3 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
+  private val V0_1_0 = Version(MajorVersion.fromUnsafe(0), MinorVersion.fromUnsafe(1), PatchNumber.fromUnsafe(0))
+  private val V1_2_3_M1 = V1_2_3.set(PreRelease.milestone(PreReleaseNumber.fromUnsafe(1)))
+  private val V1_2_3_A5 = V1_2_3.set(PreRelease.alpha(PreReleaseNumber.fromUnsafe(5)))
+  private val V1_2_3_RC1 = V1_2_3.set(PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(1)))
   private val V1_2_3_Snap = V1_2_3.toSnapshot
   private val Metadata = BuildMetadata(List("build123"))
   private val V1_2_3_Meta = V1_2_3.set(Metadata)
@@ -50,27 +57,27 @@ class VersionOperationsSuite extends munit.FunSuite:
   // --- Version Bumping (next[F]) ---
 
   test("next[MajorVersion]") {
-    val expected = Version(MajorVersion.unsafe(2), MinorVersion.reset, PatchNumber.reset)
+    val expected = Version(MajorVersion.fromUnsafe(2), MinorVersion.reset, PatchNumber.reset)
     assertEquals(V1_2_3.next[MajorVersion], expected)
   }
 
   test("next[MinorVersion]") {
-    val expected = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(3), PatchNumber.reset)
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(3), PatchNumber.reset)
     assertEquals(V1_2_3.next[MinorVersion], expected)
   }
 
   test("next[PatchNumber]") {
-    val expected = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(2), PatchNumber.unsafe(4))
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(4))
     assertEquals(V1_2_3.next[PatchNumber], expected)
   }
 
   test("next[F] should clear pre-release information") {
-    val expected = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(3), PatchNumber.reset)
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(3), PatchNumber.reset)
     assertEquals(V1_2_3_A5.next[MinorVersion], expected)
   }
 
   test("next[F] should clear build metadata") {
-    val expected = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(2), PatchNumber.unsafe(4))
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(4))
     assertEquals(V1_2_3_Meta.next[PatchNumber], expected)
     assertEquals(V1_2_3_RC1_Meta.next[PatchNumber], expected)
   }
@@ -93,7 +100,7 @@ class VersionOperationsSuite extends munit.FunSuite:
   }
 
   test("set(PreRelease) / set(BuildMetadata) / dropMetadata") {
-    val newPR = PreRelease.beta(PreReleaseNumber.unsafe(1))
+    val newPR = PreRelease.beta(PreReleaseNumber.fromUnsafe(1))
     val newMeta = BuildMetadata(List("new"))
 
     assertEquals(V1_2_3.set(newPR), V1_2_3.copy(preRelease = Some(newPR)))
@@ -114,7 +121,7 @@ class VersionOperationsSuite extends munit.FunSuite:
   }
 
   test("as[C](n) (Set specific number)") {
-    val expectedB5 = Right(V1_2_3.copy(preRelease = Some(PreRelease.beta(PreReleaseNumber.unsafe(5)))))
+    val expectedB5 = Right(V1_2_3.copy(preRelease = Some(PreRelease.beta(PreReleaseNumber.fromUnsafe(5)))))
     assertEquals(V1_2_3.as[Beta.type](5), expectedB5)
     // Overwrite existing
     assertEquals(V1_2_3_A5.as[Beta.type](5), expectedB5)
@@ -132,10 +139,10 @@ class VersionOperationsSuite extends munit.FunSuite:
   // This operation manages progression *within* a pre-release cycle.
 
   test("advance[C] (Increment same classifier)") {
-    val expectedA6 = Right(V1_2_3.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.unsafe(6)))))
+    val expectedA6 = Right(V1_2_3.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.fromUnsafe(6)))))
     assertEquals(V1_2_3_A5.advance[Alpha.type], expectedA6)
 
-    val expectedRC2 = Right(V1_2_3.copy(preRelease = Some(PreRelease.releaseCandidate(PreReleaseNumber.unsafe(2)))))
+    val expectedRC2 = Right(V1_2_3.copy(preRelease = Some(PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(2)))))
     assertEquals(V1_2_3_RC1.advance[ReleaseCandidate.type], expectedRC2)
   }
 
@@ -187,18 +194,17 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(base.as[Alpha.type], expectedAs)
 
     // as[C](n)
-    val expectedAsN = Right(V1_2_3_Meta.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.unsafe(5)))))
+    val expectedAsN = Right(V1_2_3_Meta.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.fromUnsafe(5)))))
     assertEquals(base.as[Alpha.type](5), expectedAsN)
 
     // advance[C] (increment)
-    val expectedNext = Right(V1_2_3_Meta.copy(preRelease = Some(PreRelease.releaseCandidate(PreReleaseNumber.unsafe(2)))))
+    val expectedNext = Right(V1_2_3_Meta.copy(preRelease = Some(PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(2)))))
     assertEquals(base.advance[ReleaseCandidate.type], expectedNext)
   }
 
   // --- String Parsing Extension ---
 
   test("String extension 'toVersion'") {
-    given PreRelease.Resolver = PreRelease.Resolver.default
     assertEquals("1.2.3".toVersion, Right(V1_2_3))
     assertEquals("1.2.3-rc.1+build123".toVersion, Right(V1_2_3_RC1_Meta))
     assert("invalid".toVersion.isLeft)

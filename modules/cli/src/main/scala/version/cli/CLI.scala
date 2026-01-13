@@ -1,3 +1,20 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.cli
 
 import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
@@ -8,7 +25,9 @@ import version.Version
 import version.cli.CliOptions.given
 import version.cli.core.ResolutionError
 import version.cli.core.VersionCliCore as Core
+import version.cli.core.domain.CiMetadata
 import version.cli.core.domain.CliConfig
+import version.cli.core.environment.CiDetector
 import version.cli.core.logging.LogConfig
 import version.cli.core.logging.Logger
 import version.cli.logging.ColourConfig
@@ -19,7 +38,6 @@ import version.codecs.yaml.given
 /** Command-line entry point for version-cli.
   *
   * This CLI:
-  *   - Parses flags using scopt
   *   - Invokes version-cli-core to resolve a Version for a repository
   *   - Prints the result in one or more formats: pretty | compact | json | yaml
   *
@@ -28,11 +46,12 @@ import version.codecs.yaml.given
 object CLI:
 
   def main(args: Array[String]): Unit =
+    val metadata = CiDetector.detectCurrent()
     val parser = CliOptions.parser
     OParser.parse(parser, args, CliOptions.default) match
       case Some(opts0) =>
         // Possibly inject default console sink already applied by checkConfig; ensure style override for CI if needed.
-        val resolvedOpts = applyPostParseDefaults(opts0)
+        val resolvedOpts = applyPostParseDefaults(opts0, metadata)
 
         val logConfig = LogConfig(isVerbose = resolvedOpts.verbose, isCI = resolvedOpts.ci)
         val colourCfg =
@@ -48,7 +67,7 @@ object CLI:
 
         resolvedOpts.command match
           case rc: ResolveConfig =>
-            val cfg = CliConfig(
+            val baseCfg = CliConfig(
               repo = resolvedOpts.repository,
               basisCommit = resolvedOpts.basisCommit,
               prNumber = resolvedOpts.prNumber,
@@ -56,6 +75,7 @@ object CLI:
               shaLength = resolvedOpts.shaLength,
               verbose = resolvedOpts.verbose
             )
+            val cfg = CliConfig.mergeWithCiMetadata(baseCfg, metadata)
             Core.resolve(cfg, logger, resolvedOpts.verbose) match
               case Left(err) =>
                 logger.error(renderError(err))
@@ -64,7 +84,7 @@ object CLI:
                 val (consoleOutputs, fileWrites) = render(version, rc, logger)(using resolvedOpts.verbose)
                 val failed = fileWrites.collect { case Left(m) => m }
                 if failed.nonEmpty then
-                  failed.foreach(logger.error(_))
+                  failed.foreach(logger.error)
                   consoleOutputs.foreach(println)
                   sys.exit(1)
                 consoleOutputs.foreach(println)
@@ -73,20 +93,25 @@ object CLI:
             logger.error("The 'release' command is not yet implemented.")
             sys.exit(2)
         end match
-      case None => sys.exit(2)
+      case None =>
+        sys.exit(2)
     end match
   end main
 
-  private def applyPostParseDefaults(o: CliOptions): CliOptions =
-    o.command match
+  private def applyPostParseDefaults(o: CliOptions, metadata: Option[CiMetadata]): CliOptions =
+    val inferredPr = o.prNumber.orElse(CliConfig.inferPullRequestNumber(metadata))
+    val inferredBranch = o.branchOverride.orElse(CliConfig.inferBranchOverride(metadata))
+    val inferredCi = if o.ci then true else metadata.exists(_.isCi)
+    val base = o.copy(prNumber = inferredPr, branchOverride = inferredBranch, ci = inferredCi)
+    base.command match
       case rc: ResolveConfig =>
         val style =
           if rc.consoleStyleExplicit then rc.consoleStyle
-          else if o.ci then ConsoleStyle.Compact
+          else if base.ci then ConsoleStyle.Compact
           else rc.consoleStyle
         val sinks1 = if rc.sinks.isEmpty then List(OutputSink(SinkKind.Console, None)) else rc.sinks
-        o.copy(command = rc.copy(sinks = dedupeSinks(sinks1), consoleStyle = style))
-      case _ => o
+        base.copy(command = rc.copy(sinks = dedupeSinks(sinks1), consoleStyle = style))
+      case _ => base
 
   private def dedupeSinks(sinks: List[OutputSink]): List[OutputSink] =
     // Allow duplicates when destinations differ; dedupe identical (kind, None)
@@ -100,7 +125,7 @@ object CLI:
     rc.sinks.foreach { sink =>
       val content = sink.kind match
         case SinkKind.Console => renderConsole(version, rc.consoleStyle)
-        case SinkKind.Raw     => version.toString
+        case SinkKind.Raw     => version.show
         case SinkKind.Json    => writeToString(version)
         case SinkKind.Yaml    => version.asYaml
       sink.destination match
@@ -118,15 +143,16 @@ object CLI:
 
   private def renderConsole(v: Version, style: ConsoleStyle): String = style match
     case ConsoleStyle.Pretty  => renderConsolePretty(v)
-    case ConsoleStyle.Compact => v.toString
+    case ConsoleStyle.Compact => v.show
 
   private def renderConsolePretty(v: Version): String =
     val b = new StringBuilder
-    b.append("Version:\n")
-    b.append(s"  full      : ${v.toString}\n")
-    b.append(s"  core      : ${v.major.value}.${v.minor.value}.${v.patch.value}\n")
-    b.append(s"  preRelease: ${v.preRelease.fold("none")(_.toString)}\n")
-    b.append(s"  metadata  : ${v.buildMetadata.map(_.render).getOrElse("none")}\n")
+    val sep = System.lineSeparator()
+    b.append(s"Version:$sep")
+    b.append(s"  version   : ${v.show}$sep")
+    b.append(s"  extended  : ${Version.Show.Extended.show(v)}$sep")
+    b.append(s"  preRelease: ${v.preRelease.fold("none")(_.toString)}$sep")
+    b.append(s"  metadata  : ${v.buildMetadata.map(_.show).getOrElse("none")}$sep")
     b.result()
 
   private def renderSinkSummary(o: CliOptions): String = o.command match

@@ -1,10 +1,18 @@
-/** ************************************************************************** Copyright 2023 Shuwari Africa Ltd. * *
-  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance
-  * with the License. * You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 * *
-  * Unless required by applicable law or agreed to in writing, software * distributed under the License is distributed
-  * on an "AS IS" BASIS, * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the License
-  * for the specific language governing permissions and * limitations under the License. *
-  */
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version
 
 import scala.util.Random
@@ -22,12 +30,13 @@ class VersionSuite extends munit.FunSuite:
   // --- PreReleaseClassifier Tests ---
 
   test("PreReleaseClassifier Ordering (Precedence)") {
-    // Defined order: Milestone < Alpha < Beta < ReleaseCandidate < Snapshot
-    val expectedOrder = List(Milestone, Alpha, Beta, ReleaseCandidate, Snapshot)
+    // Defined order: Dev < Milestone < Alpha < Beta < ReleaseCandidate < Snapshot
+    val expectedOrder = List(Dev, Milestone, Alpha, Beta, ReleaseCandidate, Snapshot)
     assertEquals(PreReleaseClassifier.values.toList.shuffle.sorted, expectedOrder)
   }
 
   test("PreReleaseClassifier.versioned status") {
+    assert(Dev.versioned)
     assert(Milestone.versioned)
     assert(Alpha.versioned)
     assert(Beta.versioned)
@@ -36,6 +45,8 @@ class VersionSuite extends munit.FunSuite:
   }
 
   test("PreReleaseClassifier.fromAlias (and unapply)") {
+    assertEquals(PreReleaseClassifier.fromAlias("dev"), Some(Dev))
+    assertEquals(PreReleaseClassifier.fromAlias("DEV"), Some(Dev))
     assertEquals(PreReleaseClassifier.fromAlias("m"), Some(Milestone))
     assertEquals(PreReleaseClassifier.fromAlias("Milestone"), Some(Milestone))
     assertEquals(PreReleaseClassifier.fromAlias("A"), Some(Alpha))
@@ -49,30 +60,64 @@ class VersionSuite extends munit.FunSuite:
       case _                       => fail("Extractor failed")
   }
 
+  test("PreReleaseClassifier.show returns canonical alias") {
+    assertEquals(Dev.show, "dev")
+    assertEquals(Milestone.show, "milestone")
+    assertEquals(Alpha.show, "alpha")
+    assertEquals(Beta.show, "beta")
+    assertEquals(ReleaseCandidate.show, "rc")
+    assertEquals(Snapshot.show, "SNAPSHOT")
+  }
+
+  test("PreReleaseClassifier.aliases returns all aliases") {
+    assertEquals(Dev.aliases, List("dev"))
+    assertEquals(Milestone.aliases, List("milestone", "m"))
+    assertEquals(Alpha.aliases, List("alpha", "a"))
+    assertEquals(Beta.aliases, List("beta", "b"))
+    assertEquals(ReleaseCandidate.aliases, List("rc", "cr"))
+    assertEquals(Snapshot.aliases, List("SNAPSHOT", "snapshot"))
+  }
+
   // --- PreRelease Tests ---
 
-  private val N1 = PreReleaseNumber.unsafe(1)
-  private val N5 = PreReleaseNumber.unsafe(5)
+  private val N1 = PreReleaseNumber.fromUnsafe(1)
+  private val N5 = PreReleaseNumber.fromUnsafe(5)
 
   test("PreRelease construction constraints (Missing Number)") {
     // Versioned classifiers must have a number
-    val ex1 = intercept[MissingPreReleaseNumber](PreRelease(Alpha, None))
+    val ex1 = intercept[MissingPreReleaseNumber](PreRelease.fromUnsafe(Alpha, None))
     assertEquals(ex1.classifier, Alpha)
 
-    val ex2 = intercept[MissingPreReleaseNumber](PreRelease(ReleaseCandidate, None))
+    val ex2 = intercept[MissingPreReleaseNumber](PreRelease.fromUnsafe(ReleaseCandidate, None))
     assertEquals(ex2.classifier, ReleaseCandidate)
   }
 
   test("PreRelease construction constraints (Unexpected Number)") {
     // Non-versioned classifiers must NOT have a number
-    val ex = intercept[UnexpectedPreReleaseNumber](PreRelease(Snapshot, Some(N1)))
+    val ex = intercept[UnexpectedPreReleaseNumber](PreRelease.fromUnsafe(Snapshot, Some(N1)))
     assertEquals(ex.classifier, Snapshot)
     assertEquals(ex.number, N1)
   }
 
+  test("PreRelease.from returns Either for validation") {
+    // Valid combinations
+    assertEquals(PreRelease.from(Alpha, Some(N1)).isRight, true)
+    assertEquals(PreRelease.from(Snapshot, None).isRight, true)
+
+    // Invalid: versioned without number
+    val left1 = PreRelease.from(Alpha, None)
+    assert(left1.isLeft)
+    assert(left1.left.exists { case _: MissingPreReleaseNumber => true; case _ => false })
+
+    // Invalid: non-versioned with number
+    val left2 = PreRelease.from(Snapshot, Some(N1))
+    assert(left2.isLeft)
+    assert(left2.left.exists { case _: UnexpectedPreReleaseNumber => true; case _ => false })
+  }
+
   test("PreRelease.increment") {
     val a1 = PreRelease.alpha(N1)
-    val a2 = PreRelease.alpha(PreReleaseNumber.unsafe(2))
+    val a2 = PreRelease.alpha(PreReleaseNumber.fromUnsafe(2))
     assertEquals(a1.increment, a2)
     // Snapshot increment should be idempotent
     assertEquals(PreRelease.snapshot.increment, PreRelease.snapshot)
@@ -80,7 +125,7 @@ class VersionSuite extends munit.FunSuite:
 
   test("PreRelease.toString (SemVer format)") {
     assertEquals(PreRelease.alpha(N5).toString, "alpha.5")
-    assertEquals(PreRelease.snapshot.toString, "snapshot")
+    assertEquals(PreRelease.snapshot.toString, "SNAPSHOT")
   }
 
   test("PreRelease Ordering") {
@@ -98,9 +143,47 @@ class VersionSuite extends munit.FunSuite:
 
   // --- Version Tests ---
 
-  private val V1_0_0 = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(0), PatchNumber.unsafe(0))
-  private val V1_2_3 = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(2), PatchNumber.unsafe(3))
-  private val V2_0_0 = Version(MajorVersion.unsafe(2), MinorVersion.unsafe(0), PatchNumber.unsafe(0))
+  private val V1_0_0 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(0))
+  private val V1_2_3 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
+  private val V2_0_0 = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(0))
+
+  // --- Version Factory Overloads ---
+
+  test("Version.apply(major, minor, patch) creates a final release") {
+    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
+    assertEquals(v.major.value, 1)
+    assertEquals(v.minor.value, 2)
+    assertEquals(v.patch.value, 3)
+    assertEquals(v.preRelease, None)
+    assertEquals(v.buildMetadata, None)
+  }
+
+  test("Version.apply(major, minor, patch, preRelease) creates a pre-release version") {
+    val pr = Some(PreRelease.alpha(N1))
+    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), pr)
+    assertEquals(v.major.value, 1)
+    assertEquals(v.minor.value, 2)
+    assertEquals(v.patch.value, 3)
+    assertEquals(v.preRelease, pr)
+    assertEquals(v.buildMetadata, None)
+  }
+
+  test("Version.apply(major, minor, patch, preRelease) with None creates a final release") {
+    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), None)
+    assertEquals(v.preRelease, None)
+    assertEquals(v.buildMetadata, None)
+  }
+
+  test("Version full constructor includes all fields") {
+    val pr = Some(PreRelease.beta(N5))
+    val meta = Some(BuildMetadata(List("build", "123")))
+    val v = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(1), pr, meta)
+    assertEquals(v.major.value, 2)
+    assertEquals(v.minor.value, 0)
+    assertEquals(v.patch.value, 1)
+    assertEquals(v.preRelease, pr)
+    assertEquals(v.buildMetadata, meta)
+  }
 
   test("Version.toString (SemVer format)") {
     assertEquals(V1_2_3.toString, "1.2.3")
@@ -160,7 +243,6 @@ class VersionSuite extends munit.FunSuite:
     // Based on SemVer spec examples and internal hierarchy
     // We use the parser here to easily generate the expected Version objects.
     // This implicitly trusts the parser, but focuses the test on the Ordering implementation.
-    import PreRelease.Resolver.default // Ensure default resolver is in scope for parsing
 
     val expectedOrder = List(
       "0.9.0",

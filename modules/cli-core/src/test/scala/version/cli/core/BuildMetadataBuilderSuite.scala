@@ -1,3 +1,20 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.cli.core
 
 import munit.FunSuite
@@ -6,8 +23,6 @@ import version.*
 import version.cli.core.domain.*
 
 final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
-
-  given PreRelease.Resolver = PreRelease.Resolver.default
 
   test("Branch normalisation via Resolver includes 'branch<normalised>' and canonical ordering") {
     withFreshRepo("metadata-branch") {
@@ -23,7 +38,7 @@ final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
           CliConfig(repo = repo, basisCommit = "HEAD", prNumber = Some(42), branchOverride = None, shaLength = 12, verbose = false))
       assert(result.isRight)
       val v = result.toOption.get
-      val meta = v.buildMetadata.map(_.render).getOrElse("")
+      val meta = v.buildMetadata.map(_.show).getOrElse("")
       // Canonical order: pr, branch, commits, sha, dirty
       assert(meta.startsWith("+pr42.branchfeature-abc-123.commits"), s"metadata was: $meta")
       assert(meta.contains(".sha"), s"metadata was: $meta")
@@ -59,7 +74,7 @@ final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
           CliConfig(repo = repo, basisCommit = "HEAD", prNumber = None, branchOverride = None, shaLength = 12, verbose = false))
       assert(res1.isRight)
       val v1 = res1.toOption.get
-      val m1 = v1.buildMetadata.map(_.render).getOrElse("")
+      val m1 = v1.buildMetadata.map(_.show).getOrElse("")
       assert(m1.contains("+branchr-f-weird-name"))
 
       // Detached HEAD should render branchdetached
@@ -71,7 +86,7 @@ final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
           CliConfig(repo = repo, basisCommit = "HEAD", prNumber = None, branchOverride = None, shaLength = 12, verbose = false))
       assert(res2.isRight)
       val v2 = res2.toOption.get
-      val m2 = v2.buildMetadata.map(_.render).getOrElse("")
+      val m2 = v2.buildMetadata.map(_.show).getOrElse("")
       assert(m2.contains("+branchdetached"))
     }
   }

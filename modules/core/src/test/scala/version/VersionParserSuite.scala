@@ -1,27 +1,31 @@
-/** ************************************************************************** Copyright 2023 Shuwari Africa Ltd. * *
-  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance
-  * with the License. * You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 * *
-  * Unless required by applicable law or agreed to in writing, software * distributed under the License is distributed
-  * on an "AS IS" BASIS, * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the License
-  * for the specific language governing permissions and * limitations under the License. *
-  */
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version
 
 import version.PreRelease.Resolver
 import version.errors.*
-import version.operations.toVersion // Import the extension method
 
 /** Tests the parsing logic, SemVer compliance, and the PreRelease.Resolver mechanism. */
 class VersionParserSuite extends munit.FunSuite:
 
-  // Use the default resolver for most tests
-  given Resolver = Resolver.default
-
   // Helpers for constructing expected versions
   private def V(major: Int, minor: Int, patch: Int) =
-    Version(MajorVersion.unsafe(major), MinorVersion.unsafe(minor), PatchNumber.unsafe(patch))
+    Version(MajorVersion.fromUnsafe(major), MinorVersion.fromUnsafe(minor), PatchNumber.fromUnsafe(patch))
 
-  private def PRN(i: Int) = PreReleaseNumber.unsafe(i)
+  private def PRN(i: Int) = PreReleaseNumber.fromUnsafe(i)
 
   // --- Basic Parsing (M.m.p) ---
 
@@ -137,12 +141,12 @@ class VersionParserSuite extends munit.FunSuite:
 
   test("Reject unrecognized Pre-Release identifiers (UnrecognizedPreRelease)") {
     // Structurally valid SemVer, but unknown to the default resolver.
-    assertEquals("1.0.0-dev".toVersion, Left(UnrecognizedPreRelease(List("dev"))))
     assertEquals("1.0.0-feature.xyz".toVersion, Left(UnrecognizedPreRelease(List("feature", "xyz"))))
   }
 
   test("Reject Pre-Release identifiers violating constraints (Default Resolver)") {
     // 1. Versioned classifier missing a number
+    assertEquals("1.0.0-dev".toVersion, Left(UnrecognizedPreRelease(List("dev"))))
     assertEquals("1.0.0-alpha".toVersion, Left(UnrecognizedPreRelease(List("alpha"))))
 
     // 2. Non-versioned classifier having a number
@@ -169,6 +173,152 @@ class VersionParserSuite extends munit.FunSuite:
 
     // Should fail because the custom resolver rejects "alpha.1"
     assertEquals("1.0.0-alpha.1".toVersion, Left(UnrecognizedPreRelease(List("alpha", "1"))))
+  }
+
+  // --- Leading v/V Prefix Tests (Spec Section 3.1) ---
+
+  test("Parse version with leading lowercase 'v' prefix") {
+    assertEquals("v1.2.3".toVersion, Right(V(1, 2, 3)))
+    assertEquals("v0.0.1".toVersion, Right(V(0, 0, 1)))
+  }
+
+  test("Parse version with leading uppercase 'V' prefix") {
+    assertEquals("V1.2.3".toVersion, Right(V(1, 2, 3)))
+    assertEquals("V10.20.30".toVersion, Right(V(10, 20, 30)))
+  }
+
+  test("Parse version with v prefix and pre-release") {
+    val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
+    assertEquals("v1.0.0-alpha.1".toVersion, Right(expected))
+    assertEquals("V1.0.0-alpha.1".toVersion, Right(expected))
+  }
+
+  test("Parse version with v prefix and build metadata") {
+    val meta = BuildMetadata(List("build", "123"))
+    val expected = V(2, 0, 0).copy(buildMetadata = Some(meta))
+    assertEquals("v2.0.0+build.123".toVersion, Right(expected))
+  }
+
+  test("Parse full version with v prefix") {
+    val expected = V(1, 2, 3).copy(
+      preRelease = Some(PreRelease.releaseCandidate(PRN(5))),
+      buildMetadata = Some(BuildMetadata(List("sha1234567")))
+    )
+    assertEquals("v1.2.3-rc.5+sha1234567".toVersion, Right(expected))
+  }
+
+  test("Reject bare 'v' or 'V' without version") {
+    assertEquals("v".toVersion, Left(InvalidVersionFormat("v")))
+    assertEquals("V".toVersion, Left(InvalidVersionFormat("V")))
+  }
+
+  test("Reject 'v' prefix followed by invalid version") {
+    assertEquals("v1.2".toVersion, Left(InvalidVersionFormat("v1.2")))
+    assertEquals("Va.b.c".toVersion, Left(InvalidVersionFormat("Va.b.c")))
+  }
+
+  // --- Dev Classifier Tests ---
+
+  test("Parse Dev pre-release classifier") {
+    val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(1))))
+    assertEquals("1.0.0-dev.1".toVersion, Right(expected))
+  }
+
+  test("Parse Dev with higher number") {
+    val expected = V(2, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(99))))
+    assertEquals("2.0.0-dev.99".toVersion, Right(expected))
+  }
+
+  test("Dev classifier is case-insensitive") {
+    val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(5))))
+    assertEquals("1.0.0-DEV.5".toVersion, Right(expected))
+    assertEquals("1.0.0-Dev.5".toVersion, Right(expected))
+  }
+
+  // --- All Classifier Aliases (Comprehensive) ---
+
+  test("Parse all classifier canonical forms") {
+    val versions = List(
+      ("1.0.0-dev.1", PreRelease.dev(PRN(1))),
+      ("1.0.0-milestone.1", PreRelease.milestone(PRN(1))),
+      ("1.0.0-alpha.1", PreRelease.alpha(PRN(1))),
+      ("1.0.0-beta.1", PreRelease.beta(PRN(1))),
+      ("1.0.0-rc.1", PreRelease.releaseCandidate(PRN(1))),
+      ("1.0.0-snapshot", PreRelease.snapshot)
+    )
+
+    versions.foreach { case (input, expectedPr) =>
+      val result = input.toVersion
+      assert(result.isRight, s"Failed to parse: $input")
+      assertEquals(result.toOption.get.preRelease, Some(expectedPr))
+    }
+  }
+
+  test("Parse all classifier alias forms") {
+    val aliasTests = List(
+      // Milestone aliases
+      ("1.0.0-m.1", PreRelease.milestone(PRN(1))),
+      ("1.0.0-M.1", PreRelease.milestone(PRN(1))),
+      // Alpha aliases
+      ("1.0.0-a.1", PreRelease.alpha(PRN(1))),
+      ("1.0.0-A.1", PreRelease.alpha(PRN(1))),
+      // Beta aliases
+      ("1.0.0-b.1", PreRelease.beta(PRN(1))),
+      ("1.0.0-B.1", PreRelease.beta(PRN(1))),
+      // Release candidate aliases
+      ("1.0.0-cr.1", PreRelease.releaseCandidate(PRN(1))),
+      ("1.0.0-CR.1", PreRelease.releaseCandidate(PRN(1))),
+      ("1.0.0-RC.1", PreRelease.releaseCandidate(PRN(1)))
+    )
+
+    aliasTests.foreach { case (input, expectedPr) =>
+      val result = input.toVersion
+      assert(result.isRight, s"Failed to parse: $input")
+      assertEquals(result.toOption.get.preRelease, Some(expectedPr), s"Wrong pre-release for: $input")
+    }
+  }
+
+  test("Parse combined (non-dot-separated) forms for all classifiers") {
+    val combinedTests = List(
+      ("1.0.0-dev5", PreRelease.dev(PRN(5))),
+      ("1.0.0-m10", PreRelease.milestone(PRN(10))),
+      ("1.0.0-a3", PreRelease.alpha(PRN(3))),
+      ("1.0.0-b7", PreRelease.beta(PRN(7))),
+      ("1.0.0-RC15", PreRelease.releaseCandidate(PRN(15))),
+      ("1.0.0-cr2", PreRelease.releaseCandidate(PRN(2)))
+    )
+
+    combinedTests.foreach { case (input, expectedPr) =>
+      val result = input.toVersion
+      assert(result.isRight, s"Failed to parse combined form: $input")
+      assertEquals(result.toOption.get.preRelease, Some(expectedPr), s"Wrong pre-release for: $input")
+    }
+  }
+
+  // --- Edge Cases ---
+
+  test("Parse maximum integer values") {
+    val max = Int.MaxValue.toString
+    val result = s"$max.$max.$max".toVersion
+    assert(result.isRight)
+    assertEquals(result.toOption.get.major.value, Int.MaxValue)
+    assertEquals(result.toOption.get.minor.value, Int.MaxValue)
+    assertEquals(result.toOption.get.patch.value, Int.MaxValue)
+  }
+
+  test("Reject negative-like (structurally invalid) versions") {
+    // Negative sign is not a valid character
+    assert("-1.0.0".toVersion.isLeft)
+  }
+
+  test("Reject whitespace in version strings") {
+    assert(" 1.0.0".toVersion.isLeft)
+    assert("1.0.0 ".toVersion.isLeft)
+    assert("1. 0.0".toVersion.isLeft)
+  }
+
+  test("Reject empty string") {
+    assertEquals("".toVersion, Left(InvalidVersionFormat("")))
   }
 
 end VersionParserSuite

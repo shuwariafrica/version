@@ -1,3 +1,20 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.cli.core.logging
 
 /** Logging levels for the version resolution system.
@@ -5,7 +22,7 @@ package version.cli.core.logging
   * Zero-cost abstraction using inline methods and compile-time evaluation to ensure no runtime overhead when logging is
   * disabled.
   */
-enum LogLevel derives CanEqual:
+enum LogLevel:
   /** Error level - always enabled, for critical failures and errors. */
   case Error
   /** Verbose level - enabled only with verbose flag, for debug information. */
@@ -26,7 +43,7 @@ final case class LogEntry(
   level: LogLevel,
   message: String,
   context: Option[String]
-) derives CanEqual
+)
 
 object LogEntry:
   given CanEqual[LogEntry, LogEntry] = CanEqual.derived
@@ -36,7 +53,7 @@ object LogEntry:
   * This trait enables pluggable logging implementations, allowing build tools and other consumers to integrate with
   * their own logging frameworks.
   */
-trait Logger derives CanEqual:
+trait Logger:
   /** Output a log entry. Implementation determines where it goes (stderr, stdout, etc). */
   def log(entry: LogEntry): Unit
 
@@ -94,7 +111,7 @@ type LoggerContext[T] = Logger ?=> T
 final case class LogConfig(
   isVerbose: Boolean,
   isCI: Boolean
-) derives CanEqual
+)
 
 object LogConfig:
   given CanEqual[LogConfig, LogConfig] = CanEqual.derived

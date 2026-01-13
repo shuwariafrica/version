@@ -1,10 +1,18 @@
-/** ************************************************************************** Copyright 2023 Shuwari Africa Ltd. * *
-  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance
-  * with the License. * You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 * *
-  * Unless required by applicable law or agreed to in writing, software * distributed under the License is distributed
-  * on an "AS IS" BASIS, * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the License
-  * for the specific language governing permissions and * limitations under the License. *
-  */
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.errors
 
 import scala.util.control.NoStackTrace
@@ -32,20 +40,20 @@ sealed transparent trait InvalidComponent extends VersionError:
   override def message: String = s"$componentName must be $requirement. Found: $value"
 
 final case class InvalidMajorVersion(value: Int) extends InvalidComponent:
-  val componentName = "Major Version"
-  val requirement = "a non-negative number (>= 0)"
+  inline val componentName = "Major Version"
+  inline val requirement = "a non-negative number (>= 0)"
 
 final case class InvalidMinorVersion(value: Int) extends InvalidComponent:
-  val componentName = "Minor Version"
-  val requirement = "a non-negative number (>= 0)"
+  inline val componentName = "Minor Version"
+  inline val requirement = "a non-negative number (>= 0)"
 
 final case class InvalidPatchNumber(value: Int) extends InvalidComponent:
-  val componentName = "Patch Number"
-  val requirement = "a non-negative number (>= 0)"
+  inline val componentName = "Patch Number"
+  inline val requirement = "a non-negative number (>= 0)"
 
 final case class InvalidPreReleaseNumber(value: Int) extends InvalidComponent:
-  val componentName = "Pre-Release Number"
-  val requirement = "a positive number (>= 1)"
+  inline val componentName = "Pre-Release Number"
+  inline val requirement = "a positive number (>= 1)"
 
 /** Errors related to inconsistencies between [[PreReleaseClassifier]] and [[PreReleaseNumber]]. */
 sealed transparent trait InvalidPreReleaseCombination extends VersionError

@@ -1,8 +1,9 @@
 val libraries = new {
+  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.3.2")
   val `jsoniter-scala` =
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.37.6")
   val `jsoniter-scala-macros` = `jsoniter-scala`(_.withName("jsoniter-scala-macros"))
-  val `os-lib` = Def.setting("com.lihaoyi" %%% "os-lib" % "0.11.4")
+  val `os-lib` = Def.setting("com.lihaoyi" %%% "os-lib" % "0.11.6")
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.1.0")
   val `scala-yaml` = Def.setting("org.virtuslab" %%% "scala-yaml" % "0.3.0")
   val scopt = Def.setting("com.github.scopt" %%% "scopt" % "4.1.1-M3")
@@ -30,7 +31,8 @@ lazy val jvmProjects =
       `version-codecs-zio`.jvm,
       `version-codecs-yaml`.jvm,
       `version-cli-core`.jvm,
-      `version-cli`.jvm
+      `version-cli`.jvm,
+      `sbt-version`
     )
 
 lazy val nativeProjects =
@@ -51,7 +53,13 @@ lazy val jsProjects =
   project
     .in(file(".js"))
     .notPublished
-    .aggregate(version.js, `version-zio-prelude`.js, `version-codecs-jsoniter`.js, `version-codecs-zio`.js, `version-codecs-yaml`.js)
+    .aggregate(
+      version.js,
+      `version-zio-prelude`.js,
+      `version-codecs-jsoniter`.js,
+      `version-codecs-zio`.js,
+      `version-codecs-yaml`.js
+    )
 
 lazy val version =
   crossProject(JVMPlatform, JSPlatform, NativePlatform)
@@ -60,6 +68,7 @@ lazy val version =
     .in(file("modules/core"))
     .settings(unitTestSettings)
     .settings(publishSettings)
+    .settings(libraryDependency(libraries.boilerplate))
     .nativeSettings(nativeSettings)
 
 lazy val `version-zio-prelude` =
@@ -133,10 +142,25 @@ lazy val `version-cli` =
     .settings(buildInfoSettings)
     .nativeSettings(nativeSettings)
 
+lazy val `sbt-version` =
+  project
+    .in(file("modules/sbt-version"))
+    .enablePlugins(SbtPlugin)
+    .settings(sbtVersion := "2.0.0-RC8")
+    .settings(Compile / scalacOptions --= Seq("-deprecation"))
+    .settings(
+      ScriptedPlugin.autoImport.scriptedLaunchOpts ++= {
+        val pluginVersion = (LocalRootProject / Keys.version).value
+        Seq(s"-Dplugin.version=$pluginVersion")
+      }
+    )
+    .settings(unitTestSettings)
+    .dependsOn(`version-cli-core`.jvm)
+
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.7.2"),
+    crossScalaVersions := List("3.7.4"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
@@ -199,7 +223,7 @@ def publishSettings = publishCredentials +: pgpSettings ++: List(
   pomIncludeRepository := (_ => false),
   publishMavenStyle := true,
   sonatypeProfileSetting,
-  headerLicense := Some(HeaderLicense.ALv2("2023", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed)),
+  headerLicense := Some(HeaderLicense.ALv2("2023", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 )
 
 def sonatypeProfileSetting = sonatypeProfileName := "africa.shuwari"
@@ -220,5 +244,5 @@ addCommandAlias("staticCheck", "scalafixAll --check; scalafmtCheckAll; scalafmtS
 
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),
-  buildInfoPackage := "version.internal",
+  buildInfoPackage := "version.internal"
 )

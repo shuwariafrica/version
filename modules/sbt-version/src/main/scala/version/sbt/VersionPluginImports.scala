@@ -15,17 +15,22 @@
  * language governing permissions and limitations under the     *
  * License.                                                     *
  ****************************************************************/
-package version.cli
+package version.sbt
 
-import scala.util.control.NonFatal
+import sbt.SettingKey
+import sbt.settingKey
 
-trait TestRepoSupport:
-  def withFreshRepo[A](name: String)(f: os.Path => A): A =
-    val tmp = os.temp.dir(prefix = s"version-cli-$name-")
-    val script = Option(System.getenv("CREATE_TEST_REPO")).map(os.Path(_)).getOrElse(os.pwd / "scripts" / "create-test-repo.sh")
-    try
-      os.proc("bash", script.toString, tmp.toString).call(check = true): Unit
-      f(tmp)
-    finally
-      try os.remove.all(tmp)
-      catch case NonFatal(_) => ()
+import version.cli.core.domain.CliConfig
+
+object VersionPluginImports:
+  type Version = version.Version
+  val Version: version.Version.type = version.Version
+
+  type VersionConfig = CliConfig
+  val VersionConfig: CliConfig.type = CliConfig
+
+  val versionBranchOverride: SettingKey[Option[String]] =
+    settingKey("Optional branch override used when deriving build metadata.")
+
+  val resolvedVersion: SettingKey[Version] =
+    settingKey("Resolved semantic version for the current repository state. Use Version.Show instances for rendering.")

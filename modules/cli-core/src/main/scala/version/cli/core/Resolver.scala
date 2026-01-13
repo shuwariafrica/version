@@ -1,3 +1,20 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.cli.core
 
 import version.*
@@ -5,7 +22,6 @@ import version.cli.core.domain.*
 import version.cli.core.git.Git
 import version.cli.core.logging.Logger
 import version.cli.core.parsing.KeywordParser
-import version.operations.*
 
 /** Core engine for resolving the semantic version from a Git repository. */
 object Resolver:
@@ -37,7 +53,6 @@ object Resolver:
     isDirty: Boolean,
     allTags: List[Tag]
   )(using logger: Logger, isVerbose: Boolean): Either[ResolutionError, Version] =
-    given PreRelease.Resolver = PreRelease.Resolver.default
     for
       reachable <- git.findReachableTags(basisCommitSha)
       _ = logger.verbose(s"Reachable tags: ${reachable.map(_.name.value).mkString(",")}", "Resolver")
@@ -78,12 +93,12 @@ object Resolver:
           yield targetOpt.getOrElse {
             val fallback = highestRepo match
               case Some(h) => Version(h.version.major.increment, MinorVersion.reset, PatchNumber.reset)
-              case None    => Version(MajorVersion.unsafe(0), MinorVersion.unsafe(1), PatchNumber.unsafe(0))
+              case None    => Version(MajorVersion.fromUnsafe(0), MinorVersion.fromUnsafe(1), PatchNumber.fromUnsafe(0))
             logger.verbose(s"Fallback target version: $fallback", "Resolver")
             fallback
           }
       metadata <- BuildMetadataBuilder.assemble(config, git, basisCommitSha, baseOpt.map(_.commitSha), isDirty)
-      _ = logger.verbose(s"Build metadata assembled: ${metadata.render}", "Resolver")
+      _ = logger.verbose(s"Build metadata assembled: ${metadata.show}", "Resolver")
       result = targetCore.copy(preRelease = Some(PreRelease.snapshot), buildMetadata = Some(metadata))
       _ = logger.verbose(s"Final snapshot version: $result", "Resolver")
     yield result

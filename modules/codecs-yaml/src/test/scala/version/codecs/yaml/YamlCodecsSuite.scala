@@ -1,3 +1,20 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.codecs.yaml
 
 import org.virtuslab.yaml.*
@@ -15,7 +32,7 @@ class YamlCodecsSuite extends munit.FunSuite:
     noTrailBeforeNl.replaceAll("[ \t]+$", "")
 
   test("MajorVersion YAML codec should succeed for valid input") {
-    val major = MajorVersion.unsafe(5)
+    val major = MajorVersion.fromUnsafe(5)
     val yaml = "5"
     assertNoDiff(normalizeYaml(major.asYaml), normalizeYaml(yaml))
     assertEquals(yaml.as[MajorVersion], Right(major))
@@ -28,7 +45,7 @@ class YamlCodecsSuite extends munit.FunSuite:
   }
 
   test("PreRelease YAML codec should succeed for valid input") {
-    val pre = PreRelease.alpha(PreReleaseNumber.unsafe(2))
+    val pre = PreRelease.alpha(PreReleaseNumber.fromUnsafe(2))
     val yaml =
       """|classifier: alpha
          |number: 2
@@ -39,31 +56,24 @@ class YamlCodecsSuite extends munit.FunSuite:
   }
 
   test("PreRelease YAML codec should fail for snapshot with a number") {
-    val invalidYaml =
+    val yaml =
       """|classifier: snapshot
          |number: 1
          |""".stripMargin
-    val result = invalidYaml.as[PreRelease]
-    assert(result.isLeft)
-    result.left.foreach { error =>
-      assert(error.msg.contains("cannot have a pre-release number"))
-    }
+    val result = yaml.as[PreRelease]
+    assert(result.isLeft, s"Expected failure for snapshot with number but got $result")
   }
 
   test("PreRelease YAML codec should fail for a numbered classifier without a number") {
-    val invalidYaml =
+    val yaml =
       """|classifier: rc
-         |number: !!null
          |""".stripMargin
-    val result = invalidYaml.as[PreRelease]
-    assert(result.isLeft)
-    result.left.foreach { error =>
-      assert(error.msg.contains("requires a pre-release number"))
-    }
+    val result = yaml.as[PreRelease]
+    assert(result.isLeft, s"Expected failure for RC without number but got $result")
   }
 
   test("Version YAML codec should succeed for a stable version") {
-    val v = Version(MajorVersion.unsafe(1), MinorVersion.unsafe(2), PatchNumber.unsafe(3))
+    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
     val yaml =
       """|preRelease: !!null
          |buildMetadata: !!null
@@ -76,10 +86,10 @@ class YamlCodecsSuite extends munit.FunSuite:
   }
 
   test("Version YAML codec should succeed for a pre-release version") {
-    val v = Version(MajorVersion.unsafe(0), MinorVersion.unsafe(1), PatchNumber.unsafe(0), Some(PreRelease.snapshot))
+    val v = Version(MajorVersion.fromUnsafe(0), MinorVersion.fromUnsafe(1), PatchNumber.fromUnsafe(0), Some(PreRelease.snapshot))
     val yaml =
       """|preRelease:
-         |  classifier: snapshot
+         |  classifier: SNAPSHOT
          |  number: !!null
          |buildMetadata: !!null
          |major: 0

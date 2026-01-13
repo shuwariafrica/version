@@ -1,11 +1,29 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.codecs.yaml
 
 import org.virtuslab.yaml.*
 
-import scala.util.Try
-
 import version.*
 import version.errors.VersionError
+
+// scala-yaml's Tag type does not provide CanEqual; required for null tag detection
+private given CanEqual[Tag, Tag] = CanEqual.derived
 
 /** A helper method to create a `YamlCodec` for opaque types that wrap an `Int` and have failable constructors.
   *
@@ -44,22 +62,40 @@ given YamlCodec[PreReleaseClassifier] =
       }
   YamlCodec.make(using decoder, encoder)
 
-/** A custom `YamlCodec` for `PreRelease` to handle the validation logic within its constructor. */
+/** Custom validating codec for [[PreRelease]].
+  *
+  * Decodes the classifier and optional number fields, then validates via [[PreRelease.from]]. This ensures domain
+  * invariants (e.g., Snapshot must not have a number) are enforced at the codec boundary.
+  */
 given YamlCodec[PreRelease] =
-  // Let the macro generate the basic encoder and a decoder for the case class structure.
-  val derivedCodec = YamlCodec.derived[PreRelease]
-
-  // Create a new decoder that wraps the derived one to catch validation exceptions.
-  val validatingDecoder: YamlDecoder[PreRelease] = new YamlDecoder[PreRelease]:
+  val encoder: YamlEncoder[PreRelease] = new YamlEncoder[PreRelease]:
+    override def asNode(pr: PreRelease): Node =
+      val classifierNode = Node.ScalarNode(pr.classifier.show)
+      val numberNode = pr.number match
+        case Some(n) => Node.ScalarNode(n.value.toString)
+        case None    => Node.ScalarNode("null")
+      Node.MappingNode(
+        Node.ScalarNode("classifier") -> classifierNode,
+        Node.ScalarNode("number") -> numberNode
+      )
+  val decoder: YamlDecoder[PreRelease] = new YamlDecoder[PreRelease]:
     override def construct(node: Node)(implicit settings: LoadSettings): Either[ConstructError, PreRelease] =
-      // First, attempt to decode using the derived decoder.
-      // Then, wrap the result in a Try to catch exceptions from the PreRelease constructor.
-      Try(derivedCodec.construct(node)).toEither.flatten.left.map {
-        case ce: ConstructError    => ce // Propagate existing construct errors
-        case otherError: Throwable => ConstructError.from(otherError.getMessage.nn, node)
-      }
-  // The derived encoder is safe to use as is.
-  YamlCodec.make(using validatingDecoder, derivedCodec)
+      node match
+        case Node.MappingNode(mappings, _) =>
+          def findField(name: String): Option[Node] =
+            mappings.collectFirst { case (Node.ScalarNode(n, _), v) if n == name => v }
+          for
+            classifierNode <- findField("classifier").toRight(ConstructError.from("missing required field: classifier", node))
+            classifier <- summon[YamlDecoder[PreReleaseClassifier]].construct(classifierNode)
+            number <- findField("number") match
+              case None                                                => Right(None)
+              case Some(Node.ScalarNode(_, tag)) if tag == Tag.nullTag => Right(None)
+              case Some(n)                                             => summon[YamlDecoder[PreReleaseNumber]].construct(n).map(Some(_))
+            result <- PreRelease.from(classifier, number).left.map(err => ConstructError.from(err.message, node))
+          yield result
+        case _ => Left(ConstructError.from("expected mapping node for PreRelease", node))
+  YamlCodec.make(using decoder, encoder)
+end given
 
 // BuildMetadata is an opaque List[String]; encode/decode as YAML sequence of strings
 given YamlCodec[BuildMetadata] =

@@ -1,15 +1,29 @@
+/****************************************************************
+ * Copyright © Shuwari Africa Ltd.                              *
+ *                                                              *
+ * This file is licensed to you under the terms of the Apache   *
+ * License Version 2.0 (the "License"); you may not use this    *
+ * file except in compliance with the License. You may obtain   *
+ * a copy of the License at:                                    *
+ *                                                              *
+ *     https://www.apache.org/licenses/LICENSE-2.0              *
+ *                                                              *
+ * Unless required by applicable law or agreed to in writing,   *
+ * software distributed under the License is distributed on an  *
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
+ * either express or implied. See the License for the specific  *
+ * language governing permissions and limitations under the     *
+ * License.                                                     *
+ ****************************************************************/
 package version.cli.core
 
 import munit.FunSuite
 
 import version.*
 import version.cli.core.domain.*
-import version.operations.*
 
 // scalafix:off
 final class ResolverSuite extends FunSuite with TestRepoSupport:
-
-  given PreRelease.Resolver = PreRelease.Resolver.default
 
   private def cfg(repo: os.Path, pr: Option[Int] = None, shaLen: Int = 12) =
     CliConfig(repo = repo, basisCommit = "HEAD", prNumber = pr, branchOverride = None, shaLength = shaLen, verbose = false)
@@ -69,7 +83,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val v = res.toOption.get
       // Should include sha of the provided basis commit, abbreviated
       val abbrev12 = full.take(12)
-      val meta = v.buildMetadata.map(_.render).getOrElse("")
+      val meta = v.buildMetadata.map(_.show).getOrElse("")
       assert(meta.contains(s"+branch"), clues(meta))
       assert(meta.contains(s".sha$abbrev12"), clues(meta))
       assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
@@ -85,7 +99,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       assert(res.isRight)
       val v = res.toOption.get
       assert(v.preRelease.exists(_.isSnapshot), s"version was: ${v.toString}")
-      val meta = v.buildMetadata.map(_.render).getOrElse("")
+      val meta = v.buildMetadata.map(_.show).getOrElse("")
       assert(meta.contains("dirty"), s"metadata was: $meta")
     }
   }

@@ -1,26 +1,35 @@
-/** ************************************************************************** Copyright 2023 Shuwari Africa Ltd. * *
-  * Licensed under the Apache License, Version 2.0 (the "License"); * you may not use this file except in compliance
-  * with the License. * You may obtain a copy of the License at * * http://www.apache.org/licenses/LICENSE-2.0 * *
-  * Unless required by applicable law or agreed to in writing, software * distributed under the License is distributed
-  * on an "AS IS" BASIS, * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. * See the License
-  * for the specific language governing permissions and * limitations under the License. *
-  */
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.parser
 
 import version.*
 import version.errors.*
 
 // scalafix:off
-/** Hand-rolled Semantic Version 2.0.0 parser (no regex) to avoid runtime pattern compilation and to mirror the
-  * performance style used in [[version.cli.core.parsing.KeywordParser]]. Fully compliant with the project specification
-  * and SemVer structural rules enforced previously by the regex implementation.
+/** SemVer 2.0.0 string parser.
   *
-  * Accepted grammar (informal): core := numeric '.' numeric '.' numeric numeric := '0' | [1-9][0-9]* (no leading zeros)
-  * prerelease := '-' ident ('.' ident)* build := '+' ident ('.' ident)* ident := (ALPHA / DIGIT / '-')+ (must not be
-  * empty) numeric-ident (subset for pre-release identifiers comprised only of digits) obeys the same leading zero rule
+  * Parses version strings into [[Version]] instances, handling:
+  *   - Optional `v` or `V` prefix
+  *   - Core version (`MAJOR.MINOR.PATCH`)
+  *   - Pre-release identifiers (mapped via [[PreRelease.Resolver]])
+  *   - Build metadata
+  *   - Combined classifier forms (e.g., `rc3` → `rc.3`)
   *
-  * Additional library-specific mapping: pre-release identifiers are passed (after reconciliation of combined forms like
-  * "RC10") to a contextual [[PreRelease.Resolver]].
+  * @see
+  *   [[Version.parse]] for the primary user-facing entry point.
   */
 object VersionParser:
 
@@ -64,14 +73,22 @@ object VersionParser:
   def parse(input: String)(using resolver: PreRelease.Resolver): Either[ParseError, Version] =
     if input == null || input.isEmpty then return Left(InvalidVersionFormat(input))
 
-    val len = input.length
+    // Strip optional leading 'v' or 'V' prefix
+    val normalised =
+      if input.length > 1 && (input.charAt(0) == 'v' || input.charAt(0) == 'V') then input.substring(1)
+      else input
+
+    // After stripping, check for empty (edge case: input was just "v" or "V")
+    if normalised.isEmpty then return Left(InvalidVersionFormat(input))
+
+    val len = normalised.length
     var i = 0
 
     // 1. major
     val majorStart = i
-    while i < len && input.charAt(i).isDigit do i += 1
-    if i == majorStart || i == len || input.charAt(i) != '.' then return Left(InvalidVersionFormat(input))
-    val majorStr = input.substring(majorStart, i)
+    while i < len && normalised.charAt(i).isDigit do i += 1
+    if i == majorStart || i == len || normalised.charAt(i) != '.' then return Left(InvalidVersionFormat(input))
+    val majorStr = normalised.substring(majorStart, i)
     if majorStr.length > 1 && majorStr.charAt(0) == '0' then return Left(InvalidVersionFormat(input))
     val majorInt = parseUnsignedInt(majorStr, "Major") match
       case Left(err) => return Left(err)
@@ -80,9 +97,9 @@ object VersionParser:
 
     // 2. minor
     val minorStart = i
-    while i < len && input.charAt(i).isDigit do i += 1
-    if i == minorStart || i == len || input.charAt(i) != '.' then return Left(InvalidVersionFormat(input))
-    val minorStr = input.substring(minorStart, i)
+    while i < len && normalised.charAt(i).isDigit do i += 1
+    if i == minorStart || i == len || normalised.charAt(i) != '.' then return Left(InvalidVersionFormat(input))
+    val minorStr = normalised.substring(minorStart, i)
     if minorStr.length > 1 && minorStr.charAt(0) == '0' then return Left(InvalidVersionFormat(input))
     val minorInt = parseUnsignedInt(minorStr, "Minor") match
       case Left(err) => return Left(err)
@@ -91,9 +108,9 @@ object VersionParser:
 
     // 3. patch
     val patchStart = i
-    while i < len && input.charAt(i).isDigit do i += 1
+    while i < len && normalised.charAt(i).isDigit do i += 1
     if i == patchStart then return Left(InvalidVersionFormat(input))
-    val patchStr = input.substring(patchStart, i)
+    val patchStr = normalised.substring(patchStart, i)
     if patchStr.length > 1 && patchStr.charAt(0) == '0' then return Left(InvalidVersionFormat(input))
     val patchInt = parseUnsignedInt(patchStr, "Patch") match
       case Left(err) => return Left(err)
@@ -101,21 +118,21 @@ object VersionParser:
 
     // 4. optional pre-release
     var preRelease: Option[PreRelease] = None
-    if i < len && input.charAt(i) == '-' then
+    if i < len && normalised.charAt(i) == '-' then
       i += 1
       if i >= len then return Left(InvalidVersionFormat(input)) // trailing '-'
       val ids = scala.collection.mutable.ListBuffer.empty[String]
       var identStart = i
       var continue = true
       while continue && i <= len do
-        if i == len || input.charAt(i) == '+' || input.charAt(i) == '.' then
+        if i == len || normalised.charAt(i) == '+' || normalised.charAt(i) == '.' then
           val end = i
           if end == identStart then return Left(InvalidVersionFormat(input)) // empty identifier
-          val id = input.substring(identStart, end)
+          val id = normalised.substring(identStart, end)
           if !id.forall(isIdentChar) then return Left(InvalidVersionFormat(input))
           if isAllDigits(id) && id.length > 1 && id.charAt(0) == '0' then return Left(InvalidVersionFormat(input))
           ids += id
-          if i == len || input.charAt(i) == '+' then continue = false
+          if i == len || normalised.charAt(i) == '+' then continue = false
           else
             i += 1
             if i >= len then return Left(InvalidVersionFormat(input)) // dot at end
@@ -138,17 +155,17 @@ object VersionParser:
 
     // 5. optional build metadata
     var buildMetadata: Option[BuildMetadata] = None
-    if i < len && input.charAt(i) == '+' then
+    if i < len && normalised.charAt(i) == '+' then
       i += 1
       if i >= len then return Left(InvalidVersionFormat(input)) // trailing '+'
       val ids = scala.collection.mutable.ListBuffer.empty[String]
       var identStart = i
       var continue = true
       while continue && i <= len do
-        if i == len || input.charAt(i) == '.' then
+        if i == len || normalised.charAt(i) == '.' then
           val end = i
           if end == identStart then return Left(InvalidVersionFormat(input)) // empty identifier (structural)
-          val id = input.substring(identStart, end)
+          val id = normalised.substring(identStart, end)
           if !id.forall(isIdentChar) then
             // invalid character -> wrap as InvalidVersionFormat (different message pattern preserved below)
             return Left(InvalidVersionFormat(s"Invalid build metadata: ${InvalidBuildMetadata(List(id)).message}"))
@@ -172,9 +189,9 @@ object VersionParser:
 
     Right(
       Version(
-        MajorVersion.unsafe(majorInt),
-        MinorVersion.unsafe(minorInt),
-        PatchNumber.unsafe(patchInt),
+        MajorVersion.fromUnsafe(majorInt),
+        MinorVersion.fromUnsafe(minorInt),
+        PatchNumber.fromUnsafe(patchInt),
         preRelease,
         buildMetadata
       )
