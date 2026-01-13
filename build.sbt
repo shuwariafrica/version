@@ -82,12 +82,22 @@ val `version-codecs-yaml` =
     .settings(libraryDependency(libraries.`scala-yaml`))
     .nativeSettings(nativeSettings)
 
+val `version-testkit` =
+  crossProject(JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/testkit"))
+    .settings(libraryDependency(libraries.`os-lib`))
+    .settings(publish / skip := true)
+    .nativeSettings(nativeSettings)
+
 val `version-cli-core` =
   crossProject(JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/cli-core"))
     .dependsOn(version)
+    .dependsOn(`version-testkit` % Test)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`os-lib`))
     .nativeSettings(nativeSettings)
@@ -98,6 +108,7 @@ val `version-cli` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/cli"))
     .dependsOn(`version-cli-core`)
+    .dependsOn(`version-testkit` % Test)
     .dependsOn(`version-codecs-jsoniter`)
     .dependsOn(`version-codecs-yaml`)
     .settings(unitTestSettings)
@@ -131,6 +142,7 @@ val `version-jvm` =
       `version-codecs-jsoniter`.jvm,
       `version-codecs-zio`.jvm,
       `version-codecs-yaml`.jvm,
+      `version-testkit`.jvm,
       `version-cli-core`.jvm,
       `version-cli`.jvm,
       `sbt-version`
@@ -146,6 +158,7 @@ val `version-native` =
       `version-codecs-jsoniter`.native,
       `version-codecs-zio`.native,
       `version-codecs-yaml`.native,
+      `version-testkit`.native,
       `version-cli-core`.native,
       `version-cli`.native
     )
@@ -176,11 +189,7 @@ def nativeSettings = List(
 
 def unitTestSettings: List[Setting[?]] = List(
   libraryDependencies += libraries.munit.value % Test,
-  testFrameworks += new TestFramework("munit.Framework"),
-  Test / envVars ++= {
-    val p = (LocalRootProject / baseDirectory).value / "scripts" / "create-test-repo.sh"
-    Map("CREATE_TEST_REPO" -> p.getAbsolutePath)
-  }
+  testFrameworks += new TestFramework("munit.Framework")
 )
 
 def formattingSettings =
