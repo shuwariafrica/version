@@ -36,7 +36,6 @@ import version.sbt.VersionPluginImports.*
   *   - `resolvedVersion`: The full [[Version]] object (with 40-char SHA for maximum flexibility)
   *   - `version`: Standard SemVer string (without build metadata) for publishing
   *   - `isSnapshot`: `true` if the resolved version is a snapshot
-  *
   */
 object VersionPlugin extends AutoPlugin:
 

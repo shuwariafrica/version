@@ -1,4 +1,4 @@
-name: "CI Build"
+name: "Integration Build"
 
 on:
   workflow_dispatch:
@@ -10,6 +10,14 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  JDK_RELEASE: 17
+  JDK_CURRENT: 25
+  NODE_LTS: 22
+  SBT_OPTS: >- # Use all available resources
+    -Xmx10G
+    -Xms6G
+    -Xss8M
+    -XX:ReservedCodeCacheSize=512M
 
 jobs:
   test_jvm:
@@ -17,149 +25,211 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ 11, 17, 21 ]
-    runs-on: ubuntu-22.04
+        java: [ 17, 21, 25 ]
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Java ${{ matrix.java }}
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
           check-latest: true
-          cache: sbt
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
 
       - name: Execute Unit Tests
-        run: sbt "jvmProjects/test"
+        run: sbt -Dsbt.ci=true "version-jvm/test"
 
       - name: Package Project Products
-        run: sbt "jvmProjects/package"
+        run: sbt -Dsbt.ci=true "version-jvm/package"
 
   test_native:
-    name: Execute Tests (Native ${{ matrix.runner }}) (JDK ${{ matrix.java }})
+    name: Execute Tests (Native ${{ matrix.os }}) (JDK ${{ env.JDK_CURRENT }})
     strategy:
       fail-fast: false
       matrix:
-        java: [ 11, 17, 21 ]
-        runner: [ ubuntu-22.04, windows-2022]
-    runs-on: ${{ matrix.runner }}
+        os: [ ubuntu-24.04, windows-2025, macos-26 ]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup Java ${{ matrix.java }}
-        uses: actions/setup-java@v4
+      - name: Setup Java ${{ env.JDK_CURRENT }}
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
+          java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
           cache: sbt
 
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
+
+      # Scala Native toolchains per OS
+      - name: Install LLVM/Clang toolchain (Ubuntu)
+        if: startsWith(matrix.os, 'ubuntu')
+        shell: bash
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y clang lld llvm libuv1-dev
+
+      - name: Install LLVM toolchain (macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          brew update
+          brew install llvm libuv || true
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Install LLVM toolchain (Windows)
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          choco install -y llvm
+          vcpkg install libuv:x64-windows
+          echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo "LIBRARY_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "C_INCLUDE_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Execute Unit Tests
-        run: sbt "nativeProjects/test"
+        run: sbt -Dsbt.ci=true "version-native/test"
 
       - name: Package Project Products
-        run: sbt "nativeProjects/package"
+        run: sbt -Dsbt.ci=true "version-native/package"
 
   test_js:
-    name: Execute Tests (NodeJS ${{ matrix.node }}) (JDK ${{ matrix.java }})
+    name: Execute Tests (NodeJS ${{ matrix.node }}) (JDK ${{ env.JDK_CURRENT }})
     strategy:
       fail-fast: false
       matrix:
-        java: [ 11, 17, 21 ]
-        node: [ 18.x, 20.x ]
-    runs-on: ubuntu-22.04
+        node: [ 22.x, 24.x ]
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node.js environment
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
           check-latest: true
 
-      - name: Setup Java ${{ matrix.java }}
-        uses: actions/setup-java@v4
+      - name: Setup Java ${{ env.JDK_CURRENT }}
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
+          java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
           cache: sbt
 
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
+
       - name: Execute Unit Tests
-        run: sbt "jsProjects/test"
+        run: sbt -Dsbt.ci=true "version-js/test"
 
       - name: Package Project Products
-        run: sbt "jsProjects/package"
+        run: sbt -Dsbt.ci=true "version-js/package"
 
-  generate_coverage_report:
-    name: Generate Code Coverage Report
-    needs: [ test_jvm, test_native, test_js ]
-    runs-on: ubuntu-22.04
-    permissions:
-      pull-requests: write
+  static-analysis:
+    name: Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Set up Java ${{ env.JDK_CURRENT }}
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 11
+          java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
+          cache: sbt
 
-      - name: Generate Coverage Reports
-        run: sbt clean coverage "jvmProjects/test" "jvmProjects/coverageReport"
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
 
-      - name: Generate Coverage Reports Summary
-        uses: irongut/CodeCoverageSummary@v1.3.0
-        with:
-         filename: modules/*/.jvm/target/**/cobertura.xml
-         format: markdown
-         hide_branch_rate: true
-         output: both
-         badge: true
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
 
-#      - name: Add Coverage PR Comment
-#        uses: marocchino/sticky-pull-request-comment@v2
-#        if: github.event_name == 'pull_request'
-#        with:
-#          hide_and_recreate: true
-#          path: code-coverage-results.md
+      - name: Verify Source Formatting
+        id: scalafmt
+        continue-on-error: true
+        run: sbt -Dsbt.ci=true scalafmtCheckAll
+
+      - name: Verify Linting Conformity
+        id: scalafix
+        continue-on-error: true
+        run: sbt -Dsbt.ci=true "scalafixAll --check"
+
+      - name: Verify File Header Conformity
+        id: headers
+        continue-on-error: true
+        run: sbt -Dsbt.ci=true headerCheckAll
+
+      - name: Check for failures
+        if: always()
+        run: |
+          failed=""
+          [[ "${{ steps.scalafmt.outcome }}" == "failure" ]] && failed="$failed scalafmtCheckAll"
+          [[ "${{ steps.scalafix.outcome }}" == "failure" ]] && failed="$failed scalafixAll"
+          [[ "${{ steps.headers.outcome }}" == "failure" ]] && failed="$failed headerCheckAll"
+          if [[ -n "$failed" ]]; then
+            echo "::error::Static analysis checks failed:$failed"
+            exit 1
+          fi
+
 
   publish:
     name: Publish Release
-    needs: [ test_jvm, test_native, test_js, generate_coverage_report ]
+    needs: [ test_jvm, test_native, test_js, static-analysis ]
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Source Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 11
+          java-version: ${{ env.JDK_RELEASE }}
           check-latest: true
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
 
       - name: Import Signing Key
         uses: crazy-max/ghaction-import-gpg@v6
@@ -167,13 +237,11 @@ jobs:
           gpg_private_key: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY }}
           git_user_signingkey: true
           git_commit_gpgsign: true
-
-      - name: Update Signing Key Trust Level
-        run: echo -e "trust\n5\ny" | gpg --batch --no-tty --command-fd 0 --edit-key ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY_ID }}
+          trust_level: 5
 
       - name: Publish Projects
-        run: sbt publishSigned sonatypeBundleRelease
+        run: sbt -Dsbt.ci=true publishSigned sonaUpload sonaRelease
         env:
-          PUBLISH_USER: ${{ secrets.OSS_PUBLISH_USER }}
-          PUBLISH_USER_PASSPHRASE: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
+          SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
+          SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
           SIGNING_KEY_ID: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY_ID }}

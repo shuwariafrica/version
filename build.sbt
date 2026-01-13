@@ -1,3 +1,20 @@
+inThisBuild(
+  List(
+    scalaVersion := crossScalaVersions.value.head,
+    crossScalaVersions := List("3.7.4"),
+    organization := "africa.shuwari",
+    description := "Simple utilities and data structures for the management of application versioning.",
+    homepage := Some(url("https://github.com/shuwarifrica/version")),
+    startYear := Some(2023),
+    semanticdbEnabled := true,
+    scmInfo := ScmInfo(
+      url("https://github.com/shuwariafrica/version"),
+      "scm:git:https://github.com/shuwariafrica/version.git",
+      Some("scm:git:git@github.com:shuwariafrica/version.git")
+    ).some
+  ) ++ formattingSettings
+)
+
 val libraries = new {
   val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.3.2")
   val `jsoniter-scala` =
@@ -11,16 +28,100 @@ val libraries = new {
   val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC45")
 }
 
-lazy val `version-root` =
-  project
-    .in(file("."))
-    .shuwariProject
-    .notPublished
-    .apacheLicensed
-    .aggregate(jvmProjects, jsProjects, nativeProjects)
-    .settings(sonatypeProfileSetting)
+val version =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/core"))
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+    .settings(libraryDependency(libraries.boilerplate))
+    .nativeSettings(nativeSettings)
 
-lazy val jvmProjects =
+val `version-zio-prelude` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/zio-prelude"))
+    .dependsOn(version)
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+    .settings(libraryDependency(libraries.`zio-prelude`))
+    .nativeSettings(nativeSettings)
+
+val `version-codecs-jsoniter` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/codecs-jsoniter"))
+    .dependsOn(version)
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+    .settings(libraryDependency(libraries.`jsoniter-scala`))
+    .settings(libraryDependency(libraries.`jsoniter-scala-macros`(_.withConfigurations(Some(Provided.name)))))
+    .nativeSettings(nativeSettings)
+
+val `version-codecs-zio` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/codecs-zio"))
+    .dependsOn(version)
+    .settings(unitTestSettings)
+    .settings(publishSettings)
+    .settings(libraryDependency(libraries.`zio-json`))
+    .nativeSettings(nativeSettings)
+
+val `version-codecs-yaml` =
+  crossProject(JVMPlatform, JSPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/codecs-yaml"))
+    .dependsOn(version)
+    .settings(unitTestSettings)
+    .settings(libraryDependency(libraries.`scala-yaml`))
+    .nativeSettings(nativeSettings)
+
+val `version-cli-core` =
+  crossProject(JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/cli-core"))
+    .dependsOn(version)
+    .settings(unitTestSettings)
+    .settings(libraryDependency(libraries.`os-lib`))
+    .nativeSettings(nativeSettings)
+
+val `version-cli` =
+  crossProject(JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .withoutSuffixFor(JVMPlatform)
+    .in(file("modules/cli"))
+    .dependsOn(`version-cli-core`)
+    .dependsOn(`version-codecs-jsoniter`)
+    .dependsOn(`version-codecs-yaml`)
+    .settings(unitTestSettings)
+    .settings(libraryDependency(libraries.scopt))
+    .settings(Compile / run / mainClass := Some("version.cli.CLI"))
+    .settings(publish / skip := true)
+    .jvmSettings(run / fork := true)
+    .enablePlugins(BuildInfoPlugin)
+    .settings(buildInfoSettings)
+    .nativeSettings(nativeSettings)
+
+val `sbt-version` =
+  project
+    .in(file("modules/sbt-version"))
+    .dependsOn(`version-cli-core`.jvm)
+    .enablePlugins(SbtPlugin)
+    .settings(unitTestSettings)
+    .settings(sbtVersion := "2.0.0-RC8")
+    .settings(Compile / scalacOptions -= "-deprecation")
+    .settings(
+      scriptedLaunchOpts += (LocalRootProject / Keys.version)(v => s"-Dplugin.version=$v").value
+    )
+
+val `version-jvm` =
   project
     .in(file(".jvm"))
     .notPublished
@@ -35,7 +136,7 @@ lazy val jvmProjects =
       `sbt-version`
     )
 
-lazy val nativeProjects =
+val `version-native` =
   project
     .in(file(".native"))
     .notPublished
@@ -49,7 +150,7 @@ lazy val nativeProjects =
       `version-cli`.native
     )
 
-lazy val jsProjects =
+val `version-js` =
   project
     .in(file(".js"))
     .notPublished
@@ -61,120 +162,13 @@ lazy val jsProjects =
       `version-codecs-yaml`.js
     )
 
-lazy val version =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/core"))
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .settings(libraryDependency(libraries.boilerplate))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-zio-prelude` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/zio-prelude"))
-    .dependsOn(version)
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .settings(libraryDependency(libraries.`zio-prelude`))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-codecs-jsoniter` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-jsoniter"))
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .dependsOn(version)
-    .settings(libraryDependency(libraries.`jsoniter-scala`))
-    .settings(libraryDependency(libraries.`jsoniter-scala-macros`(_.withConfigurations(Some(Provided.name)))))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-codecs-zio` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-zio"))
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .dependsOn(version)
-    .settings(libraryDependency(libraries.`zio-json`))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-codecs-yaml` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-yaml"))
-    .settings(unitTestSettings)
-    .dependsOn(version)
-    .settings(libraryDependency(libraries.`scala-yaml`))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-cli-core` =
-  crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/cli-core"))
-    .dependsOn(version)
-    .settings(unitTestSettings)
-    .settings(libraryDependency(libraries.`os-lib`))
-    .nativeSettings(nativeSettings)
-
-lazy val `version-cli` =
-  crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/cli"))
-    .dependsOn(`version-codecs-yaml`)
-    .dependsOn(`version-codecs-jsoniter`)
-    .dependsOn(`version-cli-core`)
-    .settings(unitTestSettings)
-    .settings(libraryDependency(libraries.scopt))
-    .settings(Compile / run / mainClass := Some("version.cli.CLI"))
-    .settings(publish / skip := true)
-    .jvmSettings(run / fork := true)
-    .enablePlugins(BuildInfoPlugin)
-    .settings(buildInfoSettings)
-    .nativeSettings(nativeSettings)
-
-lazy val `sbt-version` =
+val `version-root` =
   project
-    .in(file("modules/sbt-version"))
-    .enablePlugins(SbtPlugin)
-    .settings(sbtVersion := "2.0.0-RC8")
-    .settings(Compile / scalacOptions --= Seq("-deprecation"))
-    .settings(
-      ScriptedPlugin.autoImport.scriptedLaunchOpts ++= {
-        val pluginVersion = (LocalRootProject / Keys.version).value
-        Seq(s"-Dplugin.version=$pluginVersion")
-      }
-    )
-    .settings(unitTestSettings)
-    .dependsOn(`version-cli-core`.jvm)
-
-inThisBuild(
-  List(
-    scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.7.4"),
-    organization := "africa.shuwari",
-    description := "Simple utilities and data structures for the management of application versioning.",
-    homepage := Some(url("https://github.com/shuwarifrica/version")),
-    startYear := Some(2023),
-    semanticdbEnabled := true,
-    sonatypeCredentialHost := "s01.oss.sonatype.org",
-    publishCredentials,
-    scmInfo := ScmInfo(
-      url("https://github.com/shuwariafrica/version"),
-      "scm:git:https://github.com/shuwariafrica/version.git",
-      Some("scm:git:git@github.com:shuwariafrica/version.git")
-    ).some
-  ) ++ formattingSettings
-)
+    .in(file("."))
+    .shuwariProject
+    .notPublished
+    .apacheLicensed
+    .aggregate(`version-jvm`, `version-js`, `version-native`)
 
 def nativeSettings = List(
   Test / parallelExecution := false
@@ -197,16 +191,7 @@ def formattingSettings =
 
 def libraryDependency(library: Def.Initialize[ModuleID]) = libraryDependencies += library.value
 
-def publishCredentials = credentials := List(
-  Credentials(
-    "Sonatype Nexus Repository Manager",
-    sonatypeCredentialHost.value,
-    System.getenv("PUBLISH_USER"),
-    System.getenv("PUBLISH_USER_PASSPHRASE")
-  )
-)
-
-def publishSettings = publishCredentials +: pgpSettings ++: List(
+def publishSettings = pgpSettings ++: List(
   packageOptions += Package.ManifestAttributes(
     "Created-By" -> "Simple Build Tool",
     "Built-By" -> System.getProperty("user.name"),
@@ -219,14 +204,15 @@ def publishSettings = publishCredentials +: pgpSettings ++: List(
     "Implementation-Vendor-Id" -> organization.value,
     "Implementation-Vendor" -> organizationName.value
   ),
-  publishTo := sonatypePublishToBundle.value,
+  publishTo := {
+    if (Keys.version.value.toLowerCase.contains("snapshot"))
+      Some("central-snapshots".at("https://central.sonatype.com/repository/maven-snapshots/"))
+    else localStaging.value
+  },
   pomIncludeRepository := (_ => false),
   publishMavenStyle := true,
-  sonatypeProfileSetting,
   headerLicense := Some(HeaderLicense.ALv2("2023", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 )
-
-def sonatypeProfileSetting = sonatypeProfileName := "africa.shuwari"
 
 def pgpSettings = List(
   PgpKeys.pgpSelectPassphrase :=
@@ -236,11 +222,9 @@ def pgpSettings = List(
   usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
 )
 
-def disableStaticAnalysisPlugins(p: Project) = p.disablePlugins(HeaderPlugin, ScalafixPlugin, ScalafmtPlugin)
-
 addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")
 
-addCommandAlias("staticCheck", "scalafixAll --check; scalafmtCheckAll; scalafmtSbtCheck; headerCheckAll")
+addCommandAlias("check", "scalafixAll --check; scalafmtCheckAll; scalafmtSbtCheck; headerCheckAll")
 
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),
