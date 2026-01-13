@@ -48,10 +48,10 @@ jobs:
         uses: coursier/cache-action@v7
 
       - name: Execute Unit Tests
-        run: sbt -Dsbt.ci=true "version-jvm/test"
+        run: sbt --no-colors --supershell=false "version-jvm/test"
 
       - name: Package Project Products
-        run: sbt -Dsbt.ci=true "version-jvm/package"
+        run: sbt --no-colors --supershell=false "version-jvm/package"
 
   test_native:
     name: Execute Tests (Native ${{ matrix.os }})
@@ -109,10 +109,10 @@ jobs:
           echo "C_INCLUDE_PATH=$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\include" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Execute Unit Tests
-        run: sbt -Dsbt.ci=true "version-native/test"
+        run: sbt --no-colors --supershell=false "version-native/test"
 
       - name: Package Project Products
-        run: sbt -Dsbt.ci=true "version-native/package"
+        run: sbt --no-colors --supershell=false "version-native/package"
 
   test_js:
     name: Execute Tests (NodeJS ${{ matrix.node }})
@@ -149,10 +149,10 @@ jobs:
         uses: coursier/cache-action@v7
 
       - name: Execute Unit Tests
-        run: sbt -Dsbt.ci=true "version-js/test"
+        run: sbt --no-colors --supershell=false "version-js/test"
 
       - name: Package Project Products
-        run: sbt -Dsbt.ci=true "version-js/package"
+        run: sbt --no-colors --supershell=false "version-js/package"
 
   static-analysis:
     name: Static Analysis
@@ -181,17 +181,17 @@ jobs:
       - name: Verify Source Formatting
         id: scalafmt
         continue-on-error: true
-        run: sbt -Dsbt.ci=true scalafmtCheckAll
+        run: sbt --no-colors --supershell=false scalafmtCheckAll
 
       - name: Verify Linting Conformity
         id: scalafix
         continue-on-error: true
-        run: sbt -Dsbt.ci=true "scalafixAll --check"
+        run: sbt --no-colors --supershell=false "scalafixAll --check"
 
       - name: Verify File Header Conformity
         id: headers
         continue-on-error: true
-        run: sbt -Dsbt.ci=true headerCheckAll
+        run: sbt --no-colors --supershell=false headerCheckAll
 
       - name: Check for failures
         if: always()
@@ -240,7 +240,7 @@ jobs:
           trust_level: 5
 
       - name: Publish Projects
-        run: sbt -Dsbt.ci=true publishSigned sonaUpload sonaRelease
+        run: sbt --no-colors --supershell=false publishSigned sonaUpload sonaRelease
         env:
           SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
