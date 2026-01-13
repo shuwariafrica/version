@@ -54,7 +54,7 @@ jobs:
         run: sbt -Dsbt.ci=true "version-jvm/package"
 
   test_native:
-    name: Execute Tests (Native ${{ matrix.os }}) (JDK ${{ env.JDK_CURRENT }})
+    name: Execute Tests (Native ${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -115,7 +115,7 @@ jobs:
         run: sbt -Dsbt.ci=true "version-native/package"
 
   test_js:
-    name: Execute Tests (NodeJS ${{ matrix.node }}) (JDK ${{ env.JDK_CURRENT }})
+    name: Execute Tests (NodeJS ${{ matrix.node }})
     strategy:
       fail-fast: false
       matrix:
