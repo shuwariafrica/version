@@ -7,7 +7,7 @@ val libraries = new {
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.1")
   val `scala-yaml` = Def.setting("org.virtuslab" %%% "scala-yaml" % "0.3.1")
   val scopt = Def.setting("com.github.scopt" %%% "scopt" % "4.1.1-M3")
-  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.7.23")
+  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.8.0")
   val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC39")
 }
 
