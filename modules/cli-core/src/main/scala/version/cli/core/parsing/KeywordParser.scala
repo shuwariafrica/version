@@ -32,14 +32,14 @@ import version.parser.VersionParser
   *   - Token boundaries enforced (no substring matches within larger words)
   *   - Efficient single pass across each input string; avoids regex
   *
-  * Extracted keywords:
-  *   - change: major | breaking
-  *   - change: minor | feature
-  *   - change: patch | fix
-  *   - version: major: <N>
-  *   - version: minor: <N>
-  *   - version: patch: <N>
+  * Extracted keywords per specification:
+  *   - version: major | breaking | minor | feature | feat | patch | fix (relative increment)
+  *   - version: major: <N> | minor: <N> | patch: <N> (absolute set, also with synonyms including feat)
+  *   - version: ignore (exclude commit from version calculation)
+  *   - <bump-token>: <non-empty-text> (standalone shorthand, e.g., "breaking: Remove API")
   *   - target: <SEMVER> (optional leading v/V accepted)
+  *
+  * NOTE: The legacy `change:` keyword is NOT supported. Use `version:` instead.
   *
   * NOTE: This is a hot path. `while`/`do`, local vars, and direct Char ops are intentional to minimise allocations and
   * enable tight JIT-optimised loops. These are encapsulated within the boundaries of this object.
@@ -150,55 +150,90 @@ object KeywordParser:
     var out = List.empty[Keyword]
     val n = line.length
     while i < n do
-      if startsWithKW(line, i, "change") then
-        val j0 = afterColon(line, i + "change".length)
-        if j0 != -1 then
-          val (word, j1) = readWord(line, j0)
-          word.toLowerCase match
-            case w if w == "major" || w == "breaking" =>
-              out = out :+ MajorChange; i = j1
-            case w if w == "minor" || w == "feature" =>
-              out = out :+ MinorChange; i = j1
-            case w if w == "patch" || w == "fix" =>
-              out = out :+ PatchChange; i = j1
-            case _ => i += 1
-        else i += 1
-      else if startsWithKW(line, i, "breaking") then
-        // Allow shorthand "BREAKING: ..." to imply a major change
-        out = out :+ MajorChange
+      // Standalone shorthands: <bump-token>: <non-empty-text>
+      // These must have non-empty text after the colon to be valid
+      if startsWithKW(line, i, "breaking") then
         val j0 = afterColon(line, i + "breaking".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MajorChange
         i = if j0 != -1 then j0 else i + "breaking".length
+      else if startsWithKW(line, i, "major") && !startsWithKW(line, i, "majorversion") then
+        val j0 = afterColon(line, i + "major".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MajorChange
+        i = if j0 != -1 then j0 else i + "major".length
       else if startsWithKW(line, i, "feature") then
-        // Allow shorthand "feature: ..." to imply a minor change
-        out = out :+ MinorChange
         val j0 = afterColon(line, i + "feature".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MinorChange
         i = if j0 != -1 then j0 else i + "feature".length
+      else if startsWithKW(line, i, "feat") && !startsWithKW(line, i, "feature") then
+        // `feat` is a Conventional Commits abbreviation for feature (minor increment)
+        val j0 = afterColon(line, i + "feat".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MinorChange
+        i = if j0 != -1 then j0 else i + "feat".length
+      else if startsWithKW(line, i, "minor") && !startsWithKW(line, i, "minorversion") then
+        val j0 = afterColon(line, i + "minor".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MinorChange
+        i = if j0 != -1 then j0 else i + "minor".length
       else if startsWithKW(line, i, "fix") then
-        // Allow shorthand "fix: ..." to imply a patch change
-        out = out :+ PatchChange
         val j0 = afterColon(line, i + "fix".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
         i = if j0 != -1 then j0 else i + "fix".length
+      else if startsWithKW(line, i, "patch") && !startsWithKW(line, i, "patchversion") then
+        val j0 = afterColon(line, i + "patch".length)
+        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
+        i = if j0 != -1 then j0 else i + "patch".length
       else if startsWithKW(line, i, "version") then
         val j0 = afterColon(line, i + "version".length)
         if j0 != -1 then
-          val (comp, j1) = readWord(line, j0)
-          val j2 = afterColon(line, j1)
-          if j2 != -1 then
-            val (nOpt, j3) = readInt(line, j2)
-            nOpt match
-              case Some(nv) =>
-                comp.toLowerCase match
-                  case "major" =>
+          val (word, j1) = readWord(line, j0)
+          word.toLowerCase match
+            case "ignore" =>
+              // version: ignore - exclude commit from version calculation
+              out = out :+ Ignore
+              i = j1
+            case w if w == "major" || w == "breaking" =>
+              // Check for absolute set (version: major: N)
+              val j2 = afterColon(line, j1)
+              if j2 != -1 then
+                val (nOpt, j3) = readInt(line, j2)
+                nOpt match
+                  case Some(nv) =>
                     version.MajorVersion.from(nv).foreach(v => out = out :+ MajorSet(v))
-                  case "minor" =>
+                    i = j3
+                  case None => i = j1 // malformed absolute, ignore
+              else
+                // Relative increment: version: major
+                out = out :+ MajorChange
+                i = j1
+            case w if w == "minor" || w == "feature" || w == "feat" =>
+              val j2 = afterColon(line, j1)
+              if j2 != -1 then
+                val (nOpt, j3) = readInt(line, j2)
+                nOpt match
+                  case Some(nv) =>
                     version.MinorVersion.from(nv).foreach(v => out = out :+ MinorSet(v))
-                  case "patch" =>
+                    i = j3
+                  case None => i = j1
+              else
+                out = out :+ MinorChange
+                i = j1
+            case w if w == "patch" || w == "fix" =>
+              val j2 = afterColon(line, j1)
+              if j2 != -1 then
+                val (nOpt, j3) = readInt(line, j2)
+                nOpt match
+                  case Some(nv) =>
                     version.PatchNumber.from(nv).foreach(v => out = out :+ PatchSet(v))
-                  case _ => ()
-                i = j3
-              case None => i += 1
-          else i += 1
+                    i = j3
+                  case None => i = j1
+              else
+                out = out :+ PatchChange
+                i = j1
+            case _ =>
+              // Unrecognised word after version:, skip
+              i = j1
+          end match
         else i += 1
+        end if
       else if startsWithKW(line, i, "target") then
         val j0 = afterColon(line, i + "target".length)
         if j0 != -1 then
@@ -212,16 +247,26 @@ object KeywordParser:
           i = j1
         else i += 1
       else
-        // advance to next interesting initial 'c'/'v'/'t' for faster scanning
+        // Advance to next interesting initial character for faster scanning
+        // Interesting chars: b(reaking), m(ajor/inor), f(eature/ix), p(atch), v(ersion), t(arget)
         var j = i + 1
         var found = false
         while j < n && !found do
-          val cj = line.charAt(j)
-          val interesting = cj == 'c' || cj == 'C' || cj == 'v' || cj == 'V' || cj == 't' || cj == 'T'
+          val cj = line.charAt(j).toLower
+          val interesting = cj == 'b' || cj == 'm' || cj == 'f' || cj == 'p' || cj == 'v' || cj == 't'
           if interesting then found = true else j += 1
         i = j
     end while
     out
   end parseLine
+
+  /** Checks if there is non-empty, non-whitespace text starting at position i. */
+  private def hasNonEmptyText(s: String, i: Int): Boolean =
+    var j = i
+    val n = s.length
+    // Skip whitespace and check if there's actual content
+    while j < n && isSpace(s.charAt(j)) do j += 1
+    j < n && s.charAt(j) != '\n'
+
 end KeywordParser
 // scalafix:on

@@ -184,7 +184,7 @@ val `version-root` =
     .aggregate(`version-jvm`, `version-js`, `version-native`)
 
 def nativeSettings = List(
-  Test / parallelExecution := false
+  Test / parallelExecution := true
 )
 
 def unitTestSettings: List[Setting[?]] = List(

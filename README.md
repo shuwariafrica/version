@@ -1,53 +1,77 @@
 # version
 
-A modular Scala 3 toolkit for **intent-based Versioning (conforming to SemVer 2.0.0)**.
+A modular Scala 3 toolkit for **intent-based versioning** conforming to SemVer 2.0.0.
 
 Cross-platform (JVM, Scala.js, Scala Native) with sbt integration, CLI tooling, and codec support.
 
 ---
 
-## Intent-Based Versioning
+## Overview
 
-Traditional versioning tools derive version numbers from repository _history_ - counting commits since the last tag, appending distance suffixes, or inferring from branch patterns. This approach answers "how far are we from the last release?" but leaves the _intended next version_ implicit.
+Traditional versioning tools derive version numbers from repository _history_—counting commits since the last tag,
+appending distance suffixes, or inferring from branch patterns. This answers "how far are we from the last release?" but
+leaves the _intended next version_ implicit.
 
-`version` inverts this paradigm: developers declare the **target version** through commit message directives, and the system validates and enforces that intent. Snapshots represent pre-releases of the _upcoming_ version, not post-release distances from a _previous_ one.
+`version` inverts this paradigm: developers declare the **target version** through commit message directives, and the
+system validates and enforces that intent. Snapshots represent pre-releases of the _upcoming_ version, not post-release
+distances from a _previous_ one.
 
-| Paradigm | Question Answered | Snapshot Semantics |
-|----------|-------------------|-------------------|
-| History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3) |
-| Intent-based (version) | "What are we releasing next?" | `1.3.0-snapshot+...` (working toward 1.3.0) |
+| Paradigm                         | Question Answered             | Snapshot Semantics                          |
+|----------------------------------|-------------------------------|---------------------------------------------|
+| History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3)   |
+| Intent-based (version)           | "What are we releasing next?" | `1.3.0-snapshot+...` (working toward 1.3.0) |
 
-This implementation aims to provide:
+**Key properties:**
 
-- **Explicit control**: Developers state versioning intent in the commit history
-- **Validation**: Target directives are validated against regression rules
-- **Auditability**: Version decisions are traceable through commit messages
-- **Determinism**: Identical repository state always produces identical versions
-
-For complete semantics, see the [Version Resolution Specification](docs/version-resolution-technical-specification.md).
-
----
-
-## Modules
-
-| Module | Platforms | Description |
-|--------|-----------|-------------|
-| `version` | JVM, JS, Native | Core SemVer model, parsing, ordering, typed operations |
-| `version-codecs-jsoniter` | JVM, JS, Native | jsoniter-scala codecs |
-| `version-codecs-zio` | JVM, JS, Native | ZIO JSON codecs |
-| `version-codecs-yaml` | JVM, JS, Native | scala-yaml codecs |
-| `version-zio-prelude` | JVM, JS, Native | ZIO Prelude type class instances |
-| `version-cli-core` | JVM, Native | Pure Git-based version derivation engine |
-| `version-cli` | JVM, Native | CLI application (text/JSON/YAML output) |
-| `sbt-version` | sbt 2.x | sbt plugin for build integration |
+- **Explicit control** — versioning intent declared in commit history
+- **Validation** — target directives validated against regression rules
+- **Auditability** — version decisions traceable through commits
+- **Determinism** — identical repository state always produces identical versions
 
 ---
 
 ## Quick Start
 
-### sbt Plugin (sbt 2.x)
+### Commit Message Directives
 
-> **Note:** This plugin requires sbt 2.x. It is not compatible with sbt 1.x.
+Embed directives anywhere in commit messages to control versioning:
+
+```text
+# Set explicit target (validated against regression rules)
+target: 2.5.0
+
+# Increment by one (resets lower components)
+version: major          # 1.2.3 → 2.0.0
+version: minor          # 1.2.3 → 1.3.0
+version: patch          # 1.2.3 → 1.2.4
+
+# Set to specific value (resets lower components)
+version: major: 3       # → 3.0.0
+version: minor: 5       # 1.x.x → 1.5.0
+version: patch: 2       # 1.2.x → 1.2.2
+
+# Exclude commit from version calculation
+version: ignore
+```
+
+**Standalone shorthands** — use as commit message prefixes (requires non-empty text):
+
+```text
+breaking: Remove deprecated API     # Major increment
+feat: Add caching support           # Minor increment (Conventional Commits)
+fix: Handle edge case               # Patch increment
+```
+
+**Synonyms:** `major`/`breaking`, `minor`/`feature`/`feat`, `patch`/`fix` are interchangeable.
+
+**Precedence:** Ignore → Target → Absolute sets → Relative changes → Default behaviour.
+
+For complete semantics including validation rules and edge cases, see
+the [Version Resolution Specification](docs/version-resolution-technical-specification.md).
+
+### sbt Plugin
+
+> **Note:** Requires sbt 2.x. Not compatible with sbt 1.x.
 
 Add to `project/plugins.sbt`:
 
@@ -55,53 +79,8 @@ Add to `project/plugins.sbt`:
 addSbtPlugin("africa.shuwari" % "sbt-version" % "<version>")
 ```
 
-The plugin automatically derives and sets `version` for all projects. No additional configuration required.
-
-**Settings:**
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `resolvedVersion` | `Version` | Full resolved version object (with 40-char SHA for maximum flexibility) |
-| `version` | `String` | SemVer string rendered using `versionShow` (defaults to standard, no metadata) |
-| `isSnapshot` | `Boolean` | `true` if the resolved version is a snapshot |
-| `versionBranchOverride` | `Option[String]` | Override branch detection (defaults to `VERSION_BRANCH` env var) |
-| `versionShow` | `Option[Version.Show]` | Custom renderer for `version` key (defaults to `Version.Show.Standard`) |
-
-**Environment Variables:**
-
-| Variable | Effect |
-|----------|--------|
-| `VERSION_BRANCH` | Override detected branch name |
-| `VERSION_VERBOSE` | Enable verbose logging (`true`/`false`) |
-
-CI-specific variables (GitHub Actions, GitLab CI, etc.) are auto-detected for PR numbers and branch names.
-
-**Custom Version Rendering:**
-
-By default, `version` uses `Version.Show.Standard` which excludes build metadata. To include metadata or use a custom format:
-
-```scala
-// Use extended rendering (includes build metadata)
-versionShow := Some(Version.Show.Extended)
-
-// Or define a custom renderer
-versionShow := Some(new Version.Show {
-  extension (v: Version) def show: String =
-    s"v${v.major.value}.${v.minor.value}.${v.patch.value}" +
-      v.preRelease.fold("")(pr => s"-${pr.show}")
-})
-```
-
-**Extended Version Output:**
-
-```scala
-// Standard (default): no build metadata
-version.value  // "1.2.3-snapshot"
-
-// Extended: includes build metadata
-import version.Version.Show.Extended
-resolvedVersion.value.show(using Extended)  // "1.2.3-snapshot+pr42.branchmain.commits5.sha1a2b3c4"
-```
+The plugin automatically derives and sets `version` for all projects—no additional configuration required.
+See [sbt Plugin](#sbt-plugin) for settings, environment variables, and custom rendering.
 
 ### CLI
 
@@ -109,18 +88,17 @@ resolvedVersion.value.show(using Extended)  // "1.2.3-snapshot+pr42.branchmain.c
 # Resolve version for current repository
 version-cli
 
-# Compact output (just the version string)
+# Plain version string
 version-cli --emit raw
 
 # Multiple output formats
 version-cli --emit console --emit json=dist/version.json
 
-# With PR metadata
-version-cli --pr 42
-
-# From CI with branch override
-version-cli --branch-override main --pr $PR_NUMBER
+# With PR metadata (CI integration)
+version-cli --pr 42 --branch-override main
 ```
+
+See [CLI](#cli) for all options and output sinks.
 
 ### Library
 
@@ -137,209 +115,172 @@ val release = Version(
   MajorVersion.fromUnsafe(1),
   MinorVersion.fromUnsafe(2),
   PatchNumber.fromUnsafe(3)
-)  // 1.2.3
+) // 1.2.3
 
 // Operations
-release.nextMinor        // 1.3.0
-release.toSnapshot       // 1.2.3-snapshot
-release.as[PreReleaseClassifier.Alpha.type]  // 1.2.3-alpha.1
+release.nextMinor // 1.3.0
+release.toSnapshot // 1.2.3-snapshot
+release.as[PreReleaseClassifier.Alpha.type] // 1.2.3-alpha.1
+```
+
+See [Core Library](#core-library) for components, parsing, operations, and ordering.
+
+---
+
+## Modules
+
+| Module                    | Platforms       | Description                                            |
+|---------------------------|-----------------|--------------------------------------------------------|
+| `sbt-version`             | sbt 2.x         | sbt plugin for build integration                       |
+| `version-cli`             | JVM, Native     | CLI application (text/JSON/YAML output)                |
+| `version-cli-core`        | JVM, Native     | Git-based version derivation engine                    |
+| `version`                 | JVM, JS, Native | Core SemVer model, parsing, ordering, typed operations |
+| `version-codecs-jsoniter` | JVM, JS, Native | jsoniter-scala codecs                                  |
+| `version-codecs-zio`      | JVM, JS, Native | ZIO JSON codecs                                        |
+| `version-codecs-yaml`     | JVM, JS, Native | scala-yaml codecs                                      |
+| `version-zio-prelude`     | JVM, JS, Native | ZIO Prelude type class instances                       |
+
+---
+
+## sbt Plugin
+
+### Settings
+
+| Key                     | Type                   | Description                                        |
+|-------------------------|------------------------|----------------------------------------------------|
+| `resolvedVersion`       | `Version`              | Full resolved version object (40-char SHA)         |
+| `version`               | `String`               | SemVer string rendered via `versionShow`           |
+| `isSnapshot`            | `Boolean`              | `true` if resolved version is a snapshot           |
+| `versionBranchOverride` | `Option[String]`       | Override branch detection                          |
+| `versionShow`           | `Option[Version.Show]` | Custom renderer (default: `Version.Show.Standard`) |
+
+### Environment Variables
+
+| Variable          | Effect                                  |
+|-------------------|-----------------------------------------|
+| `VERSION_BRANCH`  | Override detected branch name           |
+| `VERSION_VERBOSE` | Enable verbose logging (`true`/`false`) |
+
+CI-specific variables (GitHub Actions, GitLab CI, etc.) are auto-detected for PR numbers and branch names.
+
+### Accessing the Version Object
+
+The `resolvedVersion` setting provides full access to the computed `Version` instance, enabling programmatic inspection
+and usage or manipulation.
+
+### Custom Rendering
+
+The `version` setting string is rendered using `version.Show`. By default, `Version.Show.Standard` excludes build
+metadata. To include metadata or use a custom format:
+
+```scala
+// Include build metadata
+versionShow := Some(Version.Show.Extended)
+
+// Custom format with 'v' prefix
+versionShow := Some(new Version.Show {
+  extension (v: Version) def show: String =
+    s"v${v.major.value}.${v.minor.value}.${v.patch.value}" +
+      v.preRelease.fold("")(pr => s"-${pr.show}")
+})
+```
+
+**Output comparison:**
+
+```scala
+// Standard (default) — excludes build metadata
+version.value // "1.2.3-snapshot"
+
+// Extended — includes build metadata
+versionShow := Some(Version.Show.Extended)
+version.value // "1.2.3-snapshot+pr42.branchmain.commits5.sha1a2b3c4"
+
+// Direct access to Version with any Show instance
+
+import version.Version.Show.Extended
+
+resolvedVersion.value.show(using Extended)
 ```
 
 ---
 
-## Core Library (`version`)
+## CLI
 
-### Version Components
+### Options
 
-All numeric components are opaque types with validation:
+| Option                              | Description                                  |
+|-------------------------------------|----------------------------------------------|
+| `-r, --repository <path>`           | Repository path (default: current directory) |
+| `-b, --basis-commit <rev>`          | Commit to resolve (default: HEAD)            |
+| `--pr <n>`                          | PR number for metadata                       |
+| `--branch-override <name>`          | Override branch detection                    |
+| `--sha-length <7-40>`               | SHA abbreviation length (default: 12)        |
+| `-v, --verbose`                     | Enable diagnostic logging                    |
+| `--ci`                              | CI mode (compact console, no colours)        |
+| `--no-colour`                       | Disable ANSI colours                         |
+| `-e, --emit <sink>[=<path>]`        | Output sink (repeatable)                     |
+| `--console-style <pretty\|compact>` | Console format                               |
 
-| Type | Valid Range | Description |
-|------|-------------|-------------|
-| `MajorVersion` | ≥ 0 | Major version number |
-| `MinorVersion` | ≥ 0 | Minor version number |
-| `PatchNumber` | ≥ 0 | Patch version number |
-| `PreReleaseNumber` | ≥ 1 | Pre-release sequence number |
+### Output Sinks
 
-```scala
-import version.*
+| Sink      | Description                        |
+|-----------|------------------------------------|
+| `console` | Human-readable (pretty or compact) |
+| `raw`     | Plain SemVer string                |
+| `json`    | Structured JSON                    |
+| `yaml`    | Structured YAML                    |
 
-// Safe construction (returns Either)
-MajorVersion.from(1)   // Right(MajorVersion(1))
-MajorVersion.from(-1)  // Left(InvalidMajorVersion(-1))
+```bash
+# Multiple outputs
+version-cli --emit console --emit json=build/version.json --emit yaml=build/version.yaml
 
-// Unsafe construction (throws on invalid)
-MajorVersion.fromUnsafe(1)
-
-// Type-safe extension syntax
-1.as[MajorVersion]  // Right(MajorVersion(1))
+# CI pipeline
+version-cli --ci --emit raw > version.txt
 ```
 
-### Pre-release Classifiers
+### Exit Codes
 
-Ordered hierarchy (lowest to highest precedence):
-
-```
-Dev < Milestone < Alpha < Beta < ReleaseCandidate < Snapshot
-```
-
-Alias mappings (case-insensitive):
-
-| Classifier | Aliases | Requires Number |
-|------------|---------|-----------------|
-| Dev | `dev` | Yes |
-| Milestone | `milestone`, `m` | Yes |
-| Alpha | `alpha`, `a` | Yes |
-| Beta | `beta`, `b` | Yes |
-| ReleaseCandidate | `rc`, `cr` | Yes |
-| Snapshot | `snapshot` | No |
-
-```scala
-import version.*
-
-// PreRelease construction
-PreRelease.snapshot                                    // snapshot
-PreRelease.alpha(PreReleaseNumber.fromUnsafe(1))       // alpha.1
-PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(2))  // rc.2
-
-// Validated construction
-PreRelease.from(PreReleaseClassifier.Alpha, Some(PreReleaseNumber.fromUnsafe(1)))  // Right(...)
-PreRelease.from(PreReleaseClassifier.Alpha, None)  // Left(MissingPreReleaseNumber)
-```
-
-### Parsing
-
-```scala
-import version.*
-
-// Combined identifiers like "rc3" are normalised to "rc.3"
-Version.parse("1.2.3-rc3")        // Right(1.2.3-rc.3)
-Version.parse("v2.0.0-alpha.1")   // Right(2.0.0-alpha.1) - optional 'v' prefix
-
-// With build metadata
-Version.parse("1.0.0+build.123")  // Right(1.0.0+build.123)
-
-// Extension syntax
-"1.2.3".toVersion  // Either[ParseError, Version]
-```
-
-### Operations
-
-```scala
-import version.*
-
-val v = Version.parseUnsafe("2.0.5")
-
-// Increment operations (clear pre-release and metadata)
-v.nextMajor           // 3.0.0
-v.nextMinor           // 2.1.0
-v.nextPatch           // 2.0.6
-v.next[MajorVersion]  // 3.0.0 (generic)
-
-// Pre-release operations
-v.toSnapshot          // 2.0.5-snapshot
-v.as[PreReleaseClassifier.Alpha.type]        // 2.0.5-alpha.1
-v.as[PreReleaseClassifier.Beta.type](3)      // 2.0.5-beta.3
-
-val alpha = v.as[PreReleaseClassifier.Alpha.type]
-alpha.advance[PreReleaseClassifier.Alpha.type]  // 2.0.5-alpha.2
-alpha.advance[PreReleaseClassifier.Beta.type]   // 2.0.5-beta.1
-
-// Finalise
-alpha.release         // 2.0.5
-
-// Query
-v.isStable            // true (major > 0)
-v.isFinal             // true (no pre-release)
-v.isPreRelease        // false
-v.isSnapshot          // false
-v.core                // Version without pre-release/metadata
-```
-
-### Rendering
-
-```scala
-import version.*
-import version.Version.Show.given
-
-val v = Version.parseUnsafe("1.2.3-alpha.1+sha1234567")
-
-// Standard rendering (excludes build metadata) - default
-v.show                // "1.2.3-alpha.1"
-
-// Extended rendering (includes build metadata)
-v.show(using Version.Show.Extended)  // "1.2.3-alpha.1+sha1234567"
-
-// toString uses extended format
-v.toString            // "1.2.3-alpha.1+sha1234567"
-```
-
-### Ordering
-
-Follows SemVer 2.0.0 precedence:
-
-1. Compare major, minor, patch numerically
-2. Pre-release versions have lower precedence than final releases
-3. Pre-release comparison: classifier ordinal, then number
-4. Build metadata is ignored for precedence
-
-```scala
-import version.*
-
-val versions = List("1.0.0", "1.0.0-alpha.1", "1.0.0-rc.1", "0.9.0").map(Version.parseUnsafe)
-versions.sorted  // 0.9.0, 1.0.0-alpha.1, 1.0.0-rc.1, 1.0.0
-```
+| Code | Meaning                |
+|------|------------------------|
+| 0    | Success                |
+| 1    | Resolution failure     |
+| 2    | Argument parsing error |
 
 ---
 
-## Version Derivation (`version-cli-core`)
+## Version Derivation
 
-### Modes
+The derivation engine (`version-cli-core`) operates in two modes:
 
-| Mode | Condition | Output |
-|------|-----------|--------|
-| Concrete | Basis commit has valid version tag AND working directory is clean | Exact tag version |
-| Development | Otherwise | Target version with `-snapshot` pre-release and build metadata |
+| Mode        | Condition                                                      | Output                                             |
+|-------------|----------------------------------------------------------------|----------------------------------------------------|
+| Concrete    | Basis commit has valid version tag AND clean working directory | Exact tag version                                  |
+| Development | Otherwise                                                      | Target version with `-snapshot` and build metadata |
 
-### Commit Message Directives
+### Default Behaviour
 
-Scanned from commits between the base version tag and basis commit:
+When no directives are present in the commit range:
 
-| Directive | Effect |
-|-----------|--------|
-| `target: 2.5.0` | Set target core version (validated against regression rules) |
-| `version: major: 3` | Set major to 3 (resets minor and patch) |
-| `version: minor: 5` | Set minor to 5 (resets patch) |
-| `version: patch: 2` | Set patch to 2 |
-| `change: major` | Increment major (resets minor and patch) |
-| `change: minor` | Increment minor (resets patch) |
-| `change: patch` | Increment patch |
-
-Shorthand forms: `breaking:` (major), `feature:` (minor), `fix:` (patch).
-
-**Precedence:** Target > Absolute sets > Relative changes > Default behaviour.
-
-### Default Behaviour (No Directives)
-
-| Base Version State | Target Core |
-|--------------------|-------------|
-| Final release | Base patch + 1 |
-| Pre-release | Base core (unchanged) |
+| Base Version State               | Target Core             |
+|----------------------------------|-------------------------|
+| Final release                    | Base patch + 1          |
+| Pre-release                      | Base core (unchanged)   |
 | No reachable base, repo has tags | (highest major + 1).0.0 |
-| No tags anywhere | 0.1.0 |
+| No tags anywhere                 | 0.1.0                   |
 
-### Build Metadata (Development Mode)
+### Build Metadata
 
-Ordered identifiers appended to snapshots:
+Ordered identifiers appended to development snapshots:
 
-| Identifier | Format | Condition |
-|------------|--------|-----------|
-| `pr<n>` | `pr42` | PR number provided |
-| `branch<name>` | `branchmain` | Always (normalised) |
-| `commits<n>` | `commits5` | Always |
-| `sha<hex>` | `sha1a2b3c4` | Always (configurable length) |
-| `dirty` | `dirty` | Working directory modified |
+| Identifier     | Format       | Condition                    |
+|----------------|--------------|------------------------------|
+| `pr<n>`        | `pr42`       | PR number provided           |
+| `branch<name>` | `branchmain` | Always (normalised)          |
+| `commits<n>`   | `commits5`   | Always                       |
+| `sha<hex>`     | `sha1a2b3c4` | Always (configurable length) |
+| `dirty`        | `dirty`      | Working directory modified   |
 
-Branch normalisation: lowercase, replace non-alphanumeric with `-`, collapse sequences, trim.
+Branch normalisation: lowercase, non-alphanumeric replaced with `-`, sequences collapsed, trimmed.
 
 ### Programmatic Usage
 
@@ -356,59 +297,155 @@ val config = CliConfig(
 )
 
 VersionCliCore.resolve(config) match
-  case Right(v)  => println(v.show)
+  case Right(v) => println(v.show)
   case Left(err) => System.err.println(err.message)
 ```
 
 ---
 
-## CLI (`version-cli`)
+## Core Library
 
-### Options
+### Version Components
 
-| Option | Description |
-|--------|-------------|
-| `-r, --repository <path>` | Repository path (default: current directory) |
-| `-b, --basis-commit <rev>` | Commit to resolve (default: HEAD) |
-| `--pr <n>` | PR number for metadata |
-| `--branch-override <name>` | Override branch detection |
-| `--sha-length <7-40>` | SHA abbreviation length (default: 12) |
-| `-v, --verbose` | Enable diagnostic logging |
-| `--ci` | CI mode (compact console, no colours) |
-| `--no-colour` | Disable ANSI colours |
-| `-e, --emit <sink>[=<path>]` | Output sink (repeatable) |
-| `--console-style <pretty\|compact>` | Console format |
+All numeric components are opaque types with validation:
 
-### Output Sinks
+| Type               | Valid Range | Description                 |
+|--------------------|-------------|-----------------------------|
+| `MajorVersion`     | ≥ 0         | Major version number        |
+| `MinorVersion`     | ≥ 0         | Minor version number        |
+| `PatchNumber`      | ≥ 0         | Patch version number        |
+| `PreReleaseNumber` | ≥ 1         | Pre-release sequence number |
 
-| Sink | Description |
-|------|-------------|
-| `console` | Human-readable (pretty or compact) |
-| `raw` | Plain SemVer string |
-| `json` | Structured JSON |
-| `yaml` | Structured YAML |
+```scala
+import version.*
 
-```bash
-# Multiple outputs
-version-cli --emit console --emit json=build/version.json --emit yaml=build/version.yaml
+// Safe construction
+MajorVersion.from(1) // Right(MajorVersion(1))
+MajorVersion.from(-1) // Left(InvalidMajorVersion(-1))
 
-# CI pipeline
-version-cli --ci --emit raw > version.txt
+// Unsafe construction
+MajorVersion.fromUnsafe(1)
+
+// Extension syntax
+1.as[MajorVersion] // Right(MajorVersion(1))
 ```
 
-### Exit Codes
+### Pre-release Classifiers
 
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Resolution failure |
-| 2 | Argument parsing error |
+Ordered hierarchy (lowest to highest precedence):
+
+```
+Dev < Milestone < Alpha < Beta < ReleaseCandidate < Snapshot
+```
+
+| Classifier       | Aliases          | Requires Number |
+|------------------|------------------|-----------------|
+| Dev              | `dev`            | Yes             |
+| Milestone        | `milestone`, `m` | Yes             |
+| Alpha            | `alpha`, `a`     | Yes             |
+| Beta             | `beta`, `b`      | Yes             |
+| ReleaseCandidate | `rc`, `cr`       | Yes             |
+| Snapshot         | `snapshot`       | No              |
+
+```scala
+import version.*
+
+PreRelease.snapshot // snapshot
+PreRelease.alpha(PreReleaseNumber.fromUnsafe(1)) // alpha.1
+PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(2)) // rc.2
+
+// Validated construction
+PreRelease.from(PreReleaseClassifier.Alpha, Some(PreReleaseNumber.fromUnsafe(1))) // Right(...)
+PreRelease.from(PreReleaseClassifier.Alpha, None) // Left(MissingPreReleaseNumber)
+```
+
+### Parsing
+
+```scala
+import version.*
+
+// Combined identifiers normalised (rc3 → rc.3)
+Version.parse("1.2.3-rc3") // Right(1.2.3-rc.3)
+Version.parse("v2.0.0-alpha.1") // Right(2.0.0-alpha.1)
+
+// With build metadata
+Version.parse("1.0.0+build.123") // Right(1.0.0+build.123)
+
+// Extension syntax
+"1.2.3".toVersion // Either[ParseError, Version]
+```
+
+### Operations
+
+```scala
+import version.*
+
+val v = Version.parseUnsafe("2.0.5")
+
+// Increment (clears pre-release and metadata)
+v.nextMajor // 3.0.0
+v.nextMinor // 2.1.0
+v.nextPatch // 2.0.6
+v.next[MajorVersion] // 3.0.0 (generic)
+
+// Pre-release
+v.toSnapshot // 2.0.5-snapshot
+v.as[PreReleaseClassifier.Alpha.type] // 2.0.5-alpha.1
+v.as[PreReleaseClassifier.Beta.type](3) // 2.0.5-beta.3
+
+val alpha = v.as[PreReleaseClassifier.Alpha.type]
+alpha.advance[PreReleaseClassifier.Alpha.type] // 2.0.5-alpha.2
+alpha.advance[PreReleaseClassifier.Beta.type] // 2.0.5-beta.1
+
+// Finalise
+alpha.release // 2.0.5
+
+// Query
+v.isStable // true (major > 0)
+v.isFinal // true (no pre-release)
+v.isPreRelease // false
+v.isSnapshot // false
+v.core // Version without pre-release/metadata
+```
+
+### Rendering
+
+```scala
+import version.*
+
+val v = Version.parseUnsafe("1.2.3-alpha.1+sha1234567")
+
+// Standard (excludes build metadata) — default
+v.show // "1.2.3-alpha.1"
+
+// Extended (includes build metadata)
+v.show(using Version.Show.Extended) // "1.2.3-alpha.1+sha1234567"
+
+// toString uses extended format
+v.toString // "1.2.3-alpha.1+sha1234567"
+```
+
+### Ordering
+
+Follows SemVer 2.0.0 precedence:
+
+1. Compare major, minor, patch numerically
+2. Pre-release versions have lower precedence than final releases
+3. Pre-release comparison: classifier ordinal, then number
+4. Build metadata is ignored for precedence
+
+```scala
+import version.*
+
+val versions = List("1.0.0", "1.0.0-alpha.1", "1.0.0-rc.1", "0.9.0").map(Version.parseUnsafe)
+versions.sorted // 0.9.0, 1.0.0-alpha.1, 1.0.0-rc.1, 1.0.0
+```
 
 ---
 
 ## Codec Modules
 
-### jsoniter-scala (`version-codecs-jsoniter`)
+### jsoniter-scala
 
 ```scala
 import version.*
@@ -420,7 +457,7 @@ val json = writeToString(v)
 val decoded = readFromString[Version](json)
 ```
 
-### ZIO JSON (`version-codecs-zio`)
+### ZIO JSON
 
 ```scala
 import version.*
@@ -432,7 +469,7 @@ val json = v.toJson
 val decoded = json.fromJson[Version]
 ```
 
-### scala-yaml (`version-codecs-yaml`)
+### scala-yaml
 
 ```scala
 import version.*
@@ -445,7 +482,7 @@ val yaml = v.asYaml
 
 ---
 
-## ZIO Prelude (`version-zio-prelude`)
+## ZIO Prelude
 
 Type class instances for ZIO Prelude:
 
@@ -457,15 +494,16 @@ import zio.prelude.*
 val v1 = Version.parseUnsafe("1.0.0")
 val v2 = Version.parseUnsafe("2.0.0")
 
-Ord[Version].compare(v1, v2)  // Ordering.LessThan
-Equal[Version].equal(v1, v1)  // true
+Ord[Version].compare(v1, v2) // Ordering.LessThan
+Equal[Version].equal(v1, v1) // true
 ```
 
 ---
 
 ## Specification
 
-The [Version Resolution Technical Specification](docs/version-resolution-technical-specification.md) is the normative reference for derivation behaviour. It defines:
+The [Version Resolution Technical Specification](docs/version-resolution-technical-specification.md) is the normative
+reference for derivation behaviour:
 
 - Tag recognition and validation rules
 - Commit message directive grammar

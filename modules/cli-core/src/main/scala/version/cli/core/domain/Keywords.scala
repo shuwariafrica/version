@@ -28,6 +28,9 @@ sealed trait Keyword derives CanEqual
 object Keyword:
   given CanEqual[Keyword, Keyword] = CanEqual.derived
 
+  // Ignore directive - excludes commit from version calculation
+  case object Ignore extends Keyword derives CanEqual
+
   // Relative Change Keywords (coalesced to at-most one increment per component)
   sealed trait Relative extends Keyword derives CanEqual
   case object MajorChange extends Relative derives CanEqual

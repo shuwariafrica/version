@@ -22,6 +22,9 @@ package version.testkit
   * Creates a deterministic test repository with multiple branches, tags, annotated and lightweight tags, pre-releases,
   * multi-tag commits, ignored/non-semver tags, and unreachable tags.
   *
+  * **Important**: Only annotated tags are recognised as valid version tags per the specification. Lightweight tags are
+  * created in this test repository specifically to verify they are correctly ignored by the version resolution logic.
+  *
   * This replaces the shell script `scripts/create-test-repo.sh` with a pure Scala implementation that works on all
   * platforms without shell dependencies.
   */
@@ -51,18 +54,18 @@ object TestRepoBuilder:
     run(repoDir, "config", "core.editor", "true")
     run(repoDir, "config", "core.hooksPath", "/dev/null")
 
-    // c1: initial commit, lightweight semver tag and an invalid tag
+    // c1: initial commit, lightweight semver tag (should be IGNORED) and an invalid tag
     os.write(repoDir / "README.md", "# Test Repo\n")
     run(repoDir, "add", "README.md")
     run(repoDir, "commit", "--no-gpg-sign", "--message", "Initial commit")
     val c1 = git(repoDir, "rev-parse", "HEAD").trim
-    run(repoDir, "tag", "v0.1.0") // lightweight
+    run(repoDir, "tag", "v0.1.0") // lightweight - should be ignored
     run(repoDir, "tag", "not-a-version")
 
-    // c2: change: minor (to simulate activity before v1.0.0)
+    // c2: version: minor (to simulate activity before v1.0.0)
     os.write.append(repoDir / "README.md", "line 1\n")
     run(repoDir, "add", "README.md")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: minor")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "version: minor")
 
     // Tag v1.0.0 (annotated, explicitly not signed) on c2
     run(repoDir, "tag", "--annotate", "--no-sign", "--message", "Release 1.0.0", "v1.0.0")
@@ -70,10 +73,10 @@ object TestRepoBuilder:
     // Create release/1.0 branch at v1.0.0
     run(repoDir, "branch", "release/1.0", "v1.0.0")
     run(repoDir, "checkout", "-q", "release/1.0")
-    // cR1: patch bump on maintenance
+    // cR1: patch bump on maintenance using version: directive
     os.write.append(repoDir / "README.md", "hotfix\n")
     run(repoDir, "add", "README.md")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: patch")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "version: patch")
     run(repoDir, "tag", "--annotate", "--no-sign", "--message", "Release 1.0.1", "v1.0.1")
 
     // Return to main - handle both master and main branch names
@@ -85,7 +88,7 @@ object TestRepoBuilder:
     run(repoDir, "commit", "--no-gpg-sign", "--message", "target: 1.0.2")
     os.write.append(repoDir / "README.md", "patch work\n")
     run(repoDir, "add", "README.md")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: patch")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "version: patch")
 
     // Multi-tag same commit (pre-release and final)
     os.write.append(repoDir / "README.md", "2.0 line\n")
@@ -99,7 +102,7 @@ object TestRepoBuilder:
     run(repoDir, "checkout", "-q", "pre-from-1.0")
     os.write.append(repoDir / "README.md", "minor bump line\n")
     run(repoDir, "add", "README.md")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: minor")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "version: minor")
     run(repoDir, "tag", "--annotate", "--no-sign", "--message", "1.1.0-rc.1 pre-release", "v1.1.0-rc.1")
     run(repoDir, "checkout", "-q", "main")
 
@@ -111,25 +114,27 @@ object TestRepoBuilder:
     run(repoDir, "tag", "--annotate", "--no-sign", "--message", "Repo-wide high tag", "v4.3.0")
     run(repoDir, "checkout", "-q", "main")
 
-    // Additional ignored tags
-    run(repoDir, "tag", "v1.0")
-    run(repoDir, "tag", "release-1.0.0")
+    // Additional ignored tags: lightweight with valid semver (should be ignored) and non-semver
+    run(repoDir, "tag", "v1.0") // lightweight, invalid semver (partial) - ignored
+    run(repoDir, "tag", "release-1.0.0") // lightweight, non-semver - ignored
+    run(repoDir, "tag", "v3.0.0") // lightweight with valid semver - MUST BE IGNORED (only annotated count)
+    run(repoDir, "tag", "0.5.0") // lightweight without v prefix - MUST BE IGNORED
 
     // Create a feature branch from v1.0.0, add commits, and merge back into main with a merge commit
     run(repoDir, "checkout", "-q", "-b", "feature/merge", "v1.0.0")
     os.write(repoDir / "FEATURE.txt", "feat work\n")
     run(repoDir, "add", "FEATURE.txt")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: minor")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "feat: Add new feature") // Conventional Commits style
     os.write(repoDir / "BUGFIX.txt", "bugfix\n")
     run(repoDir, "add", "BUGFIX.txt")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "change: patch")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "fix: Handle edge case") // standalone shorthand
     run(repoDir, "checkout", "-q", "main")
     // Ensure merge is non fast-forward
     run(repoDir, "merge", "--no-ff", "--no-gpg-sign", "-m", "merge feature/merge", "feature/merge")
-    // Add a post-merge linear commit so first-parent count is > 0
+    // Add a post-merge linear commit with version: ignore directive
     os.write.append(repoDir / "README.md", "post-merge\n")
     run(repoDir, "add", "README.md")
-    run(repoDir, "commit", "--no-gpg-sign", "--message", "housekeeping")
+    run(repoDir, "commit", "--no-gpg-sign", "--message", "housekeeping\n\nversion: ignore")
   end create
 
   /** Runs a git command in the repository directory, returning stdout. */

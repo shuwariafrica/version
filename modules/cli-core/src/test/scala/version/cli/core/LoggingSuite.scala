@@ -41,7 +41,7 @@ final class LoggingSuite extends FunSuite with TestRepoSupport:
       assert(logger.entries.exists(_.message.startsWith("Resolved HEAD ->")), clues(logger.entries.mkString("\n")))
       val tags = git.listAllTags().toOption.get
       assert(tags.nonEmpty)
-      assert(logger.entries.exists(_.message.contains("parsed SemVer tag(s)")))
+      assert(logger.entries.exists(_.message.contains("parsed SemVer annotated tag(s)")))
       val reachable = git.findReachableTags(head).toOption.get
       assert(reachable.nonEmpty)
       assert(logger.entries.exists(_.message.startsWith("Tag v")))

@@ -45,25 +45,31 @@ heuristics beyond the rules below.
 
 ### 3.1 Valid Version Tags
 
-A Git tag is considered a **valid version tag** if:
+A Git **annotated tag** is considered a **valid version tag** if:
 
+- It is an **annotated tag** (not a lightweight tag). Lightweight tags are silently ignored.
 - Its name is a SemVer 2.0.0 string (with optional leading `v` or `V`).
 - All components satisfy the domain constraints (non-negative integers; valid pre-release classifier mapping; valid
   build metadata identifiers).
 - Pre-release identifiers map to recognised classifiers via the configured classifier alias set (e.g., `rc`, `alpha`,
   `snapshot`, etc.).
 
+**Rationale**: Annotated tags carry metadata (tagger, date, message) and are the recommended practice for releases.
+Lightweight tags are intended for temporary or private use and lack the auditability required for version management.
+
 ### 3.2 Pre-release Classifier Mapping
 
-Recognised canonical classifiers (case-insensitive via alias forms):
+Recognised canonical classifiers (case-insensitive via alias forms), in precedence order (lowest to highest):
 
+- `dev` (Development)
 - `milestone` / `m`
 - `alpha` / `a`
 - `beta` / `b`
 - `rc` / `cr` (Release Candidate)
 - `snapshot`
 
-Versioned classifiers (`milestone`, `alpha`, `beta`, `rc`) must carry a positive numeric component (e.g., `rc.1`);
+Versioned classifiers (`dev`, `milestone`, `alpha`, `beta`, `rc`) must carry a positive numeric component (e.g.,
+`rc.1`);
 `snapshot` must not carry a number.
 
 ### 3.3 Multiple Tags on a Single Commit
@@ -73,7 +79,8 @@ pre-release) always outranks a pre-release of the same core.
 
 ### 3.4 Ignored Tags
 
-Tags that fail SemVer parsing or classifier validation are **silently ignored**.
+Tags that fail SemVer parsing, classifier validation, or are **lightweight tags** (not annotated) are **silently
+ignored**.
 
 ### 3.5 Repository-Wide Highest Tag
 
@@ -96,33 +103,71 @@ merges).
 ### 4.2 Case, Spacing, and Boundaries
 
 - Case-insensitive matching.
-- Optional whitespace around colons accepted (`change:minor`, `change : minor`).
-- Tokens must be boundary-aligned: substrings inside larger words (e.g., `rechange`, `retarget`, `changeX`) are ignored.
+- Optional whitespace around colons accepted (`version:minor`, `version : minor`).
+- Tokens must be boundary-aligned: substrings inside larger words (e.g., `reversion`, `retarget`, `versionX`) are
+  ignored.
 
 ### 4.3 Accepted Forms
 
-#### Relative Change Keywords
+#### Bump Tokens
 
-| Meaning         | Canonical       | Synonyms / Shorthand (Accepted) |
-|-----------------|-----------------|---------------------------------|
-| Major increment | `change: major` | `change: breaking`, `breaking:` |
-| Minor increment | `change: minor` | `change: feature`, `feature:`   |
-| Patch increment | `change: patch` | `change: fix`, `fix:`           |
+The following tokens represent version component semantics and may be used interchangeably:
 
-- Duplicate occurrences of the **same relative change type** within the scanned range **coalesce** to a single
-  increment.
+| Component | Tokens (Synonyms)          |
+|-----------|----------------------------|
+| Major     | `major`, `breaking`        |
+| Minor     | `minor`, `feature`, `feat` |
+| Patch     | `patch`, `fix`             |
 
-#### Absolute Component Set Keywords
+#### Version Directive
 
-Format:
+The `version:` keyword controls version computation. It supports three forms:
 
-- `version: major: <N>`
-- `version: minor: <N>`
-- `version: patch: <N>`
+**Relative Increment** (bump by one):
+
+- `version: <bump-token>`
+
+Examples: `version: major`, `version: breaking`, `version: minor`, `version: feature`, `version: patch`, `version: fix`
+
+**Absolute Set** (set to specific value):
+
+- `version: <bump-token>: <N>`
+
+Examples: `version: major: 3`, `version: breaking: 3`, `version: minor: 5`, `version: feature: 5`
 
 Each `<N>` must be a non-negative integer within standard 32-bit signed integer bounds.
-
 If multiple absolutes target the **same** component, the **highest value wins**.
+
+**Ignore Directive**:
+
+- `version: ignore`
+
+Excludes the commit from version calculation entirely. Useful for documentation, refactoring, or CI configuration
+changes that should not affect versioning.
+
+#### Standalone Shorthand
+
+Bump tokens may appear as commit message prefixes when followed by a colon and **non-empty text**:
+
+- `<bump-token>: <text>`
+
+Examples:
+
+- `breaking: Remove deprecated API` → Major increment
+- `major: Introduce new module system` → Major increment
+- `feat: Add caching support` → Minor increment (Conventional Commits style)
+- `feature: Add new endpoint` → Minor increment
+- `minor: Extend configuration options` → Minor increment
+- `fix: Handle null pointer edge case` → Patch increment
+- `patch: Correct typo in error message` → Patch increment
+
+**Invalid** (no text after colon): `breaking:`, `fix:`, `major:`
+
+These forms integrate naturally with conventional commit message styles.
+
+#### Coalescing
+
+Duplicate occurrences of the **same relative change type** within the scanned range **coalesce** to a single increment.
 
 #### Target Directive
 
@@ -141,10 +186,11 @@ Rules:
 
 ### 4.4 Precedence
 
-1. Valid Target (after validation)
-2. Absolute component sets
-3. Relative changes
-4. Default fallback behaviour (Section 6)
+1. Ignore directive (`version: ignore`) — commit excluded from processing
+2. Valid Target (after validation)
+3. Absolute component sets
+4. Relative changes (via `version:` or standalone shorthand)
+5. Default fallback behaviour (Section 6)
 
 ### 4.5 Component Reset Semantics
 
@@ -156,7 +202,8 @@ Rules:
 
 - Negative numbers or overflowed integers in absolute setters are ignored.
 - Malformed target directives (unparseable SemVer core) are ignored.
-- Unrecognised words after `change:` are ignored.
+- Unrecognised words after `version:` are ignored.
+- Standalone shorthands without text after the colon (e.g., bare `fix:`) are ignored.
 
 ---
 
@@ -341,23 +388,23 @@ Build metadata **never** affects SemVer precedence.
 ## 10. Keyword Grammar (Informal)
 
 ```
-relative-directive  ::= "change" ":" major-token
-                      | "change" ":" minor-token
-                      | "change" ":" patch-token
-                      | "breaking" ":"?
-                      | "feature"  ":"?
-                      | "fix"      ":"?
+version-directive    ::= "version" ":" bump-token
+                       | "version" ":" bump-token ":" integer
+                       | "version" ":" "ignore"
+
+standalone-shorthand ::= bump-token ":" non-empty-text
+
+bump-token ::= major-token | minor-token | patch-token
 
 major-token ::= "major" | "breaking"
-minor-token ::= "minor" | "feature"
+minor-token ::= "minor" | "feature" | "feat"
 patch-token ::= "patch" | "fix"
 
-absolute-directive ::= "version" ":" ( "major" | "minor" | "patch" ) ":" integer
-
-target-directive   ::= "target" ":" semver-literal
+target-directive     ::= "target" ":" semver-literal
 ```
 
 - `integer` is a canonical decimal without sign.
+- `non-empty-text` is any non-whitespace content following the colon.
 - `semver-literal` may contain pre-release or build metadata; only `MAJOR.MINOR.PATCH` core is retained for target
   evaluation.
 
@@ -422,21 +469,21 @@ target-directive   ::= "target" ":" semver-literal
 - Highest valid: `1.6.0`
 - Result: `1.6.0-snapshot+...`
 
-### 11.10 Shorthand Relative
+### 11.10 Standalone Shorthand
 
-- Commit: `breaking: something`
-- Effect: Major increment (same as `change: major`)
+- Commit: `breaking: Remove legacy API`
+- Effect: Major increment (same as `version: major`)
 
 ### 11.11 Absolute Overrides Relative
 
 - Base: `1.2.3`
-- Keywords: `version: minor: 9`, `change: minor`
+- Keywords: `version: minor: 9`, `version: minor`
 - Result core: `1.9.0`
 
 ### 11.12 Duplicate Relative Coalescing
 
 - Base: `1.2.3`
-- Keywords: `change: minor`, `change: minor`
+- Keywords: `version: minor`, `feature: Add helper`
 - Result core: `1.3.0` (single increment)
 
 ### 11.13 Pre-release Default Collapse
@@ -460,19 +507,35 @@ Normalised identifier fragment: `feature-abc-123`
 Example metadata:  
 `+branchfeature-abc-123.commits7.shaabc1234def56`
 
+### 11.16 Ignore Directive
+
+- Base: `1.2.3`
+- Commits: `version: ignore` (documentation update), `fix: Correct edge case`
+- Result core: `1.2.4` (ignored commit excluded)
+
+### 11.17 Synonym Equivalence
+
+- `version: breaking` ≡ `version: major`
+- `version: feature: 5` ≡ `version: minor: 5` ≡ `version: feat: 5`
+- `feat: Add feature` ≡ `feature: Add feature` (both → Minor increment)
+- `fix: Handle null` ≡ `patch: Handle null` (both → Patch increment)
+
 ---
 
 ## 12. Invalid Example Catalogue
 
-| Input                                                          | Reason Ignored / Rejected      |
-|----------------------------------------------------------------|--------------------------------|
-| `target: 1.2`                                                  | Partial core (Rule E)          |
-| `version: major: -1`                                           | Negative absolute              |
-| `target: a.b.c`                                                | Non-numeric core               |
-| `target: 1.0.0` when reachable final is `1.0.0`                | Equality vs final (Rule A / D) |
-| `change: majorx`                                               | Not boundary aligned           |
-| `retarget: 2.0.0`                                              | Not a keyword (boundary rule)  |
-| `target: 3.0.0` when repo highest final is `4.3.0` and no base | Regression (Rule C)            |
+| Input                                                          | Reason Ignored / Rejected         |
+|----------------------------------------------------------------|-----------------------------------|
+| `target: 1.2`                                                  | Partial core (Rule E)             |
+| `version: major: -1`                                           | Negative absolute                 |
+| `target: a.b.c`                                                | Non-numeric core                  |
+| `target: 1.0.0` when reachable final is `1.0.0`                | Equality vs final (Rule A / D)    |
+| `version: majorx`                                              | Not boundary aligned              |
+| `retarget: 2.0.0`                                              | Not a keyword (boundary rule)     |
+| `target: 3.0.0` when repo highest final is `4.3.0` and no base | Regression (Rule C)               |
+| `fix:`                                                         | Standalone shorthand without text |
+| `breaking:`                                                    | Standalone shorthand without text |
+| `change: minor`                                                | `change:` keyword not recognised  |
 
 ---
 

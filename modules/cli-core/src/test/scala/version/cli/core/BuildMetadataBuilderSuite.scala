@@ -31,7 +31,7 @@ final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
         os.proc("git", "checkout", "-b", "Feature/ABC_123").call(cwd = repo, check = true): Unit
         os.write.append(repo / "README.md", "\nfeature work\n"): Unit
         os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-        os.proc("git", "commit", "--no-gpg-sign", "-m", "change: patch").call(cwd = repo, check = true): Unit
+        os.proc("git", "commit", "--no-gpg-sign", "-m", "version: patch").call(cwd = repo, check = true): Unit
 
       val result =
         VersionCliCore.resolve(
@@ -67,7 +67,7 @@ final class BuildMetadataBuilderSuite extends FunSuite with TestRepoSupport:
       os.proc("git", "checkout", "-b", "Rêf/Weird__Name!!!").call(cwd = repo, check = true): Unit
       os.write.append(repo / "README.md", "\nweird\n"): Unit
       os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "change: patch").call(cwd = repo, check = true): Unit
+      os.proc("git", "commit", "--no-gpg-sign", "-m", "version: patch").call(cwd = repo, check = true): Unit
 
       val res1 =
         VersionCliCore.resolve(

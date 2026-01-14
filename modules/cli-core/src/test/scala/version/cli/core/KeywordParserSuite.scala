@@ -28,25 +28,59 @@ import version.cli.core.parsing.KeywordParser
 
 final class KeywordParserSuite extends FunSuite:
 
-  test("change: major|breaking; minor|feature; patch|fix (case-insensitive, whitespace tolerant)") {
+  test("version: relative increments (bump tokens and synonyms)") {
     val msg =
-      """BREAKING:   MAJOR
-        |change:minor
-        |change:   fix
-        |noise changeX: major
-        |rechange: minor
+      """version: major
+        |version: breaking
+        |version: minor
+        |version: feature
+        |version: feat
+        |version: patch
+        |version: fix
         |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    assert(ks.contains(MajorChange))
-    assert(ks.contains(MinorChange))
-    assert(ks.contains(PatchChange))
-    // Ensure boundary: 'changeX' or 'rechange' do not match
-    assertEquals(
-      ks.count {
-        case MajorChange | MinorChange | PatchChange => true
-        case _                                       => false
-      },
-      3)
+    // Major increment from both major and breaking
+    assertEquals(ks.count(_ == MajorChange), 2)
+    // Minor increment from minor, feature, and feat
+    assertEquals(ks.count(_ == MinorChange), 3)
+    // Patch increment from both patch and fix
+    assertEquals(ks.count(_ == PatchChange), 2)
+  }
+
+  test("standalone shorthands require non-empty text after colon") {
+    val msg =
+      """breaking: Remove deprecated API
+        |major: Introduce new module
+        |feat: Add caching
+        |feature: Add endpoint
+        |minor: Extend options
+        |fix: Handle null
+        |patch: Correct typo
+        |breaking:
+        |fix:
+        |major:
+        |feat:
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    // Valid shorthands (7 with text)
+    assertEquals(ks.count(_ == MajorChange), 2)
+    assertEquals(ks.count(_ == MinorChange), 3) // feat, feature, minor
+    assertEquals(ks.count(_ == PatchChange), 2)
+    // Invalid bare shorthands (no text) should NOT produce keywords
+    // Total should be 7, not 11
+    assertEquals(ks.size, 7)
+  }
+
+  test("legacy change: keyword is NOT supported") {
+    val msg =
+      """change: major
+        |change: minor
+        |change: patch
+        |change: breaking
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    // The change: keyword is no longer recognised
+    assertEquals(ks.size, 0)
   }
 
   test("version: component: N absolute sets; overflow-safe int parsing") {
@@ -54,15 +88,34 @@ final class KeywordParserSuite extends FunSuite:
       s"""version: major: 2
          |version: minor: 10
          |version: patch: 5
+         |version: breaking: 3
+         |version: feature: 7
+         |version: feat: 8
+         |version: fix: 9
          |version: major: ${Int.MaxValue}
          |version: patch: 999999999999999999999999
          |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    assert(ks.exists { case MajorSet(v) => v.value == 2 || v.value == Int.MaxValue; case _ => false })
+    assert(ks.exists { case MajorSet(v) => v.value == 2; case _ => false })
+    assert(ks.exists { case MajorSet(v) => v.value == 3; case _ => false }) // from breaking synonym
     assert(ks.exists { case MinorSet(v) => v.value == 10; case _ => false })
+    assert(ks.exists { case MinorSet(v) => v.value == 7; case _ => false }) // from feature synonym
+    assert(ks.exists { case MinorSet(v) => v.value == 8; case _ => false }) // from feat synonym
     assert(ks.exists { case PatchSet(v) => v.value == 5; case _ => false })
+    assert(ks.exists { case PatchSet(v) => v.value == 9; case _ => false }) // from fix synonym
+    assert(ks.exists { case MajorSet(v) => v.value == Int.MaxValue; case _ => false })
     // Overflow should be ignored (no PatchSet for the huge number)
     assert(!ks.exists { case PatchSet(v) if v.value > 1000000 => true; case _ => false })
+  }
+
+  test("version: ignore directive") {
+    val msg =
+      """version: ignore
+        |version: IGNORE
+        |Version: Ignore
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    assertEquals(ks.count(_ == Ignore), 3)
   }
 
   test("target: vX.Y.Z[-pre][+meta] parses; stores full version; selection later drops pre/meta") {

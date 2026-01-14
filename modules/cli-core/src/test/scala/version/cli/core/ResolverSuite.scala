@@ -186,5 +186,34 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
     }
   }
 
+  test("Lightweight tags are ignored during version resolution") {
+    withFreshRepo("lightweight-ignored-resolver") { repo =>
+      // v0.1.0 is a lightweight tag on the initial commit
+      // Checkout the initial commit where v0.1.0 (lightweight) was created
+      val c1 = os.proc("git", "rev-list", "--max-parents=0", "HEAD").call(cwd = repo, check = true).out.text().trim
+      checkout(repo, c1)
+      // Worktree is clean, but v0.1.0 is lightweight so Mode 1 should NOT apply
+      // Should result in Mode 2 using repo-wide highest (v4.3.0 annotated) => 5.0.0-snapshot
+      val res = VersionCliCore.resolve(cfg(repo))
+      assert(res.isRight, clues(res))
+      val v = res.toOption.get
+      // Lightweight v0.1.0 is ignored; repo-wide highest annotated is v4.3.0 => 5.0.0
+      assertEquals((v.major.value, v.minor.value, v.patch.value), (5, 0, 0), clues(v.toString))
+      assert(v.preRelease.exists(_.isSnapshot), s"version was: ${v.toString}")
+    }
+  }
+
+  test("Mode 1: annotated tag at HEAD with clean worktree returns exact version") {
+    withFreshRepo("mode1-annotated") { repo =>
+      // v1.0.0 is annotated; checkout it
+      checkout(repo, "v1.0.0")
+      val res = VersionCliCore.resolve(cfg(repo))
+      assert(res.isRight, clues(res))
+      val v = res.toOption.get
+      assertEquals(v.toString, "1.0.0")
+      assert(v.preRelease.isEmpty, "should be a concrete version, not a pre-release")
+    }
+  }
+
 end ResolverSuite
 // scalafix:on

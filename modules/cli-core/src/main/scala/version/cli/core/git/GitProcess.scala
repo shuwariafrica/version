@@ -75,7 +75,8 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
     for
       _ <- checkRepo()
       // Use null separators for robust parsing and include object type for cross-version support.
-      // Older git may not support %(peeled); resolve annotated tags via rev-parse ^{commit} instead.
+      // Only annotated tags (objecttype == "tag") are considered valid version tags per spec.
+      // Lightweight tags are silently ignored.
       r <- run(
         List("for-each-ref", "--format=%(refname:short)%00%(objecttype)%00%(objectname)", "refs/tags"),
         check = true
@@ -84,17 +85,21 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
         val parts = line.split("\u0000", -1).toList
         parts match
           case name :: objType :: obj :: Nil =>
-            val commitE =
-              if objType == "tag" then run(List("rev-parse", s"${name}^{commit}"), check = true).map(_.out.text().trim)
-              else Right(obj)
-            for
-              acc <- accE
-              commit <- commitE
-            yield parseTag(name, commit).fold(acc)(t => acc :+ t)
+            // Only process annotated tags (objecttype == "tag"); lightweight tags have objecttype == "commit"
+            if objType == "tag" then
+              val commitE = run(List("rev-parse", s"${name}^{commit}"), check = true).map(_.out.text().trim)
+              for
+                acc <- accE
+                commit <- commitE
+              yield parseTag(name, commit).fold(acc)(t => acc :+ t)
+            else
+              // Lightweight tag - silently ignored per spec
+              logger.verbose(s"Ignoring lightweight tag: $name", "Git")
+              accE
           case _ => accE
       }
       tags <- tagsE
-      _ = logger.verbose(s"Found ${tags.size} parsed SemVer tag(s)", "Git")
+      _ = logger.verbose(s"Found ${tags.size} parsed SemVer annotated tag(s)", "Git")
     yield tags
 
   def findReachableTags(from: CommitSha): Either[ResolutionError, List[Tag]] =

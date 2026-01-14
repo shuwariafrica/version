@@ -62,7 +62,7 @@ object Resolver:
           for
             commits <- git.getCommitsSince(basisCommitSha, Some(baseTag.commitSha))
             _ = logger.verbose(s"Commits since base tag ${baseTag.name.value}: ${commits.size}", "Resolver")
-            keywords = commits.flatMap(c => KeywordParser.parse(c.message))
+            keywords = extractKeywords(commits)
             _ = logger.verbose(s"Keywords extracted: ${keywords.size}", "Resolver")
             targetOpt = TargetVersionCalculator.selectValidTarget(
               targets = keywords.collect { case Keyword.TargetSet(v) => v },
@@ -80,7 +80,7 @@ object Resolver:
           for
             commits <- git.getCommitsSince(basisCommitSha, None)
             _ = logger.verbose(s"Commits (no base tag): ${commits.size}", "Resolver")
-            keywords = commits.flatMap(c => KeywordParser.parse(c.message))
+            keywords = extractKeywords(commits)
             highestRepo = allTags.sorted.lastOption
             repoFinals = allTags.filter(_.version.isFinal)
             targetOpt = TargetVersionCalculator.selectValidTarget(
@@ -104,5 +104,14 @@ object Resolver:
     yield result
     end for
   end calculateDevelopmentVersion
+
+  /** Extracts keywords from commits, excluding any commit that contains `version: ignore`. */
+  private def extractKeywords(commits: List[Commit]): List[Keyword] =
+    commits.flatMap { c =>
+      val keywords = KeywordParser.parse(c.message)
+      // If the commit contains an Ignore directive, exclude ALL its keywords
+      if keywords.contains(Keyword.Ignore) then Nil
+      else keywords
+    }
 
 end Resolver
