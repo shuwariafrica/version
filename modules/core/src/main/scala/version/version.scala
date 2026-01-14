@@ -508,22 +508,22 @@ object Version:
     * enum case (e.g., `PreReleaseClassifier.Alpha.type`) with the classifier value.
     */
   trait PreReleaseClass[C]:
-    def classifier: PreReleaseClassifier
+    inline def classifier: PreReleaseClassifier
 
   /** Provides `given` instances for the [[PreReleaseClass]] type class. */
   object PreReleaseClass:
     given PreReleaseClass[PreReleaseClassifier.Dev.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.Dev
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Dev
     given PreReleaseClass[PreReleaseClassifier.Milestone.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.Milestone
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Milestone
     given PreReleaseClass[PreReleaseClassifier.Alpha.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.Alpha
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Alpha
     given PreReleaseClass[PreReleaseClassifier.Beta.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.Beta
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Beta
     given PreReleaseClass[PreReleaseClassifier.ReleaseCandidate.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.ReleaseCandidate
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.ReleaseCandidate
     given PreReleaseClass[PreReleaseClassifier.Snapshot.type]:
-      def classifier: PreReleaseClassifier = PreReleaseClassifier.Snapshot
+      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Snapshot
 
   /** Creates a `Version` instance from core components (final release). */
   inline def apply(major: MajorVersion, minor: MinorVersion, patch: PatchNumber): Version =
@@ -615,6 +615,7 @@ object Version:
     * }}}
     */
   object Show:
+
     /** Summons the contextual show instance. */
     inline def apply(using s: Show): Show = s
 
@@ -717,7 +718,7 @@ object Version:
       *   - `v.next[MinorVersion]`
       *   - `v.next[PatchNumber]`
       */
-    def next[F](using inc: Increment[F]): Version = inc(v)
+    inline def next[F](using inc: Increment[F]): Version = inc(v)
 
     /** Returns the next major version, resetting minor and patch to zero. */
     inline def nextMajor: Version = Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)
@@ -748,7 +749,7 @@ object Version:
       *   - If same classifier: increment number
       *   - If higher classifier: start at 1 (for versioned classifiers) or set to Snapshot (no number)
       */
-    def advance[C](using cls: PreReleaseClass[C]): Either[VersionError, Version] =
+    inline def advance[C](using cls: PreReleaseClass[C]): Either[VersionError, Version] =
       val target = cls.classifier
       v.preRelease match
         case None          => Left(NotAPreReleaseVersion())
@@ -771,7 +772,7 @@ object Version:
       *   - Works on final or pre-release versions
       *   - Validates that the classifier is versioned and the number >= 1
       */
-    def as[C](n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, Version] =
+    inline def as[C](n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, Version] =
       val target = cls.classifier
       if !target.versioned then Left(ClassifierNotVersioned(target))
       else
@@ -784,7 +785,7 @@ object Version:
       *   - If classifier is versioned -> number = 1
       *   - If classifier is Snapshot -> no number
       */
-    def as[C](using cls: PreReleaseClass[C]): Version =
+    inline def as[C](using cls: PreReleaseClass[C]): Version =
       val target = cls.classifier
       val pr = if target.versioned then PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset)) else PreRelease.snapshot
       v.copy(preRelease = Some(pr))

@@ -73,7 +73,6 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
-          cache: sbt
 
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
@@ -140,7 +139,6 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
-          cache: sbt
 
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
@@ -170,7 +168,6 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
-          cache: sbt
 
       - name: Set up sbt
         uses: sbt/setup-sbt@v1
@@ -245,3 +242,71 @@ jobs:
           SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
           SIGNING_KEY_ID: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY_ID }}
+
+  site-release:
+    name: Publish Site & GitHub Release
+    needs: [ publish ]
+    if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write          # needed to create a release
+      pages: write             # deploy to GitHub Pages
+      id-token: write          # required by actions/deploy-pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_RELEASE }}
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v7
+
+      - name: Build Documentation Site
+        id: build-site
+        run: |
+          sbt -Dsbt.ci=true generateUnidoc
+          site_dir="$(pwd)/target/site"
+          echo "site_dir=$site_dir" >> $GITHUB_OUTPUT
+          test -s "$site_dir/index.html" || { echo "::error::index.html not found or empty in $site_dir"; exit 1; }
+
+      - name: Prepare Pages Artifact (.nojekyll)
+        run: |
+          touch "${{ steps.build-site.outputs.site_dir }}/.nojekyll"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ steps.build-site.outputs.site_dir }}
+
+      - name: Deploy to GitHub Pages
+        id: deploy-pages
+        uses: actions/deploy-pages@v4
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease_flag=""
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            prerelease_flag="--prerelease"
+          fi
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            --verify-tag \
+            $prerelease_flag

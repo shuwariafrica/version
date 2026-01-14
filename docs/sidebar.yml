@@ -1,0 +1,58 @@
+# version Documentation Navigation
+
+subsection:
+  - title: Getting Started
+    page: getting-started.md
+
+  - title: Core Library
+    index: core/overview.md
+    directory: core
+    subsection:
+      - title: Version Types
+        page: core/types.md
+      - title: Parsing
+        page: core/parsing.md
+      - title: Operations
+        page: core/operations.md
+
+  - title: Automatic Versioning
+    index: resolution/overview.md
+    directory: resolution
+    subsection:
+      - title: How It Works
+        page: resolution/how-it-works.md
+      - title: Commit Directives
+        page: resolution/directives.md
+      - title: Validation Rules
+        page: resolution/validation.md
+
+  - title: sbt Plugin
+    index: sbt/overview.md
+    directory: sbt
+    subsection:
+      - title: Installation
+        page: sbt/installation.md
+      - title: Settings
+        page: sbt/settings.md
+      - title: Custom Rendering
+        page: sbt/rendering.md
+
+  - title: Serialisation
+    index: codecs/overview.md
+    directory: codecs
+    subsection:
+      - title: jsoniter-scala
+        page: codecs/jsoniter.md
+      - title: ZIO JSON
+        page: codecs/zio-json.md
+      - title: scala-yaml
+        page: codecs/yaml.md
+
+  - title: ZIO Prelude
+    page: zio-prelude.md
+
+  - title: Specification
+    page: specification.md
+
+  - title: Contributing
+    page: contributing.md
