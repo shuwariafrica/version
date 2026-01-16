@@ -26,7 +26,7 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
   trait ComponentTestSpec:
     type T
     type E <: InvalidComponent
-    val comp: ResetableVersionComponent[T] { type Error = E }
+    val comp: ResettableVersionComponent[T] { type Error = E }
     val expectedMin: Int
     val expectedError: Int => E
 

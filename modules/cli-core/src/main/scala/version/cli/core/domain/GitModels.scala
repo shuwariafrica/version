@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core.domain
 
 import version.Version
@@ -40,12 +38,12 @@ object TagName:
   given CanEqual[TagName, TagName] = CanEqual.derived
 
 /** Represents a Git commit (SHA + full message). Pure data. */
-final case class Commit(sha: CommitSha, message: String) derives CanEqual
+final case class Commit(sha: CommitSha, message: String)
 object Commit:
   given CanEqual[Commit, Commit] = CanEqual.derived
 
 /** Represents a parsed and validated SemVer Git tag. Pure data. */
-final case class Tag(name: TagName, commitSha: CommitSha, version: Version) derives CanEqual
+final case class Tag(name: TagName, commitSha: CommitSha, version: Version)
 object Tag:
   given CanEqual[Tag, Tag] = CanEqual.derived
   given Ordering[Tag] = Ordering.by(_.version)

@@ -17,6 +17,8 @@ package version
 
 import boilerplate.OpaqueType
 
+import scala.annotation.publicInBinary
+
 import version.errors.*
 
 /** Capability trait for opaque version components backed by [[Int]].
@@ -32,7 +34,7 @@ import version.errors.*
   *   The opaque type itself.
   */
 transparent trait VersionComponent[T] extends OpaqueType[T]:
-  /** Underlying type is always [[Int]] for version components. */
+  /** The underlying value type for this component. */
   final type Type = Int
 
   /** Error type must be a component validation error. */
@@ -52,27 +54,20 @@ transparent trait VersionComponent[T] extends OpaqueType[T]:
     if value >= minimumValue then None else Some(error(value))
 
   /** The minimum valid value for this component, wrapped in the opaque type. */
-  def minimum: T = wrap(minimumValue)
+  inline def minimum: T = wrap(minimumValue)
 
-  /** Defines operations available on the opaque type T. */
   extension (t: T)
-    /** Semantic alias for [[unwrap]]. Retrieves the underlying integer value of the component. */
+    /** Alias for [[unwrap]]. Retrieves the underlying integer value of the component. */
     inline def value: Int = unwrap(t)
 
-    /** Returns a new instance incremented by one. Guaranteed safe as it increases the value. */
+    /** Returns a new instance incremented by one. */
     inline def increment: T = wrap(unwrap(t) + 1)
 
   given Ordering[T] = Ordering.by(unwrap)
 end VersionComponent
 
-/** Extends [[VersionComponent]] for components that have a defined reset value (typically the minimum value).
-  *
-  * Instances may be constructed via [[ResetableVersionComponent$ ResetableVersionComponent]].
-  *
-  * @tparam T
-  *   The opaque type itself.
-  */
-transparent trait ResetableVersionComponent[T] extends VersionComponent[T]:
+/** Extends [[VersionComponent]] for components that have a defined reset value (typically the minimum value). */
+transparent trait ResettableVersionComponent[T] extends VersionComponent[T]:
   /** The reset value for the field (e.g., 0 for Patch, 1 for PreReleaseNumber). */
   inline def reset: T = minimum
 
@@ -80,15 +75,12 @@ transparent trait ResetableVersionComponent[T] extends VersionComponent[T]:
 opaque type MajorVersion = Int
 
 /** Provides factory methods, instances, and operations for [[MajorVersion]]. */
-object MajorVersion extends ResetableVersionComponent[MajorVersion]:
+object MajorVersion extends ResettableVersionComponent[MajorVersion]:
   type Error = InvalidMajorVersion
-
   protected inline def minimumValue: Int = 0
   protected inline def error(value: Int): Error = InvalidMajorVersion(value)
-
   inline def wrap(value: Int): MajorVersion = value
   inline def unwrap(mv: MajorVersion): Int = mv
-
   extension (v: MajorVersion)
     /** Returns `true` if the major version is greater than 0, indicating a stable release according to SemVer. */
     inline def isStable: Boolean = unwrap(v) > 0
@@ -97,12 +89,10 @@ object MajorVersion extends ResetableVersionComponent[MajorVersion]:
 opaque type MinorVersion = Int
 
 /** Provides factory methods, instances, and operations for [[MinorVersion]]. */
-object MinorVersion extends ResetableVersionComponent[MinorVersion]:
+object MinorVersion extends ResettableVersionComponent[MinorVersion]:
   type Error = InvalidMinorVersion
-
   protected inline def minimumValue: Int = 0
   protected inline def error(value: Int): Error = InvalidMinorVersion(value)
-
   inline def wrap(value: Int): MinorVersion = value
   inline def unwrap(mv: MinorVersion): Int = mv
 
@@ -110,12 +100,10 @@ object MinorVersion extends ResetableVersionComponent[MinorVersion]:
 opaque type PatchNumber = Int
 
 /** Provides factory methods, instances, and operations for [[PatchNumber]]. */
-object PatchNumber extends ResetableVersionComponent[PatchNumber]:
+object PatchNumber extends ResettableVersionComponent[PatchNumber]:
   type Error = InvalidPatchNumber
-
   protected inline def minimumValue: Int = 0
   protected inline def error(value: Int): Error = InvalidPatchNumber(value)
-
   inline def wrap(value: Int): PatchNumber = value
   inline def unwrap(pn: PatchNumber): Int = pn
 
@@ -123,16 +111,12 @@ object PatchNumber extends ResetableVersionComponent[PatchNumber]:
 opaque type PreReleaseNumber = Int
 
 /** Provides factory methods, instances, and operations for [[PreReleaseNumber]]. */
-object PreReleaseNumber extends ResetableVersionComponent[PreReleaseNumber]:
+object PreReleaseNumber extends ResettableVersionComponent[PreReleaseNumber]:
   type Error = InvalidPreReleaseNumber
-
   protected inline def minimumValue: Int = 1 // Must be positive
   protected inline def error(value: Int): Error = InvalidPreReleaseNumber(value)
-
   inline def wrap(value: Int): PreReleaseNumber = value
   inline def unwrap(prn: PreReleaseNumber): Int = prn
-
-import scala.annotation.{publicInBinary, targetName}
 
 /** Represents the supported pre-release classifiers in order of precedence (lowest to highest).
   *
@@ -143,49 +127,31 @@ import scala.annotation.{publicInBinary, targetName}
   */
 enum PreReleaseClassifier:
   case Dev, Milestone, Alpha, Beta, ReleaseCandidate, Snapshot
-
-  /** Returns the canonical string form of the classifier.
-    *
-    * Thin delegate to [[PreReleaseClassifier.show PreReleaseClassifier.show]].
-    */
-  override def toString: String = this.show
+  override inline def toString: String = PreReleaseClassifier.show(this)
 
 /** Provides behaviour, instances, and utilities for [[PreReleaseClassifier]].
   *
-  * @see
-  *   [[PreReleaseClassifier]] enum for case definitions.
+  * @see [[PreReleaseClassifier]] enum for case definitions.
   */
 object PreReleaseClassifier:
 
   extension (c: PreReleaseClassifier)
     /** Returns `true` if the classifier requires a [[PreReleaseNumber]]. */
-    @targetName("versionedExtension")
     inline def versioned: Boolean = c match
       case Snapshot => false
       case _        => true
 
     /** Returns the recognised aliases (first is canonical). */
-    @targetName("aliasesExtension")
     inline def aliases: List[String] = c match
       case Dev              => List("dev")
       case Milestone        => List("milestone", "m")
       case Alpha            => List("alpha", "a")
       case Beta             => List("beta", "b")
       case ReleaseCandidate => List("rc", "cr")
-      case Snapshot         => List("SNAPSHOT", "snapshot")
+      case Snapshot         => List("SNAPSHOT")
 
     /** Returns the canonical string form of the classifier. */
-    @targetName("showExtension")
     inline def show: String = c.aliases.head
-
-  /** Returns `true` if the classifier requires a [[PreReleaseNumber]]. */
-  inline def versioned(c: PreReleaseClassifier): Boolean = c.versioned
-
-  /** Returns the recognised aliases (first is canonical). */
-  inline def aliases(c: PreReleaseClassifier): List[String] = c.aliases
-
-  /** Returns the canonical string form of the classifier (first alias). */
-  inline def show(c: PreReleaseClassifier): String = c.show
 
   // A map for quick lookup of classifiers by their aliases.
   private val aliasMap: Map[String, PreReleaseClassifier] =
@@ -198,12 +164,12 @@ object PreReleaseClassifier:
     * @return
     *   `Some(PreReleaseClassifier)` if found, `None` otherwise.
     */
-  def fromAlias(alias: String): Option[PreReleaseClassifier] =
+  inline def fromAlias(alias: String): Option[PreReleaseClassifier] =
     import boilerplate.nullable.*
     alias.toLowerCase.option.flatMap(aliasMap.get)
 
   /** Provides an extractor for matching string aliases. */
-  def unapply(alias: String): Option[PreReleaseClassifier] = fromAlias(alias)
+  inline def unapply(alias: String): Option[PreReleaseClassifier] = fromAlias(alias)
 
   given Ordering[PreReleaseClassifier] = Ordering.by(_.ordinal)
   given CanEqual[PreReleaseClassifier, PreReleaseClassifier] = CanEqual.derived
@@ -223,10 +189,7 @@ final case class PreRelease @publicInBinary private (
   number: Option[PreReleaseNumber]
 ):
 
-  /** Formats the pre-release information as a string suitable for SemVer display.
-    *
-    * Thin delegate to [[PreRelease.show PreRelease.show]].
-    */
+  /** Delegates to [[PreRelease.show PreRelease.show]] to ensure format suitability for semantic versioning. */
   override def toString: String = this.show
 
 /** Provides factory methods, instances, and operations for [[PreRelease]].
@@ -285,7 +248,6 @@ object PreRelease:
 
   extension (pr: PreRelease)
     /** Returns the SemVer-compliant string form (e.g., "alpha.1", "snapshot"). */
-    @targetName("showExtension")
     inline def show: String =
       pr.number.fold(pr.classifier.show)(n => s"${pr.classifier.show}.${n.value}")
 
@@ -293,7 +255,6 @@ object PreRelease:
       *
       * If the classifier is not versioned (e.g., Snapshot), returns unchanged.
       */
-    @targetName("incrementExtension")
     inline def increment: PreRelease =
       if pr.classifier.versioned then PreRelease(pr.classifier, pr.number.map(_.increment))
       else pr
@@ -316,16 +277,6 @@ object PreRelease:
     /** Returns `true` if the classifier is [[PreReleaseClassifier.Snapshot]]. */
     inline def isSnapshot: Boolean = pr.classifier.equals(PreReleaseClassifier.Snapshot)
   end extension
-
-  // --- Behaviour Methods (delegating to extensions) ---
-
-  /** Returns the SemVer-compliant string form (e.g., "alpha.1", "snapshot"). */
-  inline def show(pr: PreRelease): String = pr.show
-
-  /** Returns a new [[PreRelease]] with the number incremented, if versioned. */
-  inline def increment(pr: PreRelease): PreRelease = pr.increment
-
-  // --- Instances ---
 
   /** Ordering based on classifier precedence, then number. */
   given Ordering[PreRelease] = Ordering.by(pr => (pr.classifier, pr.number))
@@ -351,7 +302,7 @@ object PreRelease:
       * @return
       *   `Some(PreRelease)` if the mapping is successful and recognized, `None` otherwise.
       */
-    def map(identifiers: List[String]): Option[PreRelease]
+    extension (identifiers: List[String]) def resolve: Option[PreRelease]
   end Resolver
 
   /** Provides the default implementation and implicit instance for [[Resolver]]. */
@@ -359,29 +310,23 @@ object PreRelease:
 
     /** The default mapping strategy.
       *
-      * This implementation strictly recognizes the aliases defined in [[PreReleaseClassifier]] and expects the format
+      * This implementation strictly recognises the aliases defined in [[PreReleaseClassifier]] and expects the format
       * to conform to the library's constrained structure: either a single identifier `[alias]` (for Snapshot) or
       * exactly two identifiers `[alias].[number]`.
       *
       * Note: The parser may reconcile common formats like "RC1" into `List("RC", "1")` before invoking the mapper.
       */
     given Resolver:
-      override def map(identifiers: List[String]): Option[PreRelease] =
-        identifiers match
-          // Case 1: Single identifier matching a non-versioned classifier (e.g., "snapshot")
-          case List(PreReleaseClassifier(c)) if !c.versioned =>
-            Some(PreRelease(c, None))
-
-          // Case 2: Two identifiers: classifier and number (e.g., "alpha", "1")
-          case List(PreReleaseClassifier(c), n) if c.versioned =>
-            // Parse string to Int, then validate via PreReleaseNumber.from(Int)
-            n.toIntOption.flatMap(i => PreReleaseNumber.from(i).toOption).map(num => PreRelease(c, Some(num)))
-
-          // Case 3: Any other combination is not supported by this default constrained mapping.
-          case _ => None
-
+      extension (identifiers: List[String])
+        inline def resolve: Option[PreRelease] =
+          identifiers match
+            case List(PreReleaseClassifier(c)) if !c.versioned =>
+              Some(PreRelease(c, None)) //  Single identifier matching a non-versioned classifier
+            case List(PreReleaseClassifier(c), n) if c.versioned => // Two identifiers: classifier and number (e.g., "alpha", "1")
+              // Parse string to Int, then validate via PreReleaseNumber.from(Int)
+              n.toIntOption.flatMap(i => PreReleaseNumber.from(i).toOption).map(num => PreRelease(c, Some(num)))
+            case _ => None
   end Resolver
-
 end PreRelease
 
 /** Represents build metadata as defined by the Semantic Versioning 2.0.0 specification.
@@ -412,10 +357,9 @@ object BuildMetadata extends OpaqueType[BuildMetadata]:
     else Some(InvalidBuildMetadata(ids))
 
   /** Checks if an identifier is valid according to SemVer 2.0.0 rules. */
-  private def isValidIdentifier(id: String): Boolean =
+  private inline def isValidIdentifier(id: String): Boolean =
     // Checks for non-empty and allowed characters [0-9A-Za-z-]
     id.nonEmpty && id.forall { c =>
-      // Avoid universal equality; check hyphen membership via indexOf on a constant string
       c.isLetterOrDigit || ("-".indexOf(c) >= 0)
     }
 
@@ -429,15 +373,8 @@ object BuildMetadata extends OpaqueType[BuildMetadata]:
   /** Semantic alias for [[unwrap]]. Returns the list of metadata identifiers. */
   extension (metadata: BuildMetadata)
     inline def identifiers: List[String] = unwrap(metadata)
-
     /** Returns the SemVer-compliant metadata string (including leading '+'). */
-    @targetName("showExtension")
     inline def show: String = s"+${unwrap(metadata).mkString(".")}"
-
-  /** Returns the SemVer-compliant metadata string (including leading '+'). */
-  inline def show(bm: BuildMetadata): String = bm.show
-
-  // Build metadata does not affect version precedence, so no Ordering is provided.
 end BuildMetadata
 
 /** Represents a version conforming to the Semantic Versioning 2.0.0 specification.
@@ -459,10 +396,10 @@ final case class Version(
     val b = new StringBuilder(s"${major.value}.${minor.value}.${patch.value}")
     preRelease.foreach(pr => b.append('-').append(pr.toString))
     buildMetadata.foreach(meta => b.append(meta.show))
-    b.toString()
+    b.toString() // FIXME: Use an instance of Show
 
   /** Compares this version with another version according to SemVer precedence rules. */
-  override def compare(that: Version): Int = summon[Ordering[Version]].compare(this, that)
+  override inline def compare(that: Version): Int = summon[Ordering[Version]].compare(this, that)
 
 end Version
 
@@ -486,29 +423,33 @@ object Version:
     *   - Clear pre-release and build metadata (use the 3-arg Version.apply)
     */
   trait Increment[F]:
-    def apply(v: Version): Version
+    extension (v: Version) def increment: Version
 
   /** Provides `given` instances for the [[Increment]] type class. */
   object Increment:
     given Increment[MajorVersion]:
-      def apply(v: Version): Version =
-        Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)
+      extension (v: Version)
+        inline def increment: Version =
+          Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)
 
     given Increment[MinorVersion]:
-      def apply(v: Version): Version =
-        Version(v.major, v.minor.increment, PatchNumber.reset)
+      extension (v: Version)
+        inline def increment: Version =
+          Version(v.major, v.minor.increment, PatchNumber.reset)
 
     given Increment[PatchNumber]:
-      def apply(v: Version): Version =
-        Version(v.major, v.minor, v.patch.increment)
+      extension (v: Version)
+        inline def increment: Version =
+          Version(v.major, v.minor, v.patch.increment)
 
   /** Type class capturing a concrete pre-release classifier as a type `C`.
     *
-    * This enables the generic `version.next[C]` and `version.as[C]` operations by associating the singleton type of the
+    * Enables the generic `version.next[C]` and `version.as[C]` operations by associating the singleton type of the
     * enum case (e.g., `PreReleaseClassifier.Alpha.type`) with the classifier value.
     */
   trait PreReleaseClass[C]:
-    inline def classifier: PreReleaseClassifier
+    /** Returns the [[PreReleaseClassifier]] value associated with this type class instance. */
+    def classifier: PreReleaseClassifier
 
   /** Provides `given` instances for the [[PreReleaseClass]] type class. */
   object PreReleaseClass:
@@ -566,8 +507,6 @@ object Version:
   ): Version =
     Version(major, minor, patch, Some(preRelease), Some(metadata))
 
-  // --- Parsing ---
-
   /** Parses a SemVer string.
     *
     * @param s
@@ -575,10 +514,10 @@ object Version:
     * @return
     *   `Right(Version)` on success, `Left(ParseError)` on failure.
     */
-  def parse(s: String)(using PreRelease.Resolver): Either[errors.ParseError, Version] =
+  inline def parse(s: String)(using PreRelease.Resolver): Either[errors.ParseError, Version] =
     parser.VersionParser.parse(s)
 
-  /** Unsafe parse — throws on invalid input.
+  /** Parses a SemVer string. Throws on invalid input.
     *
     * @param s
     *   The version string to parse.
@@ -639,7 +578,6 @@ object Version:
     object Extended extends Show:
       extension (v: Version)
         def show: String =
-          val core = s"${v.major.value}.${v.minor.value}.${v.patch.value}"
           val pre = v.preRelease.fold("")(pr => s"-${pr.show}")
           val meta = v.buildMetadata.fold("") { bm =>
             val truncated = bm.identifiers.map { id =>
@@ -649,7 +587,7 @@ object Version:
             }
             s"+${truncated.mkString(".")}"
           }
-          s"$core$pre$meta"
+          s"${v.major.value}.${v.minor.value}.${v.patch.value}$pre$meta"
   end Show
 
   /** Ordering according to Semantic Versioning 2.0.0 precedence rules. */
@@ -675,11 +613,7 @@ object Version:
             case (Some(px), Some(py)) => summon[Ordering[PreRelease]].compare(px, py)
         case n => n
 
-  // 3. Build metadata MUST be ignored (SemVer Spec 10).
-
   given CanEqual[Version, Version] = CanEqual.derived
-
-  // --- Version Extensions ---
 
   import version.errors.*
 
@@ -718,7 +652,7 @@ object Version:
       *   - `v.next[MinorVersion]`
       *   - `v.next[PatchNumber]`
       */
-    inline def next[F](using inc: Increment[F]): Version = inc(v)
+    inline def next[F](using Increment[F]): Version = v.increment
 
     /** Returns the next major version, resetting minor and patch to zero. */
     inline def nextMajor: Version = Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)

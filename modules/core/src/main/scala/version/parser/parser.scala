@@ -148,7 +148,7 @@ object VersionParser:
         case _ :: num :: Nil if isAllDigits(num) && num.length > 1 && num.charAt(0) == '0' =>
           return Left(InvalidVersionFormat(input))
         case _ => ()
-      resolver.map(reconciled) match
+      reconciled.resolve match
         case Some(pr) => preRelease = Some(pr)
         case None     => return Left(UnrecognizedPreRelease(reconciled))
     end if

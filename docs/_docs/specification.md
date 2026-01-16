@@ -517,7 +517,6 @@ semver-literal       ::= <valid SemVer string; only core retained>
 | `target: 3.0.0` when repo highest final is `4.3.0` | Regression                 |
 | `fix:`                                             | Empty standalone shorthand |
 | `breaking:`                                        | Empty standalone shorthand |
-| `change: minor`                                    | `change:` not recognised   |
 
 ---
 

@@ -164,9 +164,10 @@ class VersionParserSuite extends munit.FunSuite:
   test("Parser utilizes a custom contextual resolver") {
     // Define a custom resolver that maps "dev" to Snapshot and rejects everything else.
     given customResolver: PreRelease.Resolver = new PreRelease.Resolver:
-      def map(identifiers: List[String]): Option[PreRelease] =
-        if identifiers == List("dev") then Some(PreRelease.snapshot)
-        else None // Does not fallback to default in this test case
+      extension (identifiers: List[String])
+        def resolve: Option[PreRelease] =
+          if identifiers == List("dev") then Some(PreRelease.snapshot)
+          else None // Does not fallback to default in this test case
 
     // Should succeed using the custom resolver
     assertEquals("1.0.0-dev".toVersion, Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot))))

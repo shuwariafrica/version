@@ -76,21 +76,22 @@ Implement `PreRelease.Resolver` to handle non-standard formats:
 import version.*
 
 given PreRelease.Resolver with
-  def map(identifiers: List[String]): Option[PreRelease] =
-    identifiers match
-      // Treat "nightly" as snapshot
-      case List("nightly") =>
-        Some(PreRelease.snapshot)
+  extension (identifiers: List[String])
+    def resolve: Option[PreRelease] =
+      identifiers match
+        // Treat "nightly" as snapshot
+        case List("nightly") =>
+          Some(PreRelease.snapshot)
 
-      // Treat "preview.N" as alpha
-      case List("preview", n) =>
-        n.toIntOption
-          .flatMap(i => PreReleaseNumber.from(i).toOption)
-          .map(PreRelease.alpha)
+        // Treat "preview.N" as alpha
+        case List("preview", n) =>
+          n.toIntOption
+            .flatMap(i => PreReleaseNumber.from(i).toOption)
+            .map(PreRelease.alpha)
 
-      // Delegate to default
-      case _ =>
-        summon[PreRelease.Resolver].map(identifiers)
+        // Delegate to default
+        case _ =>
+          summon[PreRelease.Resolver].resolve(identifiers)
 
 Version.parse("1.0.0-nightly") // snapshot
 Version.parse("1.0.0-preview.3") // alpha.3

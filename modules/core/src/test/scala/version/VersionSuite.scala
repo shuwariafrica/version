@@ -75,7 +75,7 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(Alpha.aliases, List("alpha", "a"))
     assertEquals(Beta.aliases, List("beta", "b"))
     assertEquals(ReleaseCandidate.aliases, List("rc", "cr"))
-    assertEquals(Snapshot.aliases, List("SNAPSHOT", "snapshot"))
+    assertEquals(Snapshot.aliases, List("SNAPSHOT"))
   }
 
   // --- PreRelease Tests ---

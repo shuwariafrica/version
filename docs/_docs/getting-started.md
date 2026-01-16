@@ -16,11 +16,12 @@ libraryDependencies += "africa.shuwari" %% /* or `%%%` */ "version" % "@VERSION@
 
 ## Platform Support
 
-|                  |  Scala @SCALA3_VERSION@   |
-|------------------|:-------------------------:|
-| **JVM**          |  ✅ (JDK @JDK_VERSION@+)   |
-| **Scala.js**     |   ✅ (@SCALAJS_VERSION@)   |
-| **Scala Native** | ✅ (@SCALANATIVE_VERSION@) |
+| Platform           |    Build Version(s)   |
+|--------------------| --------------------- |
+| **Scala Language** | @SCALA3_VERSION@+     |
+| **JVM**            | JDK @JDK_VERSION@+    |
+| **Scala.js**       | @SCALAJS_VERSION@+    |
+| **Scala Native**   | @SCALANATIVE_VERSION@ |
 
 ## Quick Example
 
