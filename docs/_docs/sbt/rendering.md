@@ -49,7 +49,7 @@ object MyShow extends Version.Show:
       v.preRelease match
         case Some(pr) if pr.isSnapshot =>
           // Extract SHA from metadata
-          val sha = v.buildMetadata
+          val sha = v.metadata
             .flatMap(_.identifiers.find(_.startsWith("sha")))
             .map(_.drop(3).take(7))
             .getOrElse("")

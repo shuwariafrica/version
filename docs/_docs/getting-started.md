@@ -30,7 +30,7 @@ import version.*
 import version.given
 
 // Parse a version string
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 
 // Inspect components
 v.major.value // 1

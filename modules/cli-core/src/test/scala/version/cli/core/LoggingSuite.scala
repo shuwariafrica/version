@@ -20,6 +20,7 @@ import munit.FunSuite
 import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
 import version.cli.core.logging.*
+import version.given
 
 /** Verifies verbose logging covers key resolver + git steps and that disabling verbose suppresses those entries. */
 final class LoggingSuite extends FunSuite with TestRepoSupport:

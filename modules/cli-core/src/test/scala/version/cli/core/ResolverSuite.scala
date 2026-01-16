@@ -17,8 +17,8 @@ package version.cli.core
 
 import munit.FunSuite
 
-import version.*
 import version.cli.core.domain.*
+import version.{*, given}
 
 // scalafix:off
 final class ResolverSuite extends FunSuite with TestRepoSupport:
@@ -81,7 +81,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val v = res.toOption.get
       // Should include sha of the provided basis commit, abbreviated
       val abbrev12 = full.take(12)
-      val meta = v.buildMetadata.map(_.show).getOrElse("")
+      val meta = v.metadata.map(_.show).getOrElse("")
       assert(meta.contains(s"+branch"), clues(meta))
       assert(meta.contains(s".sha$abbrev12"), clues(meta))
       assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
@@ -97,7 +97,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       assert(res.isRight)
       val v = res.toOption.get
       assert(v.preRelease.exists(_.isSnapshot), s"version was: ${v.toString}")
-      val meta = v.buildMetadata.map(_.show).getOrElse("")
+      val meta = v.metadata.map(_.show).getOrElse("")
       assert(meta.contains("dirty"), s"metadata was: $meta")
     }
   }

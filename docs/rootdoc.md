@@ -9,7 +9,7 @@ This library is organised into multiple modules, each addressing distinct concer
       [[version.PatchNumber PatchNumber]], [[version.PreReleaseNumber PreReleaseNumber]])
   - Pre-release classifiers with precedence ordering ([[version.PreReleaseClassifier PreReleaseClassifier]])
   - Structured pre-release information ([[version.PreRelease PreRelease]])
-  - Build metadata handling ([[version.BuildMetadata BuildMetadata]])
+  - Build metadata handling ([[version.Metadata Metadata]])
   - Complete version representation with parsing and operations ([[version.Version Version]])
 
 - **`version-cli-core` ([[version.cli.core]]):** Git-based version derivation engine providing:

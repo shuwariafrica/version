@@ -130,22 +130,22 @@ pr.increment // PreRelease(Alpha, Some(2))
 pr.isAlpha // true
 ```
 
-## BuildMetadata
+## Metadata
 
 Build metadata identifiers. Each must match `[0-9A-Za-z-]+`.
 
 ```scala
-import version.BuildMetadata
+import version.Metadata
 
 // Construction
-BuildMetadata.from(List("build", "456"))
-// Right(BuildMetadata(List("build", "456")))
+Metadata.from(List("build", "456"))
+// Right(Metadata(List("build", "456")))
 
-BuildMetadata.from(List("")) // Left(InvalidBuildMetadata(...))
-BuildMetadata.from(List("a@b")) // Left(InvalidBuildMetadata(...))
+Metadata.from(List("")) // Left(InvalidMetadata(...))
+Metadata.from(List("a@b")) // Left(InvalidMetadata(...))
 
 // Access
-val bm = BuildMetadata(List("sha", "abc123"))
+val bm = Metadata(List("sha", "abc123"))
 bm.identifiers // List("sha", "abc123")
 bm.show // "+sha.abc123"
 ```
@@ -156,7 +156,6 @@ The complete SemVer 2.0.0 representation:
 
 ```scala
 import version.*
-import version.given
 
 // Construction via apply overloads
 Version(major, minor, patch) // Final release
@@ -181,10 +180,10 @@ All types provide `Ordering` instances following SemVer precedence:
 
 ```scala
 val versions = List(
-  Version.parseUnsafe("1.0.0"),
-  Version.parseUnsafe("1.0.0-alpha.1"),
-  Version.parseUnsafe("1.0.0-beta.1"),
-  Version.parseUnsafe("0.9.0")
+  "1.0.0".toVersionUnsafe,
+  "1.0.0-alpha.1".toVersionUnsafe,
+  "1.0.0-beta.1".toVersionUnsafe,
+  "0.9.0".toVersionUnsafe
 )
 
 versions.sorted

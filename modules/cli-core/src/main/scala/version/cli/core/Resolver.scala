@@ -21,12 +21,23 @@ import version.cli.core.git.Git
 import version.cli.core.logging.Logger
 import version.cli.core.parsing.KeywordParser
 
-/** Core engine for resolving the semantic version from a Git repository. */
+/** Version resolution engine.
+  *
+  * Implements the algorithm defined in the version resolution technical specification. Internal to the library;
+  * consumers should use [[VersionCliCore]].
+  */
 object Resolver:
   given CanEqual[Resolver.type, Resolver.type] = CanEqual.derived
 
-  /** Resolve the repository version based on the provided configuration and Git interface. */
-  def resolve(config: CliConfig, git: Git)(using logger: Logger, isVerbose: Boolean): Either[ResolutionError, Version] =
+  /** Resolves the repository version from Git state.
+    *
+    * Requires contextual [[Logger]], verbosity flag, and [[Version.Read]] for tag parsing.
+    */
+  def resolve(config: CliConfig, git: Git)(using
+    logger: Logger,
+    isVerbose: Boolean,
+    reader: Version.Read[String]
+  ): Either[ResolutionError, Version] =
     logger.verbose(s"Begin resolution basisCommit=${config.basisCommit}", "Resolver")
     for
       basisCommitSha <- git.resolveRev(config.basisCommit)
@@ -50,7 +61,7 @@ object Resolver:
     basisCommitSha: CommitSha,
     isDirty: Boolean,
     allTags: List[Tag]
-  )(using logger: Logger, isVerbose: Boolean): Either[ResolutionError, Version] =
+  )(using logger: Logger, isVerbose: Boolean, reader: Version.Read[String]): Either[ResolutionError, Version] =
     for
       reachable <- git.findReachableTags(basisCommitSha)
       _ = logger.verbose(s"Reachable tags: ${reachable.map(_.name.value).mkString(",")}", "Resolver")
@@ -95,16 +106,16 @@ object Resolver:
             logger.verbose(s"Fallback target version: $fallback", "Resolver")
             fallback
           }
-      metadata <- BuildMetadataBuilder.assemble(config, git, basisCommitSha, baseOpt.map(_.commitSha), isDirty)
+      metadata <- MetadataBuilder.assemble(config, git, basisCommitSha, baseOpt.map(_.commitSha), isDirty)
       _ = logger.verbose(s"Build metadata assembled: ${metadata.show}", "Resolver")
-      result = targetCore.copy(preRelease = Some(PreRelease.snapshot), buildMetadata = Some(metadata))
+      result = targetCore.copy(preRelease = Some(PreRelease.snapshot), metadata = Some(metadata))
       _ = logger.verbose(s"Final snapshot version: $result", "Resolver")
     yield result
     end for
   end calculateDevelopmentVersion
 
   /** Extracts keywords from commits, excluding any commit that contains `version: ignore`. */
-  private def extractKeywords(commits: List[Commit]): List[Keyword] =
+  private def extractKeywords(commits: List[Commit])(using reader: Version.Read[String]): List[Keyword] =
     commits.flatMap { c =>
       val keywords = KeywordParser.parse(c.message)
       // If the commit contains an Ignore directive, exclude ALL its keywords

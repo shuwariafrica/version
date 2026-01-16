@@ -15,11 +15,11 @@
  ****************************************************************************/
 package version
 
-import version.errors.InvalidBuildMetadata
+import version.errors.InvalidMetadata
 
-class BuildMetadataSuite extends munit.FunSuite:
+class MetadataSuite extends munit.FunSuite:
 
-  test("BuildMetadata.from should succeed for valid SemVer identifiers") {
+  test("Metadata.from should succeed for valid SemVer identifiers") {
     // Identifiers must match [0-9A-Za-z-]
     val valid = List(
       List("build123"),
@@ -29,24 +29,24 @@ class BuildMetadataSuite extends munit.FunSuite:
     )
 
     valid.foreach { ids =>
-      val result = BuildMetadata.from(ids)
+      val result = Metadata.from(ids)
       assert(result.isRight)
       assertEquals(result.toOption.get.identifiers, ids)
     }
   }
 
-  test("BuildMetadata.from should fail for an empty list") {
-    val result = BuildMetadata.from(List.empty)
-    assertEquals(result, Left(InvalidBuildMetadata(List.empty)))
+  test("Metadata.from should fail for an empty list") {
+    val result = Metadata.from(List.empty)
+    assertEquals(result, Left(InvalidMetadata(List.empty)))
   }
 
-  test("BuildMetadata.from should fail if any identifier is empty") {
+  test("Metadata.from should fail if any identifier is empty") {
     val ids = List("sha", "")
-    val result = BuildMetadata.from(ids)
-    assertEquals(result, Left(InvalidBuildMetadata(ids)))
+    val result = Metadata.from(ids)
+    assertEquals(result, Left(InvalidMetadata(ids)))
   }
 
-  test("BuildMetadata.from should fail if identifiers contain invalid characters") {
+  test("Metadata.from should fail if identifiers contain invalid characters") {
     val invalid = List(
       List("invalid!"),
       List("with space"),
@@ -55,26 +55,26 @@ class BuildMetadataSuite extends munit.FunSuite:
     )
 
     invalid.foreach { ids =>
-      val result = BuildMetadata.from(ids)
-      assertEquals(result, Left(InvalidBuildMetadata(ids)))
+      val result = Metadata.from(ids)
+      assertEquals(result, Left(InvalidMetadata(ids)))
     }
   }
 
-  test("BuildMetadata.apply should throw InvalidBuildMetadata for invalid input") {
-    val ex1 = intercept[InvalidBuildMetadata] {
-      BuildMetadata(List("invalid!"))
+  test("Metadata.apply should throw InvalidMetadata for invalid input") {
+    val ex1 = intercept[InvalidMetadata] {
+      Metadata(List("invalid!"))
     }
     assertEquals(ex1.identifiers, List("invalid!"))
 
-    val ex2 = intercept[InvalidBuildMetadata] {
-      BuildMetadata(List.empty)
+    val ex2 = intercept[InvalidMetadata] {
+      Metadata(List.empty)
     }
     assertEquals(ex2.identifiers, List.empty)
   }
 
-  test("BuildMetadata.show should format correctly with '+' prefix and dot separation") {
-    val metadata = BuildMetadata(List("sha", "a9f8e6d"))
+  test("Metadata.show should format correctly with '+' prefix and dot separation") {
+    val metadata = Metadata(List("sha", "a9f8e6d"))
     assertEquals(metadata.show, "+sha.a9f8e6d")
   }
 
-end BuildMetadataSuite
+end MetadataSuite

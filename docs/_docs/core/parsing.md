@@ -4,22 +4,40 @@ title: Parsing
 
 # Parsing
 
-The core library provides robust parsing for SemVer 2.0.0 strings.
+The core library provides robust parsing for SemVer 2.0.0 strings via the `Version.Read[A]` type class.
 
 ## Basic Usage
 
 ```scala
 import version.*
-import version.given
 
-// Safe parsing returns Either
-Version.parse("1.2.3") // Right(Version(1, 2, 3))
-Version.parse("1.2.3-alpha.1") // Right(Version(1, 2, 3, alpha.1))
-Version.parse("invalid") // Left(ParseError(...))
+// Extension methods (via default given Read[String] in instances.scala)
+"1.2.3".toVersion           // Right(Version(1, 2, 3))
+"1.2.3-alpha.1".toVersion   // Right(Version(1, 2, 3, alpha.1))
+"invalid".toVersion         // Left(ParseError(...))
 
-// Unsafe parsing throws on invalid input
-Version.parseUnsafe("1.2.3") // Version(1, 2, 3)
-Version.parseUnsafe("invalid") // throws ParseError
+// Unsafe variant throws on invalid input
+"1.2.3".toVersionUnsafe     // Version(1, 2, 3)
+"invalid".toVersionUnsafe   // throws ParseError
+
+// Factory methods (equivalent to extension methods)
+Version.from("1.2.3")       // Right(Version(1, 2, 3))
+Version.fromUnsafe("1.2.3") // Version(1, 2, 3)
+```
+
+## Explicit Reader Instance
+
+For explicit instance passing or when avoiding implicit resolution:
+
+```scala
+import version.*
+
+// Use the singleton instance directly
+val reader: Version.Read[String] = Version.Read.ReadString
+
+// Use directly
+reader.toVersion("1.2.3")       // Right(Version(...))
+reader.toVersionUnsafe("1.2.3") // Version(...)
 ```
 
 ## Accepted Formats
@@ -61,16 +79,17 @@ Common variations are normalised:
 Metadata identifiers must match `[0-9A-Za-z-]+`:
 
 ```scala
-Version.parse("1.2.3+sha.abc123")
-// Right(Version(1, 2, 3, None, Some(BuildMetadata(sha, abc123))))
+"1.2.3+sha.abc123".toVersion
+// Right(Version(1, 2, 3, None, Some(Metadata(sha, abc123))))
 
-Version.parse("1.2.3+build.456.dirty")
-// Right(..., Some(BuildMetadata(build, 456, dirty)))
+"1.2.3+build.456.dirty".toVersion
+// Right(..., Some(Metadata(build, 456, dirty)))
 ```
 
 ## Custom Pre-release Mapping
 
-Implement `PreRelease.Resolver` to handle non-standard formats:
+Implement `PreRelease.Resolver` to handle non-standard formats. Use `PreRelease.Resolver.given_Resolver`
+to delegate unhandled cases to the default implementation:
 
 ```scala
 import version.*
@@ -89,12 +108,46 @@ given PreRelease.Resolver with
             .flatMap(i => PreReleaseNumber.from(i).toOption)
             .map(PreRelease.alpha)
 
-        // Delegate to default
+        // Delegate to default resolver
         case _ =>
-          summon[PreRelease.Resolver].resolve(identifiers)
+          PreRelease.Resolver.given_Resolver.resolve(identifiers)
 
-Version.parse("1.0.0-nightly") // snapshot
-Version.parse("1.0.0-preview.3") // alpha.3
+"1.0.0-nightly".toVersion   // Right(Version(1, 0, 0, snapshot))
+"1.0.0-preview.3".toVersion // Right(Version(1, 0, 0, alpha.3))
+```
+
+## Custom Read Instances
+
+Implement `Version.Read[A]` to parse custom input types. The typeclass requires
+a contextual `PreRelease.Resolver` for pre-release identifier mapping:
+
+```scala
+import version.*
+import version.errors.InvalidVersionFormat
+
+case class MyVersionFormat(major: Int, minor: Int, patch: Int)
+
+given Version.Read[MyVersionFormat] with
+  extension (m: MyVersionFormat)
+    def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version] =
+      // Component from() methods return Either[InvalidComponent, T]
+      // We map errors to ParseError for consistency with the Read contract
+      for
+        major <- MajorVersion.from(m.major).left.map(_ =>
+          InvalidVersionFormat(s"${m.major}.${m.minor}.${m.patch}"))
+        minor <- MinorVersion.from(m.minor).left.map(_ =>
+          InvalidVersionFormat(s"${m.major}.${m.minor}.${m.patch}"))
+        patch <- PatchNumber.from(m.patch).left.map(_ =>
+          InvalidVersionFormat(s"${m.major}.${m.minor}.${m.patch}"))
+      yield Version(major, minor, patch)
+
+    def toVersionUnsafe(using PreRelease.Resolver): Version =
+      toVersion match
+        case Right(v) => v
+        case Left(e)  => throw e
+
+// Now works with factory methods
+Version.from(MyVersionFormat(1, 2, 3)) // Right(Version(1, 2, 3))
 ```
 
 ## Error Handling
@@ -104,12 +157,12 @@ Parse errors provide context:
 ```scala
 import version.errors.*
 
-Version.parse("abc") match
+"abc".toVersion match
   case Left(err: ParseError) =>
-    err.input // "abc"
+    err.input   // "abc"
     err.message // Descriptive error
   case Right(v) =>
-// ...
+    // ...
 ```
 
 ## Validation Summary
@@ -120,4 +173,4 @@ Version.parse("abc") match
 | Minor              | >= 0                   | `InvalidMinorVersion`     |
 | Patch              | >= 0                   | `InvalidPatchNumber`      |
 | Pre-release number | >= 1                   | `InvalidPreReleaseNumber` |
-| Build metadata     | Non-empty, valid chars | `InvalidBuildMetadata`    |
+| Build metadata     | Non-empty, valid chars | `InvalidMetadata`         |

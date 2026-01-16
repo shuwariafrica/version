@@ -18,7 +18,7 @@ import version.*
 import version.codecs.jsoniter.given
 
 // Encode
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 val json = writeToString(v) // "1.2.3-alpha.1"
 
 // Decode
@@ -34,7 +34,7 @@ case class Package(name: String, version: Version)
 object Package:
   given JsonValueCodec[Package] = JsonCodecMaker.make
 
-val pkg = Package("my-lib", Version.parseUnsafe("1.0.0"))
+val pkg = Package("my-lib", "1.0.0".toVersionUnsafe)
 writeToString(pkg)
 // {"name":"my-lib","version":"1.0.0"}
 ```
@@ -49,7 +49,7 @@ given JsonValueCodec[PatchNumber]
 given JsonValueCodec[PreReleaseNumber]
 given JsonValueCodec[PreReleaseClassifier]
 given JsonValueCodec[PreRelease]
-given JsonValueCodec[BuildMetadata]
+given JsonValueCodec[Metadata]
 ```
 
 ## Error Handling

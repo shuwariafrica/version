@@ -46,7 +46,7 @@ Equality for all types:
 import zio.prelude.Equal
 
 Equal[Version].equal(v1, v1) // true
-Equal[BuildMetadata].equal(bm1, bm2)
+Equal[Metadata].equal(bm1, bm2)
 ```
 
 ### Hash

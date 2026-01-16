@@ -20,6 +20,7 @@ import munit.FunSuite
 import version.cli.core.git.GitProcess
 import version.cli.core.logging.Logger
 import version.cli.core.logging.NullLogger
+import version.{*, given}
 
 /** Tests for executing GitProcess from a subdirectory within a repository. */
 final class GitProcessSubdirSuite extends FunSuite with TestRepoSupport:

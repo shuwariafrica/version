@@ -17,12 +17,12 @@ package version.cli.core
 
 import munit.FunSuite
 
-import version.*
 import version.MajorVersion.value
 import version.MinorVersion.value
 import version.PatchNumber.value
 import version.cli.core.domain.Keyword.*
 import version.cli.core.parsing.KeywordParser
+import version.{*, given}
 
 final class KeywordParserSuite extends FunSuite:
 

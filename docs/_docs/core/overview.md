@@ -25,7 +25,6 @@ All types are exported from the `version` package:
 
 ```scala
 import version.*
-import version.given
 ```
 
 ## Types at a Glance
@@ -38,22 +37,21 @@ import version.given
 | `PreReleaseNumber`     | Pre-release version    | >= 1                                      |
 | `PreReleaseClassifier` | Classifier enum        | dev, milestone, alpha, beta, rc, snapshot |
 | `PreRelease`           | Structured pre-release | Classifier + optional number              |
-| `BuildMetadata`        | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
+| `Metadata`        | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
 | `Version`              | Complete version       | MAJOR.MINOR.PATCH[-PRERELEASE][+METADATA] |
 
 ## Quick Reference
 
 ```scala
 import version.*
-import version.given
 
 // Construction
-val v = Version.parseUnsafe("1.2.3-alpha.1+build.456")
+val v = "1.2.3-alpha.1+build.456".toVersionUnsafe
 
 // Access
 v.major.value // 1
 v.preRelease // Some(PreRelease(Alpha, Some(1)))
-v.buildMetadata // Some(BuildMetadata(List("build", "456")))
+v.metadata // Some(Metadata(List("build", "456")))
 
 // Status
 v.isPreRelease // true

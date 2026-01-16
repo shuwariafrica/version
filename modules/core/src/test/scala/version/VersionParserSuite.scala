@@ -62,17 +62,17 @@ class VersionParserSuite extends munit.FunSuite:
   // --- Build Metadata Parsing ---
 
   test("Parse build metadata") {
-    val meta1 = BuildMetadata(List("build123"))
-    val meta2 = BuildMetadata(List("20250825", "sha-abc"))
+    val meta1 = Metadata(List("build123"))
+    val meta2 = Metadata(List("20250825", "sha-abc"))
 
-    assertEquals("1.0.0+build123".toVersion, Right(V(1, 0, 0).copy(buildMetadata = Some(meta1))))
-    assertEquals("1.0.0+20250825.sha-abc".toVersion, Right(V(1, 0, 0).copy(buildMetadata = Some(meta2))))
+    assertEquals("1.0.0+build123".toVersion, Right(V(1, 0, 0).copy(metadata = Some(meta1))))
+    assertEquals("1.0.0+20250825.sha-abc".toVersion, Right(V(1, 0, 0).copy(metadata = Some(meta2))))
   }
 
   test("Parse full versions (Pre-Release and Metadata)") {
     val expected = V(1, 2, 3).copy(
       preRelease = Some(PreRelease.alpha(PRN(1))),
-      buildMetadata = Some(BuildMetadata(List("meta")))
+      metadata = Some(Metadata(List("meta")))
     )
     assertEquals("1.2.3-alpha.1+meta".toVersion, Right(expected))
   }
@@ -110,7 +110,7 @@ class VersionParserSuite extends munit.FunSuite:
 
   test("Build metadata multi identifiers accepted and rendered") {
     val v = "1.2.3+build.abc-xyz.20250101".toVersion.toOption.get
-    assertEquals(v.buildMetadata.map(_.identifiers), Some(List("build", "abc-xyz", "20250101")))
+    assertEquals(v.metadata.map(_.identifiers), Some(List("build", "abc-xyz", "20250101")))
   }
 
   test("Reject leading zeros in numeric components (SemVer violation)") {
@@ -195,15 +195,15 @@ class VersionParserSuite extends munit.FunSuite:
   }
 
   test("Parse version with v prefix and build metadata") {
-    val meta = BuildMetadata(List("build", "123"))
-    val expected = V(2, 0, 0).copy(buildMetadata = Some(meta))
+    val meta = Metadata(List("build", "123"))
+    val expected = V(2, 0, 0).copy(metadata = Some(meta))
     assertEquals("v2.0.0+build.123".toVersion, Right(expected))
   }
 
   test("Parse full version with v prefix") {
     val expected = V(1, 2, 3).copy(
       preRelease = Some(PreRelease.releaseCandidate(PRN(5))),
-      buildMetadata = Some(BuildMetadata(List("sha1234567")))
+      metadata = Some(Metadata(List("sha1234567")))
     )
     assertEquals("v1.2.3-rc.5+sha1234567".toVersion, Right(expected))
   }

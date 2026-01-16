@@ -21,6 +21,7 @@ import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
 import version.cli.core.logging.Logger
 import version.cli.core.logging.NullLogger
+import version.{*, given}
 
 final class GitProcessSuite extends FunSuite with TestRepoSupport:
 

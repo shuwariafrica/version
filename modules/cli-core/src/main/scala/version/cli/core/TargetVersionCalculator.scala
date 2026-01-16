@@ -89,5 +89,5 @@ object TargetVersionCalculator:
     else if baseVersion.isPreRelease then dropPre(baseVersion)
     else Version(baseVersion.major, baseVersion.minor, baseVersion.patch.increment)
 
-  private def dropPre(v: Version): Version = v.copy(preRelease = None, buildMetadata = None)
+  private def dropPre(v: Version): Version = v.copy(preRelease = None, metadata = None)
 end TargetVersionCalculator

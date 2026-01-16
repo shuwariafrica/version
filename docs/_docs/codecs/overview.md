@@ -54,7 +54,7 @@ All modules encode these types:
 | `PreReleaseNumber`     | Number: `1`               |
 | `PreReleaseClassifier` | String: `"alpha"`         |
 | `PreRelease`           | String: `"alpha.1"`       |
-| `BuildMetadata`        | Array: `["build", "456"]` |
+| `Metadata`        | Array: `["build", "456"]` |
 
 ## Platform Support
 

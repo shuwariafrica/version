@@ -19,28 +19,22 @@ import version.*
 import version.cli.core.domain.Keyword
 import version.cli.core.domain.Keyword.*
 import version.errors.ParseError
-import version.parser.VersionParser
 
 // scalafix:off
-/** Manual-scanning keyword parser for commit messages.
+/** Commit message keyword parser for version resolution.
   *
-  * Properties:
-  *   - Case-insensitive keyword detection
-  *   - Whitespace tolerance around colons
-  *   - Token boundaries enforced (no substring matches within larger words)
-  *   - Efficient single pass across each input string; avoids regex
+  * Extracts version control keywords from commit messages following the specification in
+  * `docs/version-resolution-technical-specification.md`. Performs single-pass scanning with
+  * case-insensitive keyword detection and proper token boundary enforcement.
   *
-  * Extracted keywords per specification:
-  *   - version: major | breaking | minor | feature | feat | patch | fix (relative increment)
-  *   - version: major: <N> | minor: <N> | patch: <N> (absolute set, also with synonyms including feat)
-  *   - version: ignore (exclude commit from version calculation)
-  *   - <bump-token>: <non-empty-text> (standalone shorthand, e.g., "breaking: Remove API")
-  *   - target: <SEMVER> (optional leading v/V accepted)
+  * Recognised keyword forms:
+  *   - `version: major | breaking | minor | feature | feat | patch | fix` — relative increment
+  *   - `version: major: <N> | minor: <N> | patch: <N>` — absolute set (synonyms apply)
+  *   - `version: ignore` — exclude commit from version calculation
+  *   - `<bump-token>: <text>` — standalone shorthand (e.g., `breaking: Remove API`)
+  *   - `target: <SEMVER>` — target version directive (optional leading `v` or `V`)
   *
-  * NOTE: The legacy `change:` keyword is NOT supported. Use `version:` instead.
-  *
-  * NOTE: This is a hot path. `while`/`do`, local vars, and direct Char ops are intentional to minimise allocations and
-  * enable tight JIT-optimised loops. These are encapsulated within the boundaries of this object.
+  * @see [[version.cli.core.VersionCliCore$ VersionCliCore]] for the public resolution API
   */
 object KeywordParser:
 
@@ -130,20 +124,24 @@ object KeywordParser:
 
   // --- public API ---
 
-  /** Extracts recognised keywords from a full commit message (subject + body). */
-  def parse(message: String)(using PreRelease.Resolver): List[Keyword] =
+  /** Extracts keywords from a commit message.
+    *
+    * Scans the full message (subject and body) and returns all recognised version control
+    * keywords. Invalid or unrecognised directives are silently ignored.
+    */
+  def parse(message: String)(using reader: Version.Read[String]): List[Keyword] =
     // Process line by line for predictable boundaries with a single pass.
     val lines = message.split('\n')
     var acc = List.empty[Keyword]
     var idx = 0
     val m = lines.length
     while idx < m do
-      acc = acc ++ parseLine(lines(idx))
+      acc = acc ++ parseLine(lines(idx), reader)
       idx += 1
     acc
 
   // Internal: parse a single line.
-  private def parseLine(line: String)(using PreRelease.Resolver): List[Keyword] =
+  private def parseLine(line: String, reader: Version.Read[String]): List[Keyword] =
     var i = 0
     var out = List.empty[Keyword]
     val n = line.length
@@ -238,7 +236,7 @@ object KeywordParser:
           val (tokOpt, j1) = readSemverToken(line, j0)
           tokOpt.foreach { s =>
             val norm = if s.startsWith("v") || s.startsWith("V") then s.drop(1) else s
-            VersionParser.parse(norm) match
+            reader.toVersion(norm) match
               case Right(v)            => out = out :+ TargetSet(v)
               case Left(_: ParseError) => () // ignore malformed targets
           }

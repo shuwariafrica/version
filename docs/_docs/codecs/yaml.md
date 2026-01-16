@@ -17,7 +17,7 @@ import version.*
 import version.codecs.yaml.given
 
 // Encode
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 val yaml = v.asYaml // 1.2.3-alpha.1
 
 // Decode
@@ -32,7 +32,7 @@ import org.virtuslab.yaml.*
 
 case class Package(name: String, version: Version) derives YamlCodec
 
-val pkg = Package("my-lib", Version.parseUnsafe("1.0.0"))
+val pkg = Package("my-lib", "1.0.0".toVersionUnsafe)
 pkg.asYaml
 // name: my-lib
 // version: 1.0.0
@@ -48,7 +48,7 @@ given YamlCodec[PatchNumber]
 given YamlCodec[PreReleaseNumber]
 given YamlCodec[PreReleaseClassifier]
 given YamlCodec[PreRelease]
-given YamlCodec[BuildMetadata]
+given YamlCodec[Metadata]
 ```
 
 ## YAML Examples

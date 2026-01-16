@@ -75,21 +75,21 @@ given JsonValueCodec[PreReleaseClassifier] = new JsonValueCodec[PreReleaseClassi
   override def nullValue: PreReleaseClassifier = null.asInstanceOf[PreReleaseClassifier]
   // scalafix:on
 
-// BuildMetadata is an opaque type over List[String]; encode/decode as a JSON array of strings
-given JsonValueCodec[BuildMetadata] =
+// Metadata is an opaque type over List[String]; encode/decode as a JSON array of strings
+given JsonValueCodec[Metadata] =
   // Use a codec for the underlying representation List[String]
   val listCodec = JsonCodecMaker.make[List[String]]
-  new JsonValueCodec[BuildMetadata]:
-    override def decodeValue(in: JsonReader, default: BuildMetadata): BuildMetadata =
+  new JsonValueCodec[Metadata]:
+    override def decodeValue(in: JsonReader, default: Metadata): Metadata =
       val ids = listCodec.decodeValue(in, Nil)
-      BuildMetadata.from(ids) match
+      Metadata.from(ids) match
         case Right(v) => v
-        case Left(e)  => in.decodeError("Error decoding BuildMetadata instance. " + e.message)
-    override def encodeValue(x: BuildMetadata, out: JsonWriter): Unit =
+        case Left(e)  => in.decodeError("Error decoding Metadata instance. " + e.message)
+    override def encodeValue(x: Metadata, out: JsonWriter): Unit =
       // Use identifiers extension to unwrap
       listCodec.encodeValue(x.identifiers, out)
     // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
-    override def nullValue: BuildMetadata = null.asInstanceOf[BuildMetadata]
+    override def nullValue: Metadata = null.asInstanceOf[Metadata]
     // scalafix:on
 
 /** Custom validating codec for [[PreRelease]].
@@ -170,8 +170,8 @@ given JsonValueCodec[Version] =
       var minor: MinorVersion | Null = null
       var patch: PatchNumber | Null = null
       var preRelease: Option[PreRelease] = None
-      var buildMetadata: Option[BuildMetadata] = None
-      var majorSeen, minorSeen, patchSeen, preReleaseSeen, buildMetadataSeen = false
+      var metadata: Option[Metadata] = None
+      var majorSeen, minorSeen, patchSeen, preReleaseSeen, metadataSeen = false
 
       if in.isNextToken('{') then
         if !in.isNextToken('}') then
@@ -199,15 +199,15 @@ given JsonValueCodec[Version] =
               else
                 in.rollbackToken()
                 preRelease = Some(summon[JsonValueCodec[PreRelease]].decodeValue(in, null.asInstanceOf[PreRelease]))
-            else if fieldName == "buildMetadata" then
-              if buildMetadataSeen then in.duplicatedKeyError(fieldName.length)
-              buildMetadataSeen = true
+            else if fieldName == "metadata" then
+              if metadataSeen then in.duplicatedKeyError(fieldName.length)
+              metadataSeen = true
               if in.isNextToken('n') then
-                in.readNullOrError((), "expected null or BuildMetadata array")
-                buildMetadata = None
+                in.readNullOrError((), "expected null or Metadata array")
+                metadata = None
               else
                 in.rollbackToken()
-                buildMetadata = Some(summon[JsonValueCodec[BuildMetadata]].decodeValue(in, null.asInstanceOf[BuildMetadata]))
+                metadata = Some(summon[JsonValueCodec[Metadata]].decodeValue(in, null.asInstanceOf[Metadata]))
             else in.skip()
             end if
             in.isNextToken(',')
@@ -222,7 +222,7 @@ given JsonValueCodec[Version] =
       if !minorSeen then in.decodeError("missing required field: minor")
       if !patchSeen then in.decodeError("missing required field: patch")
 
-      Version(major.nn, minor.nn, patch.nn, preRelease, buildMetadata)
+      Version(major.nn, minor.nn, patch.nn, preRelease, metadata)
     end decodeValue
 
     override def encodeValue(x: Version, out: JsonWriter): Unit =
@@ -237,9 +237,9 @@ given JsonValueCodec[Version] =
         out.writeKey("preRelease")
         summon[JsonValueCodec[PreRelease]].encodeValue(pr, out)
       }
-      x.buildMetadata.foreach { bm =>
-        out.writeKey("buildMetadata")
-        summon[JsonValueCodec[BuildMetadata]].encodeValue(bm, out)
+      x.metadata.foreach { bm =>
+        out.writeKey("metadata")
+        summon[JsonValueCodec[Metadata]].encodeValue(bm, out)
       }
       out.writeObjectEnd()
 

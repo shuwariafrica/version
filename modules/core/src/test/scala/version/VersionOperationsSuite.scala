@@ -28,9 +28,9 @@ class VersionOperationsSuite extends munit.FunSuite:
   private val V1_2_3_A5 = V1_2_3.set(PreRelease.alpha(PreReleaseNumber.fromUnsafe(5)))
   private val V1_2_3_RC1 = V1_2_3.set(PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(1)))
   private val V1_2_3_Snap = V1_2_3.toSnapshot
-  private val Metadata = BuildMetadata(List("build123"))
-  private val V1_2_3_Meta = V1_2_3.set(Metadata)
-  private val V1_2_3_RC1_Meta = V1_2_3_RC1.set(Metadata)
+  private val TestMetadata = Metadata(List("build123"))
+  private val V1_2_3_Meta = V1_2_3.set(TestMetadata)
+  private val V1_2_3_RC1_Meta = V1_2_3_RC1.set(TestMetadata)
 
   // --- Status Checks ---
 
@@ -96,15 +96,15 @@ class VersionOperationsSuite extends munit.FunSuite:
     // Overwrites existing pre-release
     assertEquals(V1_2_3_A5.toSnapshot, V1_2_3_Snap)
     // Preserves metadata
-    assertEquals(V1_2_3_Meta.toSnapshot, V1_2_3_Snap.copy(buildMetadata = Some(Metadata)))
+    assertEquals(V1_2_3_Meta.toSnapshot, V1_2_3_Snap.copy(metadata = Some(TestMetadata)))
   }
 
-  test("set(PreRelease) / set(BuildMetadata) / dropMetadata") {
+  test("set(PreRelease) / set(Metadata) / dropMetadata") {
     val newPR = PreRelease.beta(PreReleaseNumber.fromUnsafe(1))
-    val newMeta = BuildMetadata(List("new"))
+    val newMeta = Metadata(List("new"))
 
     assertEquals(V1_2_3.set(newPR), V1_2_3.copy(preRelease = Some(newPR)))
-    assertEquals(V1_2_3.set(newMeta), V1_2_3.copy(buildMetadata = Some(newMeta)))
+    assertEquals(V1_2_3.set(newMeta), V1_2_3.copy(metadata = Some(newMeta)))
     assertEquals(V1_2_3_Meta.dropMetadata, V1_2_3)
   }
 
@@ -202,12 +202,99 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(base.advance[ReleaseCandidate.type], expectedNext)
   }
 
-  // --- String Parsing Extension ---
+  // --- Version.Read Typeclass ---
 
   test("String extension 'toVersion'") {
     assertEquals("1.2.3".toVersion, Right(V1_2_3))
     assertEquals("1.2.3-rc.1+build123".toVersion, Right(V1_2_3_RC1_Meta))
     assert("invalid".toVersion.isLeft)
+  }
+
+  test("String extension 'toVersionUnsafe'") {
+    assertEquals("1.2.3".toVersionUnsafe, V1_2_3)
+    assertEquals("1.2.3-rc.1+build123".toVersionUnsafe, V1_2_3_RC1_Meta)
+    intercept[errors.ParseError]("invalid".toVersionUnsafe)
+  }
+
+  test("Version.from[A] factory method") {
+    assertEquals(Version.from("1.2.3"), Right(V1_2_3))
+    assertEquals(Version.from("1.2.3-rc.1+build123"), Right(V1_2_3_RC1_Meta))
+    assert(Version.from("invalid").isLeft)
+  }
+
+  test("Version.fromUnsafe[A] factory method") {
+    assertEquals(Version.fromUnsafe("1.2.3"), V1_2_3)
+    assertEquals(Version.fromUnsafe("1.2.3-rc.1+build123"), V1_2_3_RC1_Meta)
+    intercept[errors.ParseError](Version.fromUnsafe("invalid"))
+  }
+
+  test("Version.Read.ReadString is a stable singleton instance") {
+    val reader = Version.Read.ReadString
+    assertEquals(reader.toVersion("1.2.3"), Right(V1_2_3))
+    assertEquals(reader.toVersionUnsafe("1.2.3"), V1_2_3)
+    assert(reader.toVersion("invalid").isLeft)
+  }
+
+  test("Version.Read.apply summons the contextual instance") {
+    val reader = Version.Read[String]
+    assertEquals(reader.toVersion("1.2.3"), Right(V1_2_3))
+  }
+
+  // --- Additional Status Checks ---
+
+  test("isStableRelease") {
+    assert(V1_2_3.isStableRelease) // 1.x.x final
+    assert(!V0_1_0.isStableRelease) // 0.x.x is not stable
+    assert(!V1_2_3_A5.isStableRelease) // pre-release
+    assert(!V1_2_3_Snap.isStableRelease) // snapshot
+  }
+
+  test("isCandidate") {
+    assert(V1_2_3_A5.isCandidate) // alpha is a candidate
+    assert(V1_2_3_RC1.isCandidate) // rc is a candidate
+    assert(V1_2_3_M1.isCandidate) // milestone is a candidate
+    assert(!V1_2_3.isCandidate) // final is not
+    assert(!V1_2_3_Snap.isCandidate) // snapshot is not a candidate
+  }
+
+  test("isSnapshot") {
+    assert(V1_2_3_Snap.isSnapshot)
+    assert(!V1_2_3.isSnapshot)
+    assert(!V1_2_3_A5.isSnapshot)
+  }
+
+  test("core returns version without pre-release or metadata") {
+    assertEquals(V1_2_3.core, V1_2_3)
+    assertEquals(V1_2_3_A5.core, V1_2_3)
+    assertEquals(V1_2_3_Meta.core, V1_2_3)
+    assertEquals(V1_2_3_RC1_Meta.core, V1_2_3)
+  }
+
+  // --- PreRelease isDev extension ---
+
+  test("PreRelease.isDev") {
+    val dev1 = PreRelease.dev(PreReleaseNumber.fromUnsafe(1))
+    assert(dev1.isDev)
+    assert(!PreRelease.alpha(PreReleaseNumber.fromUnsafe(1)).isDev)
+    assert(!PreRelease.snapshot.isDev)
+  }
+
+  // --- Convenience bumps (nextMajor, nextMinor, nextPatch) ---
+
+  test("nextMajor") {
+    val expected = Version(MajorVersion.fromUnsafe(2), MinorVersion.reset, PatchNumber.reset)
+    assertEquals(V1_2_3.nextMajor, expected)
+    assertEquals(V1_2_3_A5.nextMajor, expected)
+  }
+
+  test("nextMinor") {
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(3), PatchNumber.reset)
+    assertEquals(V1_2_3.nextMinor, expected)
+  }
+
+  test("nextPatch") {
+    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(4))
+    assertEquals(V1_2_3.nextPatch, expected)
   }
 
 end VersionOperationsSuite

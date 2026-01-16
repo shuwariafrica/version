@@ -14,17 +14,20 @@
  * limitations under the License.                                           *
  ****************************************************************************/
 package version.cli.core.git
-import version.PreRelease
+
+import version.*
 import version.cli.core.ResolutionError
 import version.cli.core.ResolutionError.GitCommandFailed
 import version.cli.core.ResolutionError.InvalidShaLength
 import version.cli.core.ResolutionError.NotAGitRepository
 import version.cli.core.domain.*
 import version.cli.core.logging.Logger
-import version.parser.VersionParser
 
-/** Git implementation using os-lib and plumbing commands only. */
-final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boolean) extends Git:
+/** Git implementation using os-lib and plumbing commands.
+  *
+  * Supports repositories where the working directory is a subdirectory of the repository root.
+  */
+final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boolean, reader: Version.Read[String]) extends Git:
   import GitProcess.*
 
   private def run(args: List[String], check: Boolean): Either[ResolutionError, os.CommandResult] =
@@ -171,10 +174,10 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
     yield n
 end GitProcess
 
-private object GitProcess:
+private[git] object GitProcess:
 
-  def parseTag(name: String, commit: String): Option[Tag] =
+  def parseTag(name: String, commit: String)(using reader: Version.Read[String]): Option[Tag] =
     val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
-    VersionParser.parse(raw).toOption.map { v =>
+    reader.toVersion(raw).toOption.map { v =>
       Tag(TagName(name), CommitSha(commit.toLowerCase), v)
     }

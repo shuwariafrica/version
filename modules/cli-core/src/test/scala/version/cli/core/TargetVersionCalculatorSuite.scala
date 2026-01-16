@@ -116,7 +116,7 @@ final class TargetVersionCalculatorSuite extends FunSuite:
 
     val pre = base.copy(preRelease = Some(PreRelease.snapshot))
     val v5 = TargetVersionCalculator.fromKeywords(pre, Nil)
-    assertEquals(v5, base.copy(preRelease = None, buildMetadata = None))
+    assertEquals(v5, base.copy(preRelease = None, metadata = None))
   }
 
   test("Duplicate relative increments coalesce to single increment") {

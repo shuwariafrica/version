@@ -9,9 +9,8 @@ The core library provides composable operations for version manipulation.
 
 ```scala
 import version.*
-import version.given
 
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 
 v.isStable // true (major > 0)
 v.isPreRelease // true (has pre-release)
@@ -26,7 +25,7 @@ v.isCandidate // true (pre-release but not snapshot)
 Strip pre-release and metadata:
 
 ```scala
-val v = Version.parseUnsafe("1.2.3-alpha.1+build.456")
+val v = "1.2.3-alpha.1+build.456".toVersionUnsafe
 v.core  // Version(1, 2, 3)
 ```
 
@@ -35,7 +34,7 @@ v.core  // Version(1, 2, 3)
 ### By Component
 
 ```scala
-val v = Version.parseUnsafe("1.2.3")
+val v = "1.2.3".toVersionUnsafe
 
 v.nextMajor  // 2.0.0 (resets minor and patch)
 v.nextMinor  // 1.3.0 (resets patch)
@@ -60,7 +59,7 @@ def bump[F](v: Version)(using Version.Increment[F]): Version = v.next[F]
 ### Converting to Snapshot
 
 ```scala
-val v = Version.parseUnsafe("1.2.3")
+val v = "1.2.3".toVersionUnsafe
 v.toSnapshot  // 1.2.3-SNAPSHOT
 ```
 
@@ -69,14 +68,14 @@ v.toSnapshot  // 1.2.3-SNAPSHOT
 Remove pre-release (preserve metadata):
 
 ```scala
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 v.release  // 1.2.3
 ```
 
 ### Setting Pre-release
 
 ```scala
-val v = Version.parseUnsafe("1.2.3")
+val v = "1.2.3".toVersionUnsafe
 v.set(PreRelease.alpha(PreReleaseNumber.fromUnsafe(1)))
 // 1.2.3-alpha.1
 ```
@@ -86,7 +85,7 @@ v.set(PreRelease.alpha(PreReleaseNumber.fromUnsafe(1)))
 `advance[C]` moves within or between classifiers:
 
 ```scala
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 
 // Same classifier: increment number
 v.advance[PreReleaseClassifier.Alpha.type]
@@ -105,7 +104,7 @@ v.advance[PreReleaseClassifier.Dev.type]
 // Left(InvalidPreReleaseTransition(Alpha, Dev))
 
 // From final version: error
-Version.parseUnsafe("1.2.3").advance[PreReleaseClassifier.Beta.type]
+"1.2.3".toVersionUnsafe.advance[PreReleaseClassifier.Beta.type]
 // Left(NotAPreReleaseVersion())
 ```
 
@@ -114,7 +113,7 @@ Version.parseUnsafe("1.2.3").advance[PreReleaseClassifier.Beta.type]
 `as[C]` sets the classifier directly (works on any version):
 
 ```scala
-val v = Version.parseUnsafe("1.2.3")
+val v = "1.2.3".toVersionUnsafe
 
 // With specific number
 v.as[PreReleaseClassifier.Alpha.type](1)
@@ -133,15 +132,15 @@ v.as[PreReleaseClassifier.Snapshot.type]
 ### Setting
 
 ```scala
-val v = Version.parseUnsafe("1.2.3")
-v.set(BuildMetadata(List("build", "456")))
+val v = "1.2.3".toVersionUnsafe
+v.set(Metadata(List("build", "456")))
 // 1.2.3+build.456
 ```
 
 ### Removing
 
 ```scala
-val v = Version.parseUnsafe("1.2.3+build.456")
+val v = "1.2.3+build.456".toVersionUnsafe
 v.dropMetadata  // 1.2.3
 ```
 
@@ -152,9 +151,9 @@ v.dropMetadata  // 1.2.3
 Default excludes build metadata:
 
 ```scala
-import version.given
+import version.*
 
-val v = Version.parseUnsafe("1.2.3-alpha.1+build.456")
+val v = "1.2.3-alpha.1+build.456".toVersionUnsafe
 v.show  // "1.2.3-alpha.1"
 ```
 
@@ -163,9 +162,10 @@ v.show  // "1.2.3-alpha.1"
 Include metadata (SHAs truncated to 7 chars):
 
 ```scala
+import version.*
 given Version.Show = Version.Show.Extended
 
-val v = Version.parseUnsafe("1.2.3-SNAPSHOT+sha1234567890abcdef")
+val v = "1.2.3-SNAPSHOT+sha1234567890abcdef".toVersionUnsafe
 v.show  // "1.2.3-SNAPSHOT+sha1234567"
 ```
 
@@ -182,8 +182,8 @@ v.toString  // "1.2.3-alpha.1+build.456"
 Versions implement `Ordered[Version]`:
 
 ```scala
-val a = Version.parseUnsafe("1.0.0")
-val b = Version.parseUnsafe("2.0.0")
+val a = "1.0.0".toVersionUnsafe
+val b = "2.0.0".toVersionUnsafe
 
 a < b           // true
 a.compare(b)    // -1

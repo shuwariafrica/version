@@ -95,13 +95,13 @@ given YamlCodec[PreRelease] =
   YamlCodec.make(using decoder, encoder)
 end given
 
-// BuildMetadata is an opaque List[String]; encode/decode as YAML sequence of strings
-given YamlCodec[BuildMetadata] =
-  val enc: YamlEncoder[BuildMetadata] = YamlEncoder.forSeq[String].mapContra(_.identifiers)
-  val dec: YamlDecoder[BuildMetadata] = new YamlDecoder[BuildMetadata]:
-    override def construct(node: Node)(implicit settings: LoadSettings): Either[ConstructError, BuildMetadata] =
+// Metadata is an opaque List[String]; encode/decode as YAML sequence of strings
+given YamlCodec[Metadata] =
+  val enc: YamlEncoder[Metadata] = YamlEncoder.forSeq[String].mapContra(_.identifiers)
+  val dec: YamlDecoder[Metadata] = new YamlDecoder[Metadata]:
+    override def construct(node: Node)(implicit settings: LoadSettings): Either[ConstructError, Metadata] =
       YamlDecoder.forSeq[String].construct(node).flatMap { seq =>
-        BuildMetadata.from(seq.toList).left.map(err => ConstructError.from(err.message, node))
+        Metadata.from(seq.toList).left.map(err => ConstructError.from(err.message, node))
       }
   YamlCodec.make(using dec, enc)
 

@@ -155,7 +155,7 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
     assertEquals(v.preRelease, None)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version.apply(major, minor, patch, preRelease) creates a pre-release version") {
@@ -165,24 +165,24 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
     assertEquals(v.preRelease, pr)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version.apply(major, minor, patch, preRelease) with None creates a final release") {
     val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), None)
     assertEquals(v.preRelease, None)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version full constructor includes all fields") {
     val pr = Some(PreRelease.beta(N5))
-    val meta = Some(BuildMetadata(List("build", "123")))
+    val meta = Some(Metadata(List("build", "123")))
     val v = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(1), pr, meta)
     assertEquals(v.major.value, 2)
     assertEquals(v.minor.value, 0)
     assertEquals(v.patch.value, 1)
     assertEquals(v.preRelease, pr)
-    assertEquals(v.buildMetadata, meta)
+    assertEquals(v.metadata, meta)
   }
 
   test("Version.toString (SemVer format)") {
@@ -191,11 +191,11 @@ class VersionSuite extends munit.FunSuite:
     val vPre = V1_2_3.copy(preRelease = Some(PreRelease.alpha(N1)))
     assertEquals(vPre.toString, "1.2.3-alpha.1")
 
-    val meta = BuildMetadata(List("build"))
-    val vMeta = V1_2_3.copy(buildMetadata = Some(meta))
+    val meta = Metadata(List("build"))
+    val vMeta = V1_2_3.copy(metadata = Some(meta))
     assertEquals(vMeta.toString, "1.2.3+build")
 
-    val vFull = vPre.copy(buildMetadata = Some(meta))
+    val vFull = vPre.copy(metadata = Some(meta))
     assertEquals(vFull.toString, "1.2.3-alpha.1+build")
   }
 
@@ -228,8 +228,8 @@ class VersionSuite extends munit.FunSuite:
   test("Version Ordering (Build Metadata Ignored)") {
     // Rule: Build metadata MUST be ignored when determining version precedence
     val v1 = V1_0_0
-    val v1MetaA = V1_0_0.copy(buildMetadata = Some(BuildMetadata(List("A"))))
-    val v1MetaB = V1_0_0.copy(buildMetadata = Some(BuildMetadata(List("B"))))
+    val v1MetaA = V1_0_0.copy(metadata = Some(Metadata(List("A"))))
+    val v1MetaB = V1_0_0.copy(metadata = Some(Metadata(List("B"))))
 
     // They are considered equal in precedence (compare == 0)
     assertEquals(v1.compare(v1MetaA), 0)
@@ -257,7 +257,7 @@ class VersionSuite extends munit.FunSuite:
       "1.0.1",
       "1.1.0",
       "2.0.0"
-    ).map(s => version.parser.VersionParser.parse(s).toOption.get)
+    ).map(s => s.toVersion.toOption.get)
 
     val shuffled = Random.shuffle(expectedOrder)
     val sorted = shuffled.sorted
@@ -273,6 +273,20 @@ class VersionSuite extends munit.FunSuite:
     val metaIndex = sorted.indexWhere(_.toString.equals("1.0.0+build.123"))
     assert(baseIndex >= 0 && metaIndex >= 0)
     assertEquals(sorted(baseIndex).compare(sorted(metaIndex)), 0)
+  }
+
+  // --- Version.Component Enum Tests ---
+
+  test("Version.Component enum has three cases") {
+    import Version.Component.*
+    assertEquals(Version.Component.values.toList, List(Major, Minor, Patch))
+  }
+
+  test("Version.Component cases are comparable via CanEqual") {
+    import Version.Component.*
+    assertEquals(Major, Major)
+    assertNotEquals(Major, Minor)
+    assertNotEquals(Minor, Patch)
   }
 
 end VersionSuite

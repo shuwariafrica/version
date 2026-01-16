@@ -70,7 +70,7 @@ final case class UnexpectedPreReleaseNumber(classifier: PreReleaseClassifier, nu
     s"The classifier '$classifier' cannot have a pre-release number. Found: $number"
 
 /** Occurs when build metadata identifiers contain invalid characters or are empty, violating SemVer 2.0.0. */
-final case class InvalidBuildMetadata(identifiers: List[String]) extends VersionError:
+final case class InvalidMetadata(identifiers: List[String]) extends VersionError:
   override def message: String =
     s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"
 

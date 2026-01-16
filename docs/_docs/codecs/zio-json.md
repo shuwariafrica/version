@@ -17,7 +17,7 @@ import version.*
 import version.codecs.zio.given
 
 // Encode
-val v = Version.parseUnsafe("1.2.3-alpha.1")
+val v = "1.2.3-alpha.1".toVersionUnsafe
 val json = v.toJson // "1.2.3-alpha.1"
 
 // Decode
@@ -32,7 +32,7 @@ import zio.json.*
 
 case class Package(name: String, version: Version) derives JsonCodec
 
-val pkg = Package("my-lib", Version.parseUnsafe("1.0.0"))
+val pkg = Package("my-lib", "1.0.0".toVersionUnsafe)
 pkg.toJson
 // {"name":"my-lib","version":"1.0.0"}
 ```
@@ -47,7 +47,7 @@ given JsonCodec[PatchNumber]
 given JsonCodec[PreReleaseNumber]
 given JsonCodec[PreReleaseClassifier]
 given JsonCodec[PreRelease]
-given JsonCodec[BuildMetadata]
+given JsonCodec[Metadata]
 ```
 
 ## Error Handling
