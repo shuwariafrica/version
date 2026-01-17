@@ -37,10 +37,22 @@ object TagName:
   extension (name: TagName) inline def value: String = name
   given CanEqual[TagName, TagName] = CanEqual.derived
 
-/** Represents a Git commit (SHA + full message). Pure data. */
-final case class Commit(sha: CommitSha, message: String)
+/** Represents a Git commit (SHA + full message + parent info for merge detection). Pure data.
+  *
+  * @param sha
+  *   Full commit SHA (lowercase).
+  * @param message
+  *   Full commit message (subject + body).
+  * @param parentCount
+  *   Number of parent commits. A commit with `parentCount >= 2` is a merge commit.
+  */
+final case class Commit(sha: CommitSha, message: String, parentCount: Int)
 object Commit:
   given CanEqual[Commit, Commit] = CanEqual.derived
+
+  extension (c: Commit)
+    /** Whether this commit is a merge commit (has multiple parents). */
+    inline def isMerge: Boolean = c.parentCount >= 2
 
 /** Represents a parsed and validated SemVer Git tag. Pure data. */
 final case class Tag(name: TagName, commitSha: CommitSha, version: Version)

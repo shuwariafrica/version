@@ -189,8 +189,10 @@ object Resolver:
         case _ => exclusions
     }
 
-    // IgnoreMerged: get merged commits from merge commits (requires Git calls)
-    val mergedResults = ignoreDirectives.collect { case (commit, Keyword.IgnoreMerged) => commit }.map { mergeCommit =>
+    // IgnoreMerged: get merged commits from merge commits (requires Git calls only for actual merges)
+    // Use Commit.isMerge to skip non-merge commits without subprocess calls
+    val mergeCommits = ignoreDirectives.collect { case (commit, Keyword.IgnoreMerged) if commit.isMerge => commit }
+    val mergedResults = mergeCommits.map { mergeCommit =>
       git.getMergedCommits(mergeCommit.sha)
     }
 
