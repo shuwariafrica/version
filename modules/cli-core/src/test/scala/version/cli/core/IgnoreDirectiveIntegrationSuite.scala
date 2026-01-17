@@ -32,23 +32,8 @@ final class IgnoreDirectiveIntegrationSuite extends FunSuite with TestRepoSuppor
 
   /** Creates a minimal repo with base tag for ignore directive testing. */
   private def createIgnoreTestRepo(repoDir: os.Path): Unit =
-    if os.exists(repoDir) then os.remove.all(repoDir)
-    os.makeDir.all(repoDir)
-    os.proc("git", "init", "-q").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "config", "user.name", "Test").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "config", "user.email", "test@example.com").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "config", "advice.detachedHead", "false").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "config", "commit.gpgsign", "false").call(cwd = repoDir, check = true): Unit
-    os.write(repoDir / "README.md", "# Test\n")
-    os.proc("git", "add", "README.md").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "commit", "--no-gpg-sign", "-m", "init").call(cwd = repoDir, check = true): Unit
-    os.proc("git", "tag", "-a", "--no-sign", "-m", "v1.0.0", "v1.0.0").call(cwd = repoDir, check = true): Unit
-
-  private def commit(repo: os.Path, msg: String): String =
-    os.write.append(repo / "README.md", s"\n$msg\n")
-    os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-    os.proc("git", "commit", "--no-gpg-sign", "-m", msg).call(cwd = repo, check = true): Unit
-    os.proc("git", "rev-parse", "HEAD").call(cwd = repo, check = true).out.text().trim.toLowerCase
+    initMinimalRepo(repoDir)
+    tag(repoDir, "v1.0.0")
 
   test("version: ignore excludes containing commit's keywords") {
     val tmp = os.temp.dir(prefix = "ignore-self-")

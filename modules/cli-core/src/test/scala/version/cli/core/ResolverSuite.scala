@@ -121,16 +121,8 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
 
   test("No tags anywhere: default target is 0.1.0") {
     withFreshRepo("no-tags") { repo =>
-      // Create a brand new repo with no tags by nuking and reinitialising here
-      os.remove.all(repo)
-      os.makeDir.all(repo)
-      os.proc("git", "init", "-q").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "advice.detachedHead", "false").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.name", "Version CLI Test").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.email", "test@example.com").call(cwd = repo, check = true): Unit
-      os.write.over(repo / "README.md", "x")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "init").call(cwd = repo, check = true): Unit
+      // Create a brand new repo with no tags by reinitialising
+      initMinimalRepo(repo)
       os.write.append(repo / "README.md", "\nchange\n")
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight)
@@ -143,21 +135,10 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
   test("Repo highest is pre-release; no base: target equal to its core is accepted") {
     withFreshRepo("repo-pre-highest") { repo =>
       // Create a repo with only a pre-release tag; no final tags
-      os.remove.all(repo)
-      os.makeDir.all(repo)
-      os.proc("git", "init", "-q").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "advice.detachedHead", "false").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.name", "Version CLI Test").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.email", "test@example.com").call(cwd = repo, check = true): Unit
-      os.write.over(repo / "README.md", "x")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "init").call(cwd = repo, check = true): Unit
-      // Annotated pre-release tag, explicitly not signed
-      os.proc("git", "tag", "-a", "--no-sign", "-m", "pre", "v2.0.0-rc.1").call(cwd = repo, check = true): Unit
+      initMinimalRepo(repo)
+      tag(repo, "v2.0.0-rc.1", "pre")
       // Add a commit with target equal to 2.0.0 (the core of the pre-release)
-      os.write.append(repo / "README.md", "\nchange\n")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "target: 2.0.0").call(cwd = repo, check = true): Unit
+      commit(repo, "target: 2.0.0"): Unit
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight)
       val v = res.toOption.get
