@@ -16,10 +16,9 @@ The plugin automatically:
 
 1. Resolves the current version from Git state
 2. Sets `ThisBuild / version`
-3. Supports custom rendering via `Version.Show`
+3. Supports custom rendering via [[version.Version.Show]]
 
-By default, `Version.Show.Standard` is used, which outputs the core version and pre-release but **excludes build
-metadata**. Use `Version.Show.Extended` to include metadata.
+By default, [[version.Version.Show.Standard]] is used, which outputs the core version and pre-release but **excludes build metadata**. Use [[version.Version.Show.Extended]] to include metadata.
 
 No manual version management required.
 

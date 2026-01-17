@@ -1,6 +1,7 @@
 ---
 title: Contributing
 ---
+
 # Contributing
 
 Contributions to `version` are welcome. This guide covers the project conventions and workflow.
@@ -47,23 +48,23 @@ sbt check       # Verify formatting compliance
 
 ### Module Structure
 
-| Module | Scope | Dependencies |
-|--------|-------|--------------|
-| `version` | Core SemVer model | boilerplate |
-| `version-cli-core` | Resolution engine | version, os-lib |
-| `version-cli` | CLI application | version-cli-core, scopt |
-| `sbt-version` | sbt plugin | version-cli-core |
-| `version-codecs-*` | Serialisation | version, codec library |
-| `version-zio-prelude` | Type classes | version, zio-prelude |
-| `version-testkit` | Test utilities | version, munit |
+| Module                | Scope             | Dependencies            |
+|-----------------------|-------------------|-------------------------|
+| `version`             | Core SemVer model | boilerplate             |
+| `version-cli-core`    | Resolution engine | version, os-lib         |
+| `version-cli`         | CLI application   | version-cli-core, scopt |
+| `sbt-version`         | sbt plugin        | version-cli-core        |
+| `version-codecs-*`    | Serialisation     | version, codec library  |
+| `version-zio-prelude` | Type classes      | version, zio-prelude    |
+| `version-testkit`     | Test utilities    | version, munit          |
 
 ### Version Resolution
 
 The resolution engine in `version-cli-core` follows the [Technical Specification](specification.md). Key components:
 
-- **`KeywordParser`** — extracts version directives from commit messages
-- **`CommitResolver`** — processes commit history to compute target version
-- **`Resolver`** — orchestrates the full resolution workflow
+- [[version.cli.core.parsing.KeywordParser]] — extracts version directives from commit messages
+- [[version.cli.core.TargetVersionCalculator]] — computes target version from keywords and validates targets
+- [[version.cli.core.Resolver]] — orchestrates the full resolution workflow
 
 ## Pull Request Guidelines
 
@@ -75,7 +76,8 @@ The resolution engine in `version-cli-core` follows the [Technical Specification
 
 ## Specification Changes
 
-The [Technical Specification](specification.md) is normative. If code contradicts the specification, the specification wins. Changes to version resolution behaviour require:
+The [Technical Specification](specification.md) is normative. If code contradicts the specification, the specification
+wins. Changes to version resolution behaviour require:
 
 1. Specification update with rationale
 2. Implementation changes
@@ -84,4 +86,5 @@ The [Technical Specification](specification.md) is normative. If code contradict
 
 ## Licence
 
-By contributing, you agree that your contributions will be licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+By contributing, you agree that your contributions will be licensed under
+the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).

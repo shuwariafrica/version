@@ -33,10 +33,10 @@ Ord[MajorVersion].compare(major1, major2)
 
 Types with `Ord`:
 
-- `Version`
-- `MajorVersion`, `MinorVersion`, `PatchNumber`, `PreReleaseNumber`
-- `PreReleaseClassifier`
-- `PreRelease`
+- [[version.Version]]
+- [[version.MajorVersion]], [[version.MinorVersion]], [[version.PatchNumber]], [[version.PreReleaseNumber]]
+- [[version.PreReleaseClassifier]]
+- [[version.PreRelease]]
 
 ### Equal
 

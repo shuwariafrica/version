@@ -69,7 +69,7 @@ final class KeywordParserEdgeSuite extends FunSuite:
     assert(!ks.exists { case MajorSet(v) if v.value < 0 => true; case _ => false })
     // Token boundaries: prefixversion/versionX do not match
     // version: ignore
-    assert(ks.contains(Ignore))
+    assert(ks.contains(IgnoreSelf))
     // major: some breaking change + Major:breaking with no space + Version :   MAJOR = 3 MajorChange
     assertEquals(ks.count(_ == MajorChange), 3)
     // target valid + invalid; only one valid captured
@@ -105,7 +105,7 @@ final class KeywordParserEdgeSuite extends FunSuite:
     val ks = KeywordParser.parse(msg)
     assert(ks.contains(MajorChange))
     assert(ks.exists { case MinorSet(v) => v.value == 5; case _ => false })
-    assert(ks.contains(Ignore))
+    assert(ks.contains(IgnoreSelf))
     assert(ks.exists { case PatchSet(v) => v.value == 3; case _ => false })
     assert(ks.exists { case MajorSet(v) => v.value == 2; case _ => false })
     // version: unknown should be ignored silently

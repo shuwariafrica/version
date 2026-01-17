@@ -82,8 +82,22 @@ If multiple valid tags exist on one commit:
 
 ### Traversal
 
-- Keywords scanned from all reachable paths (includes merges)
-- Commit count uses first-parent only, excluding merges
+- **All commits are scanned**, including merge commits themselves
+- Keywords scanned from all reachable paths (traverses entire merge graph)
+- Commit count for metadata uses first-parent only, excluding merges
+
+### Ignore Directives
+
+Commits can be excluded from version calculation:
+
+| Directive                    | Effect                                            |
+|------------------------------|---------------------------------------------------|
+| `version: ignore`            | Excludes the commit containing this directive     |
+| `version: ignore: <sha>`     | Excludes specific commits by SHA prefix           |
+| `version: ignore: <a>..<b>`  | Excludes commits in the range (inclusive)         |
+| `version: ignore-merged`     | Excludes all commits from the merged branch       |
+
+**Use case**: When merging a PR, use `version: ignore-merged` in the merge commit to discard all incoming version directives and specify a consolidated directive instead.
 
 ## Examples
 

@@ -23,7 +23,7 @@ import version.cli.core.ResolutionError.NotAGitRepository
 import version.cli.core.domain.*
 import version.cli.core.logging.Logger
 
-/** Git implementation using os-lib and plumbing commands.
+/** [[Git]] implementation using os-lib and Git plumbing commands.
   *
   * Supports repositories where the working directory is a subdirectory of the repository root.
   */
@@ -34,7 +34,7 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
     val cmd = List("git") ++ args
     logger.verbose(s"git ${args.mkString(" ")}", "Git")
     try
-      val res = os.proc(cmd).call(cwd = repoPath, check = false)
+      val res = os.proc(cmd).call(cwd = repoPath, check = false, stderr = os.Pipe)
       if check && res.exitCode != 0 then Left(GitCommandFailed(args, res.exitCode, res.out.text(), res.err.text()))
       else Right(res)
     catch
@@ -172,6 +172,27 @@ final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boole
       n = if nLong >= Int.MaxValue then Int.MaxValue else nLong.toInt
       _ = logger.verbose(s"Counted $n commit(s) since ${fromExclusive.fold("<root>")(_.value)}", "Git")
     yield n
+  def isMergeCommit(sha: CommitSha): Either[ResolutionError, Boolean] =
+    for
+      _ <- checkRepo()
+      r <- run(List("rev-parse", s"${sha.value}^2"), check = false)
+    yield r.exitCode == 0
+
+  def getMergedCommits(mergeSha: CommitSha): Either[ResolutionError, Set[CommitSha]] =
+    for
+      _ <- checkRepo()
+      isMerge <- isMergeCommit(mergeSha)
+      result <-
+        if !isMerge then Right(Set.empty[CommitSha])
+        else
+          // Commits reachable from merge but not from first parent
+          // git rev-list <merge>^2 --not <merge>^1
+          for
+            r <- run(List("rev-list", s"${mergeSha.value}^2", "--not", s"${mergeSha.value}^1"), check = true)
+            shas = r.out.text().split('\n').map(_.trim.toLowerCase).filter(_.nonEmpty).toSet.map(CommitSha(_))
+            _ = logger.verbose(s"Merged commits from ${mergeSha.value}: ${shas.size}", "Git")
+          yield shas
+    yield result
 end GitProcess
 
 private[git] object GitProcess:

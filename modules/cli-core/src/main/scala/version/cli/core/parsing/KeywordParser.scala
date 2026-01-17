@@ -23,14 +23,17 @@ import version.errors.ParseError
 // scalafix:off
 /** Commit message keyword parser for version resolution.
   *
-  * Extracts version control keywords from commit messages following the specification in
-  * `docs/_docs/specification.md`. Performs single-pass scanning with
-  * case-insensitive keyword detection and proper token boundary enforcement.
+  * Extracts version control keywords from commit messages following the specification.
+  * Performs single-pass scanning with case-insensitive keyword detection and
+  * proper token boundary enforcement.
   *
   * Recognised keyword forms:
   *   - `version: major | breaking | minor | feature | feat | patch | fix` — relative increment
   *   - `version: major: <N> | minor: <N> | patch: <N>` — absolute set (synonyms apply)
-  *   - `version: ignore` — exclude commit from version calculation
+  *   - `version: ignore` — exclude containing commit
+  *   - `version: ignore: <sha>` — exclude specific commit(s) by SHA prefix
+  *   - `version: ignore: <sha>..<sha>` — exclude commit range (inclusive)
+  *   - `version: ignore-merged` — exclude all merged branch commits
   *   - `<bump-token>: <text>` — standalone shorthand (e.g., `breaking: Remove API`)
   *   - `target: <SEMVER>` — target version directive (optional leading `v` or `V`)
   *
@@ -122,6 +125,57 @@ object KeywordParser:
     val token = s.substring(start, i)
     if consumed then (Some(token), i) else (None, i0)
 
+  /** Checks if a character is valid in a hex SHA. */
+  private transparent inline def isHexChar(c: Char): Boolean =
+    c.isDigit || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+
+  /** Reads a SHA token (7-40 hex characters). */
+  private def readShaToken(s: String, i0: Int): (Option[String], Int) =
+    var i = i0
+    val start = i
+    val n = s.length
+    while i < n && isHexChar(s.charAt(i)) && (i - start) < 40 do i += 1
+    val len = i - start
+    if len >= 7 then (Some(s.substring(start, i).toLowerCase), i) else (None, i0)
+
+  /** Parses a comma-separated list of SHA tokens. */
+  private def parseShaList(s: String, i0: Int): (Set[String], Int) =
+    var i = i0
+    val n = s.length
+    var shas = Set.empty[String]
+    var continue = true
+    while continue && i < n do
+      val j0 = skipSpaces(s, i)
+      val (shaOpt, j1) = readShaToken(s, j0)
+      shaOpt match
+        case Some(sha) =>
+          val j2 = skipSpaces(s, j1)
+          // Check for incomplete range attempt (sha..) - treat as invalid
+          if j2 + 1 < n && s.charAt(j2) == '.' && s.charAt(j2 + 1) == '.' then
+            // Incomplete range - return empty set
+            return (Set.empty[String], i0)
+          shas = shas + sha
+          if j2 < n && s.charAt(j2) == ',' then i = j2 + 1
+          else
+            i = j1; continue = false
+        case None => continue = false
+    (shas, i)
+
+  /** Parses a SHA range (from..to). */
+  private def parseShaRange(s: String, i0: Int): (Option[(String, String)], Int) =
+    val (fromOpt, j1) = readShaToken(s, i0)
+    fromOpt match
+      case Some(from) =>
+        val j2 = skipSpaces(s, j1)
+        if j2 + 1 < s.length && s.charAt(j2) == '.' && s.charAt(j2 + 1) == '.' then
+          val j3 = skipSpaces(s, j2 + 2)
+          val (toOpt, j4) = readShaToken(s, j3)
+          toOpt match
+            case Some(to) => (Some((from, to)), j4)
+            case None     => (None, i0)
+        else (None, i0)
+      case None => (None, i0)
+
   // --- public API ---
 
   /** Extracts keywords from a commit message.
@@ -182,8 +236,30 @@ object KeywordParser:
           val (word, j1) = readWord(line, j0)
           word.toLowerCase match
             case "ignore" =>
-              // version: ignore - exclude commit from version calculation
-              out = out :+ Ignore
+              // version: ignore with optional SHA specifiers
+              val j2 = afterColon(line, j1)
+              if j2 != -1 then
+                // Try range first (sha..sha), then list (sha, sha, ...)
+                val (rangeOpt, j3) = parseShaRange(line, j2)
+                rangeOpt match
+                  case Some((from, to)) =>
+                    out = out :+ IgnoreRange(from, to)
+                    i = j3
+                  case None =>
+                    val (shas, j4) = parseShaList(line, j2)
+                    if shas.nonEmpty then
+                      out = out :+ IgnoreCommits(shas)
+                      i = j4
+                    else
+                      // Invalid SHA specifier; silently ignored per specification
+                      i = j1
+              else
+                // Bare version: ignore - exclude this commit
+                out = out :+ IgnoreSelf
+                i = j1
+            case "ignore-merged" =>
+              // version: ignore-merged - exclude all merged commits
+              out = out :+ IgnoreMerged
               i = j1
             case w if w == "major" || w == "breaking" =>
               // Check for absolute set (version: major: N)

@@ -23,8 +23,7 @@ import version.cli.core.parsing.KeywordParser
 
 /** Version resolution engine.
   *
-  * Implements the algorithm defined in the version resolution technical specification. Internal to the library;
-  * consumers should use [[VersionCliCore]].
+  * Implements the algorithm defined in the version resolution specification. Consumers should use [[VersionCliCore]].
   */
 object Resolver:
   given CanEqual[Resolver.type, Resolver.type] = CanEqual.derived
@@ -71,7 +70,7 @@ object Resolver:
           for
             commits <- git.getCommitsSince(basisCommitSha, Some(baseTag.commitSha))
             _ = logger.verbose(s"Commits since base tag ${baseTag.name.value}: ${commits.size}", "Resolver")
-            keywords = extractKeywords(commits)
+            keywords <- extractKeywords(commits, git)
             _ = logger.verbose(s"Keywords extracted: ${keywords.size}", "Resolver")
             targetOpt = TargetVersionCalculator.selectValidTarget(
               targets = keywords.collect { case Keyword.TargetSet(v) => v },
@@ -89,7 +88,7 @@ object Resolver:
           for
             commits <- git.getCommitsSince(basisCommitSha, None)
             _ = logger.verbose(s"Commits (no base tag): ${commits.size}", "Resolver")
-            keywords = extractKeywords(commits)
+            keywords <- extractKeywords(commits, git)
             highestRepo = allTags.sorted.lastOption
             repoFinals = allTags.filter(_.version.preRelease.isEmpty)
             targetOpt = TargetVersionCalculator.selectValidTarget(
@@ -114,13 +113,94 @@ object Resolver:
     end for
   end calculateDevelopmentVersion
 
-  /** Extracts keywords from commits, excluding any commit that contains `version: ignore`. */
-  private def extractKeywords(commits: List[Commit])(using reader: Version.Read[String]): List[Keyword] =
-    commits.flatMap { c =>
-      val keywords = KeywordParser.parse(c.message)
-      // If the commit contains an Ignore directive, exclude ALL its keywords
-      if keywords.contains(Keyword.Ignore) then Nil
-      else keywords
+  /** Extracts keywords from commits, applying ignore directives.
+    *
+    * Ignore directive precedence:
+    *   1. `IgnoreSelf` — excludes the commit containing it
+    *   2. `IgnoreCommits(shas)` — excludes commits matching the SHA prefixes
+    *   3. `IgnoreRange(from, to)` — excludes commits in the range (inclusive)
+    *   4. `IgnoreMerged` — excludes all commits from merged branches (merge commit only)
+    */
+  private def extractKeywords(commits: List[Commit], git: Git)(using
+    reader: Version.Read[String],
+    logger: Logger,
+    isVerbose: Boolean
+  ): Either[ResolutionError, List[Keyword]] =
+    // Phase 1: Parse all keywords and collect ignore directives
+    val parsed = commits.map(c => (c, KeywordParser.parse(c.message)))
+
+    // Phase 2: Build exclusion set from ignore directives
+    val exclusionResult = buildExclusionSet(parsed, commits, git)
+
+    exclusionResult.map { exclusions =>
+      logger.verbose(s"Exclusion set: ${exclusions.map(_.value).mkString(",")}", "Resolver")
+
+      // Phase 3: Filter commits and extract non-ignore keywords
+      parsed.flatMap { case (commit, keywords) =>
+        val isExcluded = exclusions.exists(ex => commit.sha.value.startsWith(ex.value))
+        val hasSelfIgnore = keywords.exists {
+          case Keyword.IgnoreSelf => true
+          case _                  => false
+        }
+        if isExcluded || hasSelfIgnore then Nil
+        else
+          keywords.filter {
+            case _: Keyword.IgnoreDirective => false
+            case _                          => true
+          }
+      }
     }
+  end extractKeywords
+
+  /** Builds the set of commit SHAs to exclude based on ignore directives. */
+  private def buildExclusionSet(
+    parsed: List[(Commit, List[Keyword])],
+    allCommits: List[Commit],
+    git: Git
+  ): Either[ResolutionError, Set[CommitSha]] =
+    val commitsByPrefix = allCommits.map(c => (c.sha.value, c.sha)).toMap
+
+    // Collect all ignore directives
+    val ignoreDirectives = parsed.flatMap { case (commit, keywords) =>
+      keywords.collect { case d: Keyword.IgnoreDirective => (commit, d) }
+    }
+
+    // Process IgnoreCommits and IgnoreRange directives (pure, no Git calls)
+    val directExclusions = ignoreDirectives.foldLeft(Set.empty[CommitSha]) { case (exclusions, (_, directive)) =>
+      directive match
+        case Keyword.IgnoreCommits(shas) =>
+          shas.foldLeft(exclusions) { (acc, prefix) =>
+            commitsByPrefix.keys.filter(_.startsWith(prefix)).foldLeft(acc) { (a, fullSha) =>
+              a + CommitSha(fullSha)
+            }
+          }
+        case Keyword.IgnoreRange(from, to) =>
+          val fromSha = commitsByPrefix.keys.find(_.startsWith(from))
+          val toSha = commitsByPrefix.keys.find(_.startsWith(to))
+          (fromSha, toSha) match
+            case (Some(f), Some(t)) =>
+              val fromIdx = allCommits.indexWhere(_.sha.value == f)
+              val toIdx = allCommits.indexWhere(_.sha.value == t)
+              if fromIdx != -1 && toIdx != -1 then
+                val (start, end) = if fromIdx <= toIdx then (fromIdx, toIdx) else (toIdx, fromIdx)
+                allCommits.slice(start, end + 1).foldLeft(exclusions)((acc, c) => acc + c.sha)
+              else exclusions
+            case _ => exclusions
+        case _ => exclusions
+    }
+
+    // IgnoreMerged: get merged commits from merge commits (requires Git calls)
+    val mergedResults = ignoreDirectives.collect { case (commit, Keyword.IgnoreMerged) => commit }.map { mergeCommit =>
+      git.getMergedCommits(mergeCommit.sha)
+    }
+
+    // Combine all merged commit results
+    mergedResults.foldLeft(Right(directExclusions): Either[ResolutionError, Set[CommitSha]]) { (acc, result) =>
+      for
+        current <- acc
+        merged <- result
+      yield current ++ merged
+    }
+  end buildExclusionSet
 
 end Resolver

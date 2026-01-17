@@ -31,19 +31,21 @@ And produces one of:
 ## Quick Example
 
 ```scala
+import version.cli.core.*
 import version.cli.core.domain.*
-import version.cli.core.resolution.*
 
 val config = CliConfig(
-  repositoryPath = os.pwd,
-  shaLength = 7,
+  repo = os.pwd,
+  basisCommit = "HEAD",
   prNumber = None,
-  branchOverride = None
+  branchOverride = None,
+  shaLength = 7,
+  verbose = false
 )
 
-Resolver.resolve(config) match
-  case Right(result) =>
-    println(s"Version: ${result.version}")
+VersionCliCore.resolve(config) match
+  case Right(version) =>
+    println(s"Version: $version")
   case Left(error) =>
     println(s"Error: ${error.message}")
 ```

@@ -36,7 +36,7 @@ versionShow := Some(Version.Show.Extended)
 
 ## Custom Show Instance
 
-Implement `Version.Show` for full control:
+Implement [[version.Version.Show]] for full control:
 
 ```scala
 object MyShow extends Version.Show:

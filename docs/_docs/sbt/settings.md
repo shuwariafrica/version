@@ -57,7 +57,7 @@ Use when CI checkouts don't preserve branch information.
 
 ## versionRead
 
-The `Version.Read[String]` instance used for parsing version tags.
+The [[version.Version.Read]]`[String]` instance used for parsing version tags.
 
 ```scala
 import version.Version
@@ -66,17 +66,17 @@ import version.Version
 versionRead := Version.Read.ReadString
 ```
 
-The `PreRelease.Resolver` is resolved contextually when version tags are parsed, not when the
+The [[version.PreRelease.Resolver]] is resolved contextually when version tags are parsed, not when the
 `Read` instance is created. Custom resolvers can be provided at the call site.
 
-|             |                           |
-|-------------|---------------------------|
-| **Type**    | `Version.Read[String]`    |
-| **Default** | `Version.Read.ReadString` |
+|             |                                     |
+|-------------|-------------------------------------|
+| **Type**    | [[version.Version.Read]]`[String]`  |
+| **Default** | [[version.Version.Read.ReadString]] |
 
 ## versionShow
 
-The `Show` instance for rendering.
+The [[version.Version.Show]] instance for rendering.
 
 ```scala
 import version.Version
@@ -88,10 +88,10 @@ versionShow := Some(Version.Show.Extended)
 versionShow := None
 ```
 
-|             |                        |
-|-------------|------------------------|
-| **Type**    | `Option[Version.Show]` |
-| **Default** | `None`                 |
+|             |                                      |
+|-------------|--------------------------------------|
+| **Type**    | `Option[`[[version.Version.Show]]`]` |
+| **Default** | `None`                               |
 
 ## versionResolutionResult
 

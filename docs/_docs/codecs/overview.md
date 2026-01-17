@@ -45,16 +45,16 @@ import version.codecs.jsoniter.given // or zio, yaml
 
 All modules encode these types:
 
-| Type                   | JSON Representation       |
-|------------------------|---------------------------|
-| `Version`              | String: `"1.2.3-alpha.1"` |
-| `MajorVersion`         | Number: `1`               |
-| `MinorVersion`         | Number: `2`               |
-| `PatchNumber`          | Number: `3`               |
-| `PreReleaseNumber`     | Number: `1`               |
-| `PreReleaseClassifier` | String: `"alpha"`         |
-| `PreRelease`           | String: `"alpha.1"`       |
-| `Metadata`        | Array: `["build", "456"]` |
+| Type                             | JSON Representation       |
+|----------------------------------|---------------------------|
+| [[version.Version]]              | String: `"1.2.3-alpha.1"` |
+| [[version.MajorVersion]]         | Number: `1`               |
+| [[version.MinorVersion]]         | Number: `2`               |
+| [[version.PatchNumber]]          | Number: `3`               |
+| [[version.PreReleaseNumber]]     | Number: `1`               |
+| [[version.PreReleaseClassifier]] | String: `"alpha"`         |
+| [[version.PreRelease]]           | String: `"alpha.1"`       |
+| [[version.Metadata]]             | Array: `["build", "456"]` |
 
 ## Platform Support
 

@@ -4,7 +4,7 @@ title: Parsing
 
 # Parsing
 
-The core library provides robust parsing for SemVer 2.0.0 strings via the `Version.Read[A]` type class.
+The core library provides robust parsing for SemVer 2.0.0 strings via the [[version.Version.Read]]`[A]` type class.
 
 ## Basic Usage
 
@@ -88,8 +88,7 @@ Metadata identifiers must match `[0-9A-Za-z-]+`:
 
 ## Custom Pre-release Mapping
 
-Implement `PreRelease.Resolver` to handle non-standard formats. Use `PreRelease.Resolver.given_Resolver`
-to delegate unhandled cases to the default implementation:
+Implement [[version.PreRelease.Resolver]] to handle non-standard formats:
 
 ```scala
 import version.*
@@ -118,8 +117,8 @@ given PreRelease.Resolver with
 
 ## Custom Read Instances
 
-Implement `Version.Read[A]` to parse custom input types. The typeclass requires
-a contextual `PreRelease.Resolver` for pre-release identifier mapping:
+Implement [[version.Version.Read]]`[A]` to parse custom input types. The typeclass requires a
+contextual [[version.PreRelease.Resolver]] for pre-release identifier mapping:
 
 ```scala
 import version.*

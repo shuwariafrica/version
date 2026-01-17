@@ -29,16 +29,16 @@ import version.*
 
 ## Types at a Glance
 
-| Type                   | Purpose                | Constraint                                |
-|------------------------|------------------------|-------------------------------------------|
-| `MajorVersion`         | Major component        | >= 0                                      |
-| `MinorVersion`         | Minor component        | >= 0                                      |
-| `PatchNumber`          | Patch component        | >= 0                                      |
-| `PreReleaseNumber`     | Pre-release version    | >= 1                                      |
-| `PreReleaseClassifier` | Classifier enum        | dev, milestone, alpha, beta, rc, snapshot |
-| `PreRelease`           | Structured pre-release | Classifier + optional number              |
-| `Metadata`        | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
-| `Version`              | Complete version       | MAJOR.MINOR.PATCH[-PRERELEASE][+METADATA] |
+| Type                             | Purpose                | Constraint                                |
+|----------------------------------|------------------------|-------------------------------------------|
+| [[version.MajorVersion]]         | Major component        | >= 0                                      |
+| [[version.MinorVersion]]         | Minor component        | >= 0                                      |
+| [[version.PatchNumber]]          | Patch component        | >= 0                                      |
+| [[version.PreReleaseNumber]]     | Pre-release version    | >= 1                                      |
+| [[version.PreReleaseClassifier]] | Classifier enum        | dev, milestone, alpha, beta, rc, snapshot |
+| [[version.PreRelease]]           | Structured pre-release | Classifier + optional number              |
+| [[version.Metadata]]             | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
+| [[version.Version]]              | Complete version       | MAJOR.MINOR.PATCH[-PRERELEASE][+METADATA] |
 
 ## Quick Reference
 

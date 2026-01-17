@@ -113,7 +113,64 @@ final class KeywordParserSuite extends FunSuite:
         |Version: Ignore
         |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    assertEquals(ks.count(_ == Ignore), 3)
+    assertEquals(ks.count(_ == IgnoreSelf), 3)
+  }
+
+  test("version: ignore with SHA list") {
+    val msg =
+      """version: ignore: abc1234
+        |version: ignore: def5678, abc1234567890abcd
+        |version: ignore: 1234567
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    val ignoreCommits = ks.collect { case IgnoreCommits(shas) => shas }
+    assertEquals(ignoreCommits.size, 3)
+    assert(ignoreCommits.exists(_.contains("abc1234")))
+    assert(ignoreCommits.exists(s => s.contains("def5678") && s.contains("abc1234567890abcd")))
+    assert(ignoreCommits.exists(_.contains("1234567")))
+  }
+
+  test("version: ignore with SHA range") {
+    val msg = "version: ignore: abc1234..def5678"
+    val ks = KeywordParser.parse(msg)
+    val ranges = ks.collect { case IgnoreRange(from, to) => (from, to) }
+    assertEquals(ranges.size, 1)
+    assertEquals(ranges.head, ("abc1234", "def5678"))
+  }
+
+  test("version: ignore-merged directive") {
+    val msg =
+      """version: ignore-merged
+        |Version: IGNORE-MERGED
+        |version:ignore-merged
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    // All 3 forms should match (case-insensitive, with/without space after colon)
+    assertEquals(ks.count(_ == IgnoreMerged), 3)
+  }
+
+  test("version: ignore with invalid SHA (too short) is silently ignored") {
+    val msg = "version: ignore: abc"
+    val ks = KeywordParser.parse(msg)
+    // Per specification: "Invalid SHA references are silently ignored"
+    // Should NOT produce any ignore directive
+    assertEquals(ks.size, 0)
+    assertEquals(ks.count(_ == IgnoreSelf), 0)
+    assertEquals(ks.collect { case IgnoreCommits(_) => () }.size, 0)
+  }
+
+  test("version: ignore with non-hex characters in SHA is silently ignored") {
+    val msg = "version: ignore: xyz1234"
+    val ks = KeywordParser.parse(msg)
+    // 'x', 'y', 'z' are not valid hex characters
+    assertEquals(ks.size, 0)
+  }
+
+  test("version: ignore with incomplete range is silently ignored") {
+    val msg = "version: ignore: abc1234.."
+    val ks = KeywordParser.parse(msg)
+    // Incomplete range (no 'to' SHA)
+    assertEquals(ks.size, 0)
   }
 
   test("target: vX.Y.Z[-pre][+meta] parses; stores full version; selection later drops pre/meta") {

@@ -106,6 +106,14 @@ Commits are scanned for directives within the following range:
 - **With Base Version**: Commits strictly after the base tag up to and including the basis commit
 - **Without Base Version**: All commits reachable from the basis commit (including merge paths)
 
+**All commits are scanned**, including:
+
+- Merge commits themselves (allowing directives in merge commit messages)
+- Commits from merged branches (reachable via non-first-parent paths)
+
+**Note**: The commit count in build metadata uses first-parent only and excludes merge commits, but keyword scanning
+traverses all paths.
+
 ### 4.2 Matching Rules
 
 - Case-insensitive matching
@@ -147,13 +155,30 @@ Examples: `version: major: 3`, `version: minor: 5`, `version: patch: 5`
 
 Each `<N>` must be a non-negative integer. If multiple absolutes target the same component, the highest value wins.
 
-**Ignore Directive**:
+**Ignore Directives**:
 
 ```
-version: ignore
+version: ignore                           # Ignore this commit
+version: ignore: <sha>                     # Ignore specific commit
+version: ignore: <sha>, <sha>, ...         # Ignore multiple commits
+version: ignore: <sha>..<sha>              # Ignore range (inclusive)
+version: ignore-merged                     # Ignore all merged commits
 ```
 
-Excludes the commit from version calculation entirely.
+Ignore directive forms:
+
+| Form                            | Effect                                                        |
+|---------------------------------|---------------------------------------------------------------|
+| `version: ignore`               | Excludes the commit containing this directive                 |
+| `version: ignore: <sha>`        | Excludes commits matching the SHA prefix (7+ chars)           |
+| `version: ignore: <sha>, <sha>` | Excludes multiple commits by SHA prefix                       |
+| `version: ignore: <sha>..<sha>` | Excludes commits in the range (inclusive, by commit order)    |
+| `version: ignore-merged`        | Excludes all commits from merged branches (merge commit only) |
+
+SHA prefixes must be at least 7 characters. Invalid SHA references are silently ignored.
+
+**Merge Commit Use Case**: When merging a feature branch, the merge commit can use `version: ignore-merged` to
+discard all bump directives from the incoming commits, then specify its own directive (e.g., `breaking: API redesign`).
 
 ### 4.5 Standalone Shorthands
 
@@ -403,6 +428,9 @@ version-directive    ::= "version" ":" bump-token
                        | "version" ":" bump-token ":" integer
                        | "version" ":" patch-token ":" integer
                        | "version" ":" "ignore"
+                       | "version" ":" "ignore" ":" sha-list
+                       | "version" ":" "ignore" ":" sha-range
+                       | "version" ":" "ignore-merged"
 
 standalone-shorthand ::= bump-token ":" non-empty-text
 
@@ -413,6 +441,10 @@ minor-token          ::= "minor" | "feature" | "feat"
 patch-token          ::= "patch" | "fix"
 
 target-directive     ::= "target" ":" semver-literal
+
+sha-list             ::= sha-prefix ("," sha-prefix)*
+sha-range            ::= sha-prefix ".." sha-prefix
+sha-prefix           ::= <7-40 hexadecimal characters>
 
 integer              ::= <decimal digits without sign>
 non-empty-text       ::= <any non-whitespace content>
@@ -528,21 +560,56 @@ semver-literal       ::= <valid SemVer string; only core retained>
 - `feat: Add X` ≡ `feature: Add X` (both → minor)
 - `fix: Y` ≡ `patch: Y` (both → no effect; patch is default)
 
+### 11.18 Ignore Specific Commits
+
+- Base: `1.2.3`
+- Commit A (sha: `abc1234`): `breaking: API change`
+- Commit B: `version: ignore: abc1234`
+- Result: `1.2.4-SNAPSHOT+...` (Commit A excluded; default patch applies)
+
+### 11.19 Ignore Multiple Commits
+
+- Base: `1.2.3`
+- Commit A (sha: `abc1234`): `version: major`
+- Commit B (sha: `def5678`): `version: minor`
+- Commit C: `version: ignore: abc1234, def5678`
+- Result: `1.2.4-SNAPSHOT+...` (both A and B excluded)
+
+### 11.20 Ignore Commit Range
+
+- Base: `1.2.3`
+- Commits in order: A (`abc1234`), B (`bcd2345`), C (`cde3456`)
+- Commit A: `version: major`
+- Commit C: `version: minor`
+- Merge commit: `version: ignore: abc1234..cde3456`
+- Result: `1.2.4-SNAPSHOT+...` (all three excluded)
+
+### 11.21 Ignore Merged Commits
+
+- Base: `1.2.3`
+- Feature branch commits: `version: major`, `version: minor`, `version: patch: 5`
+- Merge commit: `version: ignore-merged` + `feature: New consolidated feature`
+- Result: `1.3.0-SNAPSHOT+...` (merged commits excluded; merge commit's minor applies)
+
 ---
 
 ## 12. Invalid Input Catalogue
 
-| Input                                              | Reason                     |
-|----------------------------------------------------|----------------------------|
-| `target: 1.2`                                      | Partial core               |
-| `version: major: -1`                               | Negative absolute          |
-| `target: a.b.c`                                    | Non-numeric core           |
-| `target: 1.0.0` when final `1.0.0` is reachable    | Equality vs final          |
-| `version: majorx`                                  | Not boundary-aligned       |
-| `retarget: 2.0.0`                                  | Not a keyword              |
-| `target: 3.0.0` when repo highest final is `4.3.0` | Regression                 |
-| `breaking:`                                        | Empty standalone shorthand |
-| `change: minor`                                    | Unrecognised keyword       |
+| Input                                              | Reason                               |
+|----------------------------------------------------|--------------------------------------|
+| `target: 1.2`                                      | Partial core                         |
+| `version: major: -1`                               | Negative absolute                    |
+| `target: a.b.c`                                    | Non-numeric core                     |
+| `target: 1.0.0` when final `1.0.0` is reachable    | Equality vs final                    |
+| `version: majorx`                                  | Not boundary-aligned                 |
+| `retarget: 2.0.0`                                  | Not a keyword                        |
+| `target: 3.0.0` when repo highest final is `4.3.0` | Regression                           |
+| `breaking:`                                        | Empty standalone shorthand           |
+| `change: minor`                                    | Unrecognised keyword                 |
+| `version: ignore: abc`                             | SHA prefix too short (< 7 chars)     |
+| `version: ignore: xyz1234`                         | Non-hexadecimal characters           |
+| `version: ignore: abc1234..`                       | Incomplete range                     |
+| `version: ignore-merged` on non-merge commit       | Silently ignored (no merged commits) |
 
 ---
 

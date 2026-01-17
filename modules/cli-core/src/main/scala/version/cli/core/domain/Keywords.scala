@@ -20,14 +20,31 @@ import version.MinorVersion
 import version.PatchNumber
 import version.Version
 
-/** ADT of recognised keywords extracted from commit messages. Pure data. */
+/** ADT of recognised keywords extracted from commit messages.
+  *
+  * This sealed trait and its subtypes represent version control directives parsed from Git commit messages.
+  * Instances may be constructed via [[Keyword$ Keyword]].
+  */
 sealed trait Keyword
 
+/** Provides factory methods, subtypes, and instances for [[Keyword]]. */
 object Keyword:
   given CanEqual[Keyword, Keyword] = CanEqual.derived
 
-  // Ignore directive - excludes commit from version calculation
-  case object Ignore extends Keyword
+  // Ignore Directives - exclude commits from version calculation
+  sealed trait IgnoreDirective extends Keyword
+
+  /** Excludes the commit containing this directive from version calculation. */
+  case object IgnoreSelf extends IgnoreDirective
+
+  /** Excludes specific commits by SHA prefix (7+ characters). */
+  final case class IgnoreCommits(shas: Set[String]) extends IgnoreDirective
+
+  /** Excludes a range of commits (inclusive). */
+  final case class IgnoreRange(from: String, to: String) extends IgnoreDirective
+
+  /** Excludes all commits being merged (only meaningful in merge commits). */
+  case object IgnoreMerged extends IgnoreDirective
 
   // Relative Change Keywords (coalesced to at-most one increment per component)
   // Note: PatchChange is not needed as patch increment is the default behaviour
