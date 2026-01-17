@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core
 
 import scala.annotation.targetName
@@ -25,41 +23,84 @@ import version.cli.core.git.GitProcess
 import version.cli.core.logging.Logger
 import version.cli.core.logging.NullLogger
 
-/** Public API entry point for the version-cli-core library. */
+/** Public API entry point for version resolution.
+  *
+  * Provides overloaded `resolve` methods for deriving semantic versions from Git repository state. All methods return
+  * `Either[ResolutionError, Version]`.
+  *
+  * Library consumers should use contextual parameters:
+  * {{{
+  * import version.{given, *}
+  * import version.cli.core.VersionCliCore
+  *
+  * val result = VersionCliCore.resolve(config)
+  * }}}
+  *
+  * Application code may use explicit parameters for full control:
+  * {{{
+  * VersionCliCore.resolve(config, logger, verbose, Version.Read.ReadString)
+  * }}}
+  *
+  * @see [[version.cli.core.domain.CliConfig]] for configuration options.
+  */
 object VersionCliCore:
   given CanEqual[VersionCliCore.type, VersionCliCore.type] = CanEqual.derived
 
-  // --- Internal shared implementation ---
-  private def resolveImpl(config: CliConfig)(using Logger, Boolean): Either[ResolutionError, Version] =
+  // Internal shared implementation
+  private def resolveImpl(
+    config: CliConfig
+  )(using Logger, Boolean, Version.Read[String]): Either[ResolutionError, Version] =
     summon[Logger].verbose(s"Initialising Git interface at ${config.repo}", "Core")
     val git = new GitProcess(config.repo)
     Resolver.resolve(config, git)
 
-  // --- Public API Overloads (Scala) ---
+  // --- Public API ---
 
-  /** Resolve with implicit logger + verbosity (preferred in Scala usage). Scala name distinct to avoid overload
-    * ambiguity.
+  /** Resolves the version using contextual parameters.
+    *
+    * Preferred for Scala library usage where `Logger`, verbosity, and `Read[String]` are in scope.
     */
   @targetName("resolveImplicit")
-  def resolveImplicit(using logger: Logger, verbose: Boolean)(config: CliConfig): Either[ResolutionError, Version] =
+  def resolveImplicit(using
+    logger: Logger,
+    verbose: Boolean,
+    reader: Version.Read[String]
+  )(config: CliConfig): Either[ResolutionError, Version] =
     resolveImpl(config)
 
-  /** Resolve with explicit logger & verbosity (interop friendly). */
+  /** Resolves the version with all parameters explicit. */
+  @targetName("resolveExplicitLoggerAndReader")
+  def resolve(
+    config: CliConfig,
+    logger: Logger,
+    verbose: Boolean,
+    reader: Version.Read[String]
+  ): Either[ResolutionError, Version] =
+    given Logger = logger
+    given Boolean = verbose
+    given Version.Read[String] = reader
+    resolveImpl(config)
+
+  /** Resolves the version with explicit logger and verbosity, using contextual reader. */
   @targetName("resolveExplicitLogger")
-  def resolve(config: CliConfig, logger: Logger, verbose: Boolean): Either[ResolutionError, Version] =
+  def resolve(
+    config: CliConfig,
+    logger: Logger,
+    verbose: Boolean
+  )(using reader: Version.Read[String]): Either[ResolutionError, Version] =
     given Logger = logger
     given Boolean = verbose
     resolveImpl(config)
 
-  /** Resolve with config only (NullLogger fallback). */
+  /** Resolves the version with configuration only, using `NullLogger` and contextual reader. */
   @targetName("resolveConfigOnly")
-  def resolve(config: CliConfig): Either[ResolutionError, Version] =
+  def resolve(config: CliConfig)(using reader: Version.Read[String]): Either[ResolutionError, Version] =
     given Logger = NullLogger
     given Boolean = config.verbose
     resolveImpl(config)
 
-  /** Resolve with default configuration (NullLogger). */
+  /** Resolves the version with default configuration, using `NullLogger` and contextual reader. */
   @targetName("resolveDefault")
-  def resolve(): Either[ResolutionError, Version] =
+  def resolve()(using reader: Version.Read[String]): Either[ResolutionError, Version] =
     resolve(CliConfig())
 end VersionCliCore

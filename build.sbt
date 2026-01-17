@@ -78,6 +78,7 @@ val `version-codecs-yaml` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-yaml"))
     .dependsOn(version)
+    .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`scala-yaml`))
     .nativeSettings(nativeSettings)
@@ -98,6 +99,7 @@ val `version-cli-core` =
     .in(file("modules/cli-core"))
     .dependsOn(version)
     .dependsOn(`version-testkit` % Test)
+    .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`os-lib`))
     .nativeSettings(nativeSettings)
@@ -112,6 +114,8 @@ val `version-cli` =
     .dependsOn(`version-codecs-jsoniter`)
     .dependsOn(`version-codecs-yaml`)
     .settings(unitTestSettings)
+    .settings(publishSettings)
+    .settings(publishSettings)
     .settings(libraryDependency(libraries.scopt))
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(publish / skip := true)
@@ -125,6 +129,7 @@ val `sbt-version` =
     .in(file("modules/sbt-version"))
     .dependsOn(`version-cli-core`.jvm)
     .enablePlugins(SbtPlugin)
+    .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(sbtVersion := "2.0.0-RC8")
     .settings(Compile / scalacOptions -= "-deprecation")
@@ -182,6 +187,19 @@ val `version-root` =
     .notPublished
     .apacheLicensed
     .aggregate(`version-jvm`, `version-js`, `version-native`)
+    .enablePlugins(VersionUnidocPlugin)
+    .settings(
+      // Filter to JVM projects for unified documentation
+      ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+        version.jvm,
+        `version-zio-prelude`.jvm,
+        `version-codecs-jsoniter`.jvm,
+        `version-codecs-zio`.jvm,
+        `version-codecs-yaml`.jvm,
+        `version-cli-core`.jvm,
+        `sbt-version`
+      )
+    )
 
 def nativeSettings = List(
   Test / parallelExecution := true

@@ -1,30 +1,28 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core
 
 import munit.FunSuite
 
-import version.*
 import version.MajorVersion.value
 import version.MinorVersion.value
 import version.PatchNumber.value
 import version.cli.core.domain.Keyword.*
 import version.cli.core.parsing.KeywordParser
+import version.{*, given}
 
 final class KeywordParserSuite extends FunSuite:
 
@@ -43,8 +41,8 @@ final class KeywordParserSuite extends FunSuite:
     assertEquals(ks.count(_ == MajorChange), 2)
     // Minor increment from minor, feature, and feat
     assertEquals(ks.count(_ == MinorChange), 3)
-    // Patch increment from both patch and fix
-    assertEquals(ks.count(_ == PatchChange), 2)
+    // Patch relative increments (version: patch, version: fix) are ignored (patch is default)
+    // No PatchChange should be emitted
   }
 
   test("standalone shorthands require non-empty text after colon") {
@@ -62,13 +60,13 @@ final class KeywordParserSuite extends FunSuite:
         |feat:
         |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    // Valid shorthands (7 with text)
+    // Valid shorthands: major/breaking → MajorChange, feat/feature/minor → MinorChange
+    // fix/patch shorthands are recognised but ignored (patch is default behaviour)
     assertEquals(ks.count(_ == MajorChange), 2)
     assertEquals(ks.count(_ == MinorChange), 3) // feat, feature, minor
-    assertEquals(ks.count(_ == PatchChange), 2)
     // Invalid bare shorthands (no text) should NOT produce keywords
-    // Total should be 7, not 11
-    assertEquals(ks.size, 7)
+    // Total should be 5 (2 Major + 3 Minor), not 7
+    assertEquals(ks.size, 5)
   }
 
   test("legacy change: keyword is NOT supported") {
@@ -115,7 +113,64 @@ final class KeywordParserSuite extends FunSuite:
         |Version: Ignore
         |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    assertEquals(ks.count(_ == Ignore), 3)
+    assertEquals(ks.count(_ == IgnoreSelf), 3)
+  }
+
+  test("version: ignore with SHA list") {
+    val msg =
+      """version: ignore: abc1234
+        |version: ignore: def5678, abc1234567890abcd
+        |version: ignore: 1234567
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    val ignoreCommits = ks.collect { case IgnoreCommits(shas) => shas }
+    assertEquals(ignoreCommits.size, 3)
+    assert(ignoreCommits.exists(_.contains("abc1234")))
+    assert(ignoreCommits.exists(s => s.contains("def5678") && s.contains("abc1234567890abcd")))
+    assert(ignoreCommits.exists(_.contains("1234567")))
+  }
+
+  test("version: ignore with SHA range") {
+    val msg = "version: ignore: abc1234..def5678"
+    val ks = KeywordParser.parse(msg)
+    val ranges = ks.collect { case IgnoreRange(from, to) => (from, to) }
+    assertEquals(ranges.size, 1)
+    assertEquals(ranges.head, ("abc1234", "def5678"))
+  }
+
+  test("version: ignore-merged directive") {
+    val msg =
+      """version: ignore-merged
+        |Version: IGNORE-MERGED
+        |version:ignore-merged
+        |""".stripMargin
+    val ks = KeywordParser.parse(msg)
+    // All 3 forms should match (case-insensitive, with/without space after colon)
+    assertEquals(ks.count(_ == IgnoreMerged), 3)
+  }
+
+  test("version: ignore with invalid SHA (too short) is silently ignored") {
+    val msg = "version: ignore: abc"
+    val ks = KeywordParser.parse(msg)
+    // Per specification: "Invalid SHA references are silently ignored"
+    // Should NOT produce any ignore directive
+    assertEquals(ks.size, 0)
+    assertEquals(ks.count(_ == IgnoreSelf), 0)
+    assertEquals(ks.collect { case IgnoreCommits(_) => () }.size, 0)
+  }
+
+  test("version: ignore with non-hex characters in SHA is silently ignored") {
+    val msg = "version: ignore: xyz1234"
+    val ks = KeywordParser.parse(msg)
+    // 'x', 'y', 'z' are not valid hex characters
+    assertEquals(ks.size, 0)
+  }
+
+  test("version: ignore with incomplete range is silently ignored") {
+    val msg = "version: ignore: abc1234.."
+    val ks = KeywordParser.parse(msg)
+    // Incomplete range (no 'to' SHA)
+    assertEquals(ks.size, 0)
   }
 
   test("target: vX.Y.Z[-pre][+meta] parses; stores full version; selection later drops pre/meta") {

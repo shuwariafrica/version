@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core
 
 import munit.FunSuite
@@ -107,7 +105,8 @@ final class TargetVersionCalculatorSuite extends FunSuite:
     val v2 = TargetVersionCalculator.fromKeywords(base, List(Keyword.MinorChange))
     assertEquals(v2, core(1, 3, 0))
 
-    val v3 = TargetVersionCalculator.fromKeywords(base, List(Keyword.PatchChange))
+    // No relative keywords → default patch increment
+    val v3 = TargetVersionCalculator.fromKeywords(base, Nil)
     assertEquals(v3, core(1, 2, 4))
 
     val v4 = TargetVersionCalculator.fromKeywords(
@@ -118,7 +117,7 @@ final class TargetVersionCalculatorSuite extends FunSuite:
 
     val pre = base.copy(preRelease = Some(PreRelease.snapshot))
     val v5 = TargetVersionCalculator.fromKeywords(pre, Nil)
-    assertEquals(v5, base.copy(preRelease = None, buildMetadata = None))
+    assertEquals(v5, base.copy(preRelease = None, metadata = None))
   }
 
   test("Duplicate relative increments coalesce to single increment") {

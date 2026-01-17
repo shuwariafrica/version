@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.sbt
 
 import _root_.version.cli.core.VersionCliCore
@@ -30,12 +28,17 @@ import sbt.util.Logger as SbtLogger
 
 import version.sbt.VersionPluginImports.*
 
-/** sbt plugin that wires the `version-cli-core` resolver into the build lifecycle.
+/** sbt plugin for automatic semantic version resolution from Git state.
   *
-  * Provides three keys:
-  *   - `resolvedVersion`: The full [[Version]] object (with 40-char SHA for maximum flexibility)
-  *   - `version`: Standard SemVer string (without build metadata) for publishing
+  * Provides the following keys:
+  *   - `resolvedVersion`: The full [[version.Version Version]] object with 40-character SHA
+  *   - `version`: Standard SemVer string for publishing (excludes build metadata by default)
   *   - `isSnapshot`: `true` if the resolved version is a snapshot
+  *   - `versionRead`: Customisable [[version.Version.Read Version.Read]] instance for parsing version tags
+  *   - `versionShow`: Optional [[version.Version.Show Version.Show]] instance for rendering
+  *   - `versionBranchOverride`: Optional branch name override for CI environments
+  *
+  * @see [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
   */
 object VersionPlugin extends AutoPlugin:
 
@@ -47,10 +50,12 @@ object VersionPlugin extends AutoPlugin:
   override def buildSettings: Seq[Setting[?]] =
     Seq(
       versionBranchOverride := sys.env.get("VERSION_BRANCH"),
+      versionRead := Version.Read.ReadString,
       versionShow := None,
       resolvedVersion :=
         {
           val log = sLog.value
+          val reader = versionRead.value
           val repo = os.Path((LocalRootProject / baseDirectory).value.toPath)
           val env = sys.env
           val metadata = internal.detectCiMetadata(env)
@@ -64,7 +69,7 @@ object VersionPlugin extends AutoPlugin:
               verbose = internal.defaultVerbose(env)
             )
           val cfg = CliConfig.mergeWithCiMetadata(base, metadata)
-          internal.resolveVersion(cfg, log)
+          internal.resolveVersion(cfg, log, reader)
         },
       Keys.version := {
         val v = resolvedVersion.value
@@ -72,7 +77,7 @@ object VersionPlugin extends AutoPlugin:
           case Some(s) => s.show(v)
           case None    => Version.Show.Standard.show(v)
       },
-      isSnapshot := resolvedVersion.value.isSnapshot
+      isSnapshot := resolvedVersion.value.snapshot
     )
 
   override def projectSettings: Seq[Setting[?]] = Seq.empty
@@ -93,9 +98,9 @@ object VersionPlugin extends AutoPlugin:
     def defaultVerbose(env: collection.Map[String, String]): Boolean =
       env.get("VERSION_VERBOSE").exists(_.toBooleanOption.getOrElse(true))
 
-    def resolveVersion(cfg: CliConfig, sbtLog: SbtLogger): Version =
+    def resolveVersion(cfg: CliConfig, sbtLog: SbtLogger, reader: Version.Read[String]): Version =
       val logger = new SbtCoreLogger(sbtLog)
-      VersionCliCore.resolve(cfg, logger, cfg.verbose) match
+      VersionCliCore.resolve(cfg, logger, cfg.verbose, reader) match
         case scala.util.Left(err)  => throw new MessageOnlyException(s"version-sbt: ${err.message}") // scalafix:ok
         case scala.util.Right(ver) => ver
 

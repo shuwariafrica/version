@@ -1,31 +1,30 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli
 
 import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
 import munit.FunSuite
 import org.virtuslab.yaml.*
 
-import version.*
+import version.Version
 import version.cli.core.VersionCliCore
 import version.cli.core.domain.CliConfig
 import version.codecs.jsoniter.given
 import version.codecs.yaml.given
+import version.{*, given}
 
 final class CLISuite extends FunSuite with TestRepoSupport:
 
@@ -208,10 +207,11 @@ final class CLISuite extends FunSuite with TestRepoSupport:
         verbose = opts.verbose
       )
       val v = VersionCliCore.resolve(cfg).toOption.getOrElse(fail("resolution failed"))
+      given Version.Show = Version.Show.Extended
       val rendered: Map[OutputSink, String] = rc.sinks.map { s =>
         val content = s.kind match
-          case SinkKind.Console => if rc.consoleStyle == ConsoleStyle.Pretty then consolePretty(v) else v.toString
-          case SinkKind.Raw     => v.toString
+          case SinkKind.Console => if rc.consoleStyle == ConsoleStyle.Pretty then consolePretty(v) else v.show
+          case SinkKind.Raw     => v.show
           case SinkKind.Json    => writeToString(v)
           case SinkKind.Yaml    => v.asYaml
         s -> content
@@ -225,7 +225,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       assert(os.isFile(jsonPath))
       assert(os.isFile(yamlPath))
       val rawStrs = rc.sinks.filter(_.kind == SinkKind.Raw).map(rendered)
-      assert(rawStrs.forall(_ == v.toString))
+      assert(rawStrs.forall(_ == v.show))
       val jsonStr = os.read(jsonPath)
       assert(jsonStr.contains("\"major\""))
       val yamlStr = os.read(yamlPath)
@@ -233,13 +233,13 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     }
   }
 
-  private def consolePretty(v: Version): String =
+  private def consolePretty(v: Version)(using Version.Show): String =
     val b = new StringBuilder
     b.append("Version:\n")
-    b.append(s"  full      : ${v.toString}\n")
+    b.append(s"  full      : ${v.show}\n")
     b.append(s"  core      : ${v.major.value}.${v.minor.value}.${v.patch.value}\n")
-    val pre = v.preRelease.map(_.toString).getOrElse("none")
-    val meta = v.buildMetadata.map(_.show).getOrElse("none")
+    val pre = v.preRelease.map(_.show).getOrElse("none")
+    val meta = v.metadata.map(_.show).getOrElse("none")
     b.append(s"  preRelease: ${pre}\n")
     b.append(s"  metadata  : ${meta}\n")
     b.result()

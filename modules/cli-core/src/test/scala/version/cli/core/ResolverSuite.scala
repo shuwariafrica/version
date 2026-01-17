@@ -1,26 +1,24 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core
 
 import munit.FunSuite
 
-import version.*
 import version.cli.core.domain.*
+import version.{*, given}
 
 // scalafix:off
 final class ResolverSuite extends FunSuite with TestRepoSupport:
@@ -35,7 +33,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "1.0.0")
+      assertEquals(v.show, "1.0.0")
     }
   }
 
@@ -46,7 +44,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "2.0.0")
+      assertEquals(v.show, "2.0.0")
     }
   }
 
@@ -83,7 +81,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val v = res.toOption.get
       // Should include sha of the provided basis commit, abbreviated
       val abbrev12 = full.take(12)
-      val meta = v.buildMetadata.map(_.show).getOrElse("")
+      val meta = v.metadata.map(_.show).getOrElse("")
       assert(meta.contains(s"+branch"), clues(meta))
       assert(meta.contains(s".sha$abbrev12"), clues(meta))
       assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
@@ -99,7 +97,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       assert(res.isRight)
       val v = res.toOption.get
       assert(v.preRelease.exists(_.isSnapshot), s"version was: ${v.toString}")
-      val meta = v.buildMetadata.map(_.show).getOrElse("")
+      val meta = v.metadata.map(_.show).getOrElse("")
       assert(meta.contains("dirty"), s"metadata was: $meta")
     }
   }
@@ -123,16 +121,8 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
 
   test("No tags anywhere: default target is 0.1.0") {
     withFreshRepo("no-tags") { repo =>
-      // Create a brand new repo with no tags by nuking and reinitialising here
-      os.remove.all(repo)
-      os.makeDir.all(repo)
-      os.proc("git", "init", "-q").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "advice.detachedHead", "false").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.name", "Version CLI Test").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.email", "test@example.com").call(cwd = repo, check = true): Unit
-      os.write.over(repo / "README.md", "x")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "init").call(cwd = repo, check = true): Unit
+      // Create a brand new repo with no tags by reinitialising
+      initMinimalRepo(repo)
       os.write.append(repo / "README.md", "\nchange\n")
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight)
@@ -145,21 +135,10 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
   test("Repo highest is pre-release; no base: target equal to its core is accepted") {
     withFreshRepo("repo-pre-highest") { repo =>
       // Create a repo with only a pre-release tag; no final tags
-      os.remove.all(repo)
-      os.makeDir.all(repo)
-      os.proc("git", "init", "-q").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "advice.detachedHead", "false").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.name", "Version CLI Test").call(cwd = repo, check = true): Unit
-      os.proc("git", "config", "user.email", "test@example.com").call(cwd = repo, check = true): Unit
-      os.write.over(repo / "README.md", "x")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "init").call(cwd = repo, check = true): Unit
-      // Annotated pre-release tag, explicitly not signed
-      os.proc("git", "tag", "-a", "--no-sign", "-m", "pre", "v2.0.0-rc.1").call(cwd = repo, check = true): Unit
+      initMinimalRepo(repo)
+      tag(repo, "v2.0.0-rc.1", "pre")
       // Add a commit with target equal to 2.0.0 (the core of the pre-release)
-      os.write.append(repo / "README.md", "\nchange\n")
-      os.proc("git", "add", "README.md").call(cwd = repo, check = true): Unit
-      os.proc("git", "commit", "--no-gpg-sign", "-m", "target: 2.0.0").call(cwd = repo, check = true): Unit
+      commit(repo, "target: 2.0.0"): Unit
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight)
       val v = res.toOption.get
@@ -210,7 +189,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "1.0.0")
+      assertEquals(v.show, "1.0.0")
       assert(v.preRelease.isEmpty, "should be a concrete version, not a pre-release")
     }
   }

@@ -15,15 +15,11 @@
  ****************************************************************************/
 package version
 
-import version.PreRelease.Resolver
-import version.errors.*
-import version.parser.VersionParser
-
-extension (s: String)
-  /** Parses the string as a [[Version]] using the contextual [[PreRelease.Resolver]].
-    *
-    * @return
-    *   A `Right(Version)` on success, or `Left(ParseError)` on failure.
-    */
-  inline def toVersion(using Resolver): Either[ParseError, Version] =
-    VersionParser.parse(s)
+/** Default [[Version.Read]] instance for `String`.
+   *
+   * Available via `import version.{given, *}` or `import version.given`.
+   *
+   * Parses SemVer strings using the contextual [[PreRelease.Resolver]] for mapping pre-release identifiers. Override by
+   * providing a custom `given Version.Read[String]` in scope.
+   */
+given Version.Read[String] = Version.Read.ReadString

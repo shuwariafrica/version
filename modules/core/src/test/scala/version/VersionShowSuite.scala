@@ -42,14 +42,14 @@ class VersionShowSuite extends munit.FunSuite:
   }
 
   test("Version.Show.Standard: excludes build metadata") {
-    val meta = BuildMetadata(List("sha1234567890abc", "branch", "main"))
-    val v = V(1, 2, 3).copy(buildMetadata = Some(meta))
+    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
+    val v = V(1, 2, 3).copy(metadata = Some(meta))
     assertEquals(v.show, "1.2.3")
   }
 
   test("Version.Show.Standard: pre-release present, metadata excluded") {
-    val meta = BuildMetadata(List("sha1234567890abc"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.beta(PRN(5))), buildMetadata = Some(meta))
+    val meta = Metadata(List("sha1234567890abc"))
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.beta(PRN(5))), metadata = Some(meta))
     assertEquals(v.show, "1.0.0-beta.5")
   }
 
@@ -69,23 +69,23 @@ class VersionShowSuite extends munit.FunSuite:
 
   test("Version.Show.Extended: with build metadata only") {
     given Version.Show = Version.Show.Extended
-    val meta = BuildMetadata(List("build", "123"))
-    val v = V(1, 2, 3).copy(buildMetadata = Some(meta))
+    val meta = Metadata(List("build", "123"))
+    val v = V(1, 2, 3).copy(metadata = Some(meta))
     assertEquals(v.show, "1.2.3+build.123")
   }
 
   test("Version.Show.Extended: with both pre-release and metadata") {
     given Version.Show = Version.Show.Extended
-    val meta = BuildMetadata(List("sha1234567890abc", "branch", "main"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), buildMetadata = Some(meta))
+    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
     // SHA truncated to 7 chars (git convention)
     assertEquals(v.show, "1.0.0-alpha.1+sha1234567.branch.main")
   }
 
   test("Version.Show.Extended: complex metadata with SHA truncation") {
     given Version.Show = Version.Show.Extended
-    val meta = BuildMetadata(List("pr42", "branchfeature-x", "commits5", "shaabcdef1234567", "dirty"))
-    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), buildMetadata = Some(meta))
+    val meta = Metadata(List("pr42", "branchfeature-x", "commits5", "shaabcdef1234567", "dirty"))
+    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
     // SHA truncated to 7 chars (git convention)
     assertEquals(v.show, "2.1.0-SNAPSHOT+pr42.branchfeature-x.commits5.shaabcdef1.dirty")
   }
@@ -93,8 +93,8 @@ class VersionShowSuite extends munit.FunSuite:
   // --- Explicit Instance Selection ---
 
   test("Explicit selection of Show instance via using") {
-    val meta = BuildMetadata(List("build"))
-    val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), buildMetadata = Some(meta))
+    val meta = Metadata(List("build"))
+    val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
 
     // Use the Show instances directly
     assertEquals(Version.Show.Standard.show(v), "1.2.3-alpha.1")
@@ -120,8 +120,8 @@ class VersionShowSuite extends munit.FunSuite:
           val core = s"v${v.major.value}.${v.minor.value}.${v.patch.value}"
           v.preRelease.fold(core)(pr => s"$core-${pr.show}")
 
-    val meta = BuildMetadata(List("sha1234567890abcdef"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot), buildMetadata = Some(meta))
+    val meta = Metadata(List("sha1234567890abcdef"))
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
     assertEquals(v.show, "v1.0.0-SNAPSHOT")
   }
 
@@ -145,8 +145,8 @@ class VersionShowSuite extends munit.FunSuite:
   test("Version.Show.apply summons Extended when promoted to given") {
     given Version.Show = Version.Show.Extended
     val showInstance = Version.Show.apply
-    val meta = BuildMetadata(List("build"))
-    val v = V(1, 2, 3).copy(buildMetadata = Some(meta))
+    val meta = Metadata(List("build"))
+    val v = V(1, 2, 3).copy(metadata = Some(meta))
     assertEquals(showInstance.show(v), "1.2.3+build")
   }
 

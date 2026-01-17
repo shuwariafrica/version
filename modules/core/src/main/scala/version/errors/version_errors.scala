@@ -70,20 +70,11 @@ final case class UnexpectedPreReleaseNumber(classifier: PreReleaseClassifier, nu
     s"The classifier '$classifier' cannot have a pre-release number. Found: $number"
 
 /** Occurs when build metadata identifiers contain invalid characters or are empty, violating SemVer 2.0.0. */
-final case class InvalidBuildMetadata(identifiers: List[String]) extends VersionError:
+final case class InvalidMetadata(identifiers: List[String]) extends VersionError:
   override def message: String =
     s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"
 
-// --- Pre-Release Transition Errors (for typed pre-release operations) ---
-
-/** Occurs when attempting to use a pre-release transition on a version that is not a pre-release. */
-final case class NotAPreReleaseVersion() extends VersionError:
-  override def message: String =
-    "Operation requires a pre-release version, but the version has no pre-release component."
-
-/** Occurs when attempting to transition to a pre-release classifier with a lower precedence. */
-final case class InvalidPreReleaseTransition(from: PreReleaseClassifier, to: PreReleaseClassifier) extends VersionError:
-  override def message: String = s"Cannot transition pre-release from '$from' to lower precedence '$to'."
+// --- Pre-Release Operation Errors (for typed pre-release operations) ---
 
 /** Occurs when an operation requires a versioned classifier but a non-versioned one (e.g., Snapshot) is provided. */
 final case class ClassifierNotVersioned(classifier: PreReleaseClassifier) extends VersionError:

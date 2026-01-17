@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core
 
 import version.*
@@ -40,7 +38,7 @@ object TargetVersionCalculator:
     isHeadOnFinalTag: Boolean
   ): Option[Version] =
     val parsedCore = targets.map(dropPre)
-    val reachableFinalCore = highestReachable.collect { case t if t.version.isFinal => dropPre(t.version) }
+    val reachableFinalCore = highestReachable.collect { case t if t.version.preRelease.isEmpty => dropPre(t.version) }
     val highestReach = highestReachable.map(_.version)
     val repoHighestFinalCore = allRepoFinals.map(_.version).map(dropPre).sorted.lastOption
     val repoHighest = highestRepo.map(_.version)
@@ -52,15 +50,15 @@ object TargetVersionCalculator:
       val ruleD = if isHeadOnFinalTag && reachableFinalCore.contains(tc) then false else true
       // B) If highest reachable is pre-release, allow equal to its core; reject lower
       val ruleB = highestReach match
-        case Some(v) if v.isPreRelease =>
+        case Some(v) if v.preRelease.isDefined =>
           val prCore = dropPre(v)
           tc >= prCore
         case _ => true
       // C) Repo-wide when no reachable base; equality allowed only vs pre-release core
       val ruleC =
         (repoHighestFinalCore, repoHighest) match
-          case (Some(rf), _)                       => tc > rf
-          case (None, Some(vh)) if vh.isPreRelease =>
+          case (Some(rf), _)                               => tc > rf
+          case (None, Some(vh)) if vh.preRelease.isDefined =>
             tc >= dropPre(vh)
           case (None, _) => true
       ruleA && ruleD && ruleB && ruleC
@@ -81,15 +79,13 @@ object TargetVersionCalculator:
 
     val hasMajor = relatives.contains(MajorChange)
     val hasMinor = relatives.contains(MinorChange)
-    val hasPatch = relatives.contains(PatchChange)
 
     if majorSet.isDefined || hasMajor then Version(majorSet.getOrElse(baseVersion.major.increment), MinorVersion.reset, PatchNumber.reset)
     else if minorSet.isDefined || hasMinor then
       Version(baseVersion.major, minorSet.getOrElse(baseVersion.minor.increment), PatchNumber.reset)
-    else if patchSet.isDefined || hasPatch then
-      Version(baseVersion.major, baseVersion.minor, patchSet.getOrElse(baseVersion.patch.increment))
-    else if baseVersion.isPreRelease then dropPre(baseVersion)
+    else if patchSet.isDefined then Version(baseVersion.major, baseVersion.minor, patchSet.get)
+    else if baseVersion.preRelease.isDefined then dropPre(baseVersion)
     else Version(baseVersion.major, baseVersion.minor, baseVersion.patch.increment)
 
-  private def dropPre(v: Version): Version = v.copy(preRelease = None, buildMetadata = None)
+  private def dropPre(v: Version): Version = v.copy(preRelease = None, metadata = None)
 end TargetVersionCalculator

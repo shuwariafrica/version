@@ -13,25 +13,35 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.parser
+package version
 
-import version.*
 import version.errors.*
 
 // scalafix:off
 /** SemVer 2.0.0 string parser.
   *
-  * Parses version strings into [[Version]] instances, handling:
+  * Parses version strings into [[ParsedVersion]] named tuples, handling:
   *   - Optional `v` or `V` prefix
   *   - Core version (`MAJOR.MINOR.PATCH`)
   *   - Pre-release identifiers (mapped via [[PreRelease.Resolver]])
   *   - Build metadata
   *   - Combined classifier forms (e.g., `rc3` → `rc.3`)
   *
-  * @see
-  *   [[Version.parse]] for the primary user-facing entry point.
+  * This object is package-private to `version`. External consumers should use [[Version.Read]] typeclass instances.
   */
-object VersionParser:
+private[version] object Parser:
+
+  /** The result of parsing a SemVer string. A named tuple containing validated version components.
+    *
+    * Uses named tuple syntax for zero-cost abstraction with descriptive field access.
+    */
+  type ParsedVersion = (
+    major: MajorVersion,
+    minor: MinorVersion,
+    patch: PatchNumber,
+    preRelease: Option[PreRelease],
+    metadata: Option[Metadata]
+  )
 
   // --- low-level helpers --------------------------------------------------
 
@@ -70,7 +80,16 @@ object VersionParser:
 
   // --- main parse ---------------------------------------------------------
 
-  def parse(input: String)(using resolver: PreRelease.Resolver): Either[ParseError, Version] =
+  /** Parses a SemVer 2.0.0 string into a [[ParsedVersion]] named tuple.
+    *
+    * @param input
+    *   The version string to parse.
+    * @param resolver
+    *   The contextual [[PreRelease.Resolver]] for mapping pre-release identifiers.
+    * @return
+    *   `Right(ParsedVersion)` on success, `Left(ParseError)` on failure.
+    */
+  def parse(input: String)(using resolver: PreRelease.Resolver): Either[ParseError, ParsedVersion] =
     if input == null || input.isEmpty then return Left(InvalidVersionFormat(input))
 
     // Strip optional leading 'v' or 'V' prefix
@@ -148,13 +167,13 @@ object VersionParser:
         case _ :: num :: Nil if isAllDigits(num) && num.length > 1 && num.charAt(0) == '0' =>
           return Left(InvalidVersionFormat(input))
         case _ => ()
-      resolver.map(reconciled) match
+      reconciled.resolve match
         case Some(pr) => preRelease = Some(pr)
         case None     => return Left(UnrecognizedPreRelease(reconciled))
     end if
 
     // 5. optional build metadata
-    var buildMetadata: Option[BuildMetadata] = None
+    var metadata: Option[Metadata] = None
     if i < len && normalised.charAt(i) == '+' then
       i += 1
       if i >= len then return Left(InvalidVersionFormat(input)) // trailing '+'
@@ -168,7 +187,7 @@ object VersionParser:
           val id = normalised.substring(identStart, end)
           if !id.forall(isIdentChar) then
             // invalid character -> wrap as InvalidVersionFormat (different message pattern preserved below)
-            return Left(InvalidVersionFormat(s"Invalid build metadata: ${InvalidBuildMetadata(List(id)).message}"))
+            return Left(InvalidVersionFormat(s"Invalid build metadata: ${InvalidMetadata(List(id)).message}"))
           ids += id
           if i == len then continue = false
           else
@@ -178,9 +197,9 @@ object VersionParser:
         else i += 1
       end while
       val list = ids.toList
-      // All identifiers non-empty structurally. Validate collectively using BuildMetadata.from to reuse logic.
-      BuildMetadata.from(list) match
-        case Right(meta) => buildMetadata = Some(meta)
+      // All identifiers non-empty structurally. Validate collectively using Metadata.from to reuse logic.
+      Metadata.from(list) match
+        case Right(meta) => metadata = Some(meta)
         case Left(err)   => return Left(InvalidVersionFormat(s"Invalid build metadata: ${err.message}"))
     end if
 
@@ -188,14 +207,14 @@ object VersionParser:
     if i != len then return Left(InvalidVersionFormat(input))
 
     Right(
-      Version(
-        MajorVersion.fromUnsafe(majorInt),
-        MinorVersion.fromUnsafe(minorInt),
-        PatchNumber.fromUnsafe(patchInt),
-        preRelease,
-        buildMetadata
+      (
+        major = MajorVersion.fromUnsafe(majorInt),
+        minor = MinorVersion.fromUnsafe(minorInt),
+        patch = PatchNumber.fromUnsafe(patchInt),
+        preRelease = preRelease,
+        metadata = metadata
       )
     )
   end parse
-end VersionParser
-//scalafix:on
+end Parser
+// scalafix:on

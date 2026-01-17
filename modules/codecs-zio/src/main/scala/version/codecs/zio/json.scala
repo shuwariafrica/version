@@ -18,8 +18,8 @@ package version.codecs.zio
 import _root_.zio.json.DeriveJsonCodec
 import _root_.zio.json.JsonCodec
 
-import version.BuildMetadata
 import version.MajorVersion
+import version.Metadata
 import version.MinorVersion
 import version.PatchNumber
 import version.PreRelease
@@ -43,12 +43,12 @@ given JsonCodec[PreReleaseClassifier] =
     str match
       case PreReleaseClassifier(classifier) => Right(classifier)
       case _                                => Left("Error decoding PreReleaseClassifier instance from provided input: " + s"\"$str\"")
-  JsonCodec.string.transformOrFail[PreReleaseClassifier](decoder, _.toString)
+  JsonCodec.string.transformOrFail[PreReleaseClassifier](decoder, _.show)
 
-// BuildMetadata as JSON array of strings with validation
-given JsonCodec[BuildMetadata] =
-  JsonCodec[List[String]].transformOrFail[BuildMetadata](
-    ids => BuildMetadata.from(ids).left.map(_.message),
+// Metadata as JSON array of strings with validation
+given JsonCodec[Metadata] =
+  JsonCodec[List[String]].transformOrFail[Metadata](
+    ids => Metadata.from(ids).left.map(_.message),
     bm => bm.identifiers
   )
 
@@ -74,7 +74,7 @@ private case class VersionRaw(
   minor: MinorVersion,
   patch: PatchNumber,
   preRelease: Option[PreRelease],
-  buildMetadata: Option[BuildMetadata]
+  metadata: Option[Metadata]
 )
 private object VersionRaw:
   given JsonCodec[VersionRaw] = DeriveJsonCodec.gen[VersionRaw]
@@ -82,6 +82,6 @@ private object VersionRaw:
 /** Custom codec for [[Version]] that validates the [[PreRelease]] component if present. */
 given JsonCodec[Version] =
   JsonCodec[VersionRaw].transform[Version](
-    raw => Version(raw.major, raw.minor, raw.patch, raw.preRelease, raw.buildMetadata),
-    v => VersionRaw(v.major, v.minor, v.patch, v.preRelease, v.buildMetadata)
+    raw => Version(raw.major, raw.minor, raw.patch, raw.preRelease, raw.metadata),
+    v => VersionRaw(v.major, v.minor, v.patch, v.preRelease, v.metadata)
   )

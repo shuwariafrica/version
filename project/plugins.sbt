@@ -10,3 +10,7 @@ addSbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.9")
 addSbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
 addSbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.13.1")
 addSbtPlugin("com.github.sbt" % "sbt-header" % "5.11.0")
+
+// Documentation
+addSbtPlugin("com.github.sbt" % "sbt-unidoc" % "0.6.1")
+addSbtPlugin("org.scalameta" % "sbt-mdoc" % "2.8.2")

@@ -1,48 +1,43 @@
-/****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023 Shuwari Africa Ltd.                                       *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.cli.core.parsing
 
 import version.*
 import version.cli.core.domain.Keyword
 import version.cli.core.domain.Keyword.*
 import version.errors.ParseError
-import version.parser.VersionParser
 
 // scalafix:off
-/** Manual-scanning keyword parser for commit messages.
+/** Commit message keyword parser for version resolution.
   *
-  * Properties:
-  *   - Case-insensitive keyword detection
-  *   - Whitespace tolerance around colons
-  *   - Token boundaries enforced (no substring matches within larger words)
-  *   - Efficient single pass across each input string; avoids regex
+  * Extracts version control keywords from commit messages following the specification.
+  * Performs single-pass scanning with case-insensitive keyword detection and
+  * proper token boundary enforcement.
   *
-  * Extracted keywords per specification:
-  *   - version: major | breaking | minor | feature | feat | patch | fix (relative increment)
-  *   - version: major: <N> | minor: <N> | patch: <N> (absolute set, also with synonyms including feat)
-  *   - version: ignore (exclude commit from version calculation)
-  *   - <bump-token>: <non-empty-text> (standalone shorthand, e.g., "breaking: Remove API")
-  *   - target: <SEMVER> (optional leading v/V accepted)
+  * Recognised keyword forms:
+  *   - `version: major | breaking | minor | feature | feat | patch | fix` — relative increment
+  *   - `version: major: <N> | minor: <N> | patch: <N>` — absolute set (synonyms apply)
+  *   - `version: ignore` — exclude containing commit
+  *   - `version: ignore: <sha>` — exclude specific commit(s) by SHA prefix
+  *   - `version: ignore: <sha>..<sha>` — exclude commit range (inclusive)
+  *   - `version: ignore-merged` — exclude all merged branch commits
+  *   - `<bump-token>: <text>` — standalone shorthand (e.g., `breaking: Remove API`)
+  *   - `target: <SEMVER>` — target version directive (optional leading `v` or `V`)
   *
-  * NOTE: The legacy `change:` keyword is NOT supported. Use `version:` instead.
-  *
-  * NOTE: This is a hot path. `while`/`do`, local vars, and direct Char ops are intentional to minimise allocations and
-  * enable tight JIT-optimised loops. These are encapsulated within the boundaries of this object.
+  * @see [[version.cli.core.VersionCliCore$ VersionCliCore]] for the public resolution API
   */
 object KeywordParser:
 
@@ -130,22 +125,77 @@ object KeywordParser:
     val token = s.substring(start, i)
     if consumed then (Some(token), i) else (None, i0)
 
+  /** Checks if a character is valid in a hex SHA. */
+  private transparent inline def isHexChar(c: Char): Boolean =
+    c.isDigit || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+
+  /** Reads a SHA token (7-40 hex characters). */
+  private def readShaToken(s: String, i0: Int): (Option[String], Int) =
+    var i = i0
+    val start = i
+    val n = s.length
+    while i < n && isHexChar(s.charAt(i)) && (i - start) < 40 do i += 1
+    val len = i - start
+    if len >= 7 then (Some(s.substring(start, i).toLowerCase), i) else (None, i0)
+
+  /** Parses a comma-separated list of SHA tokens. */
+  private def parseShaList(s: String, i0: Int): (Set[String], Int) =
+    var i = i0
+    val n = s.length
+    var shas = Set.empty[String]
+    var continue = true
+    while continue && i < n do
+      val j0 = skipSpaces(s, i)
+      val (shaOpt, j1) = readShaToken(s, j0)
+      shaOpt match
+        case Some(sha) =>
+          val j2 = skipSpaces(s, j1)
+          // Check for incomplete range attempt (sha..) - treat as invalid
+          if j2 + 1 < n && s.charAt(j2) == '.' && s.charAt(j2 + 1) == '.' then
+            // Incomplete range - return empty set
+            return (Set.empty[String], i0)
+          shas = shas + sha
+          if j2 < n && s.charAt(j2) == ',' then i = j2 + 1
+          else
+            i = j1; continue = false
+        case None => continue = false
+    (shas, i)
+
+  /** Parses a SHA range (from..to). */
+  private def parseShaRange(s: String, i0: Int): (Option[(String, String)], Int) =
+    val (fromOpt, j1) = readShaToken(s, i0)
+    fromOpt match
+      case Some(from) =>
+        val j2 = skipSpaces(s, j1)
+        if j2 + 1 < s.length && s.charAt(j2) == '.' && s.charAt(j2 + 1) == '.' then
+          val j3 = skipSpaces(s, j2 + 2)
+          val (toOpt, j4) = readShaToken(s, j3)
+          toOpt match
+            case Some(to) => (Some((from, to)), j4)
+            case None     => (None, i0)
+        else (None, i0)
+      case None => (None, i0)
+
   // --- public API ---
 
-  /** Extracts recognised keywords from a full commit message (subject + body). */
-  def parse(message: String)(using PreRelease.Resolver): List[Keyword] =
+  /** Extracts keywords from a commit message.
+    *
+    * Scans the full message (subject and body) and returns all recognised version control
+    * keywords. Invalid or unrecognised directives are silently ignored.
+    */
+  def parse(message: String)(using reader: Version.Read[String]): List[Keyword] =
     // Process line by line for predictable boundaries with a single pass.
     val lines = message.split('\n')
     var acc = List.empty[Keyword]
     var idx = 0
     val m = lines.length
     while idx < m do
-      acc = acc ++ parseLine(lines(idx))
+      acc = acc ++ parseLine(lines(idx), reader)
       idx += 1
     acc
 
   // Internal: parse a single line.
-  private def parseLine(line: String)(using PreRelease.Resolver): List[Keyword] =
+  private def parseLine(line: String, reader: Version.Read[String]): List[Keyword] =
     var i = 0
     var out = List.empty[Keyword]
     val n = line.length
@@ -173,13 +223,12 @@ object KeywordParser:
         val j0 = afterColon(line, i + "minor".length)
         if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MinorChange
         i = if j0 != -1 then j0 else i + "minor".length
+      // fix: and patch: standalone shorthands are recognised but ignored (patch is default)
       else if startsWithKW(line, i, "fix") then
         val j0 = afterColon(line, i + "fix".length)
-        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
         i = if j0 != -1 then j0 else i + "fix".length
       else if startsWithKW(line, i, "patch") && !startsWithKW(line, i, "patchversion") then
         val j0 = afterColon(line, i + "patch".length)
-        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
         i = if j0 != -1 then j0 else i + "patch".length
       else if startsWithKW(line, i, "version") then
         val j0 = afterColon(line, i + "version".length)
@@ -187,8 +236,30 @@ object KeywordParser:
           val (word, j1) = readWord(line, j0)
           word.toLowerCase match
             case "ignore" =>
-              // version: ignore - exclude commit from version calculation
-              out = out :+ Ignore
+              // version: ignore with optional SHA specifiers
+              val j2 = afterColon(line, j1)
+              if j2 != -1 then
+                // Try range first (sha..sha), then list (sha, sha, ...)
+                val (rangeOpt, j3) = parseShaRange(line, j2)
+                rangeOpt match
+                  case Some((from, to)) =>
+                    out = out :+ IgnoreRange(from, to)
+                    i = j3
+                  case None =>
+                    val (shas, j4) = parseShaList(line, j2)
+                    if shas.nonEmpty then
+                      out = out :+ IgnoreCommits(shas)
+                      i = j4
+                    else
+                      // Invalid SHA specifier; silently ignored per specification
+                      i = j1
+              else
+                // Bare version: ignore - exclude this commit
+                out = out :+ IgnoreSelf
+                i = j1
+            case "ignore-merged" =>
+              // version: ignore-merged - exclude all merged commits
+              out = out :+ IgnoreMerged
               i = j1
             case w if w == "major" || w == "breaking" =>
               // Check for absolute set (version: major: N)
@@ -217,6 +288,7 @@ object KeywordParser:
                 out = out :+ MinorChange
                 i = j1
             case w if w == "patch" || w == "fix" =>
+              // Only absolute form (version: patch: N) is meaningful; relative form is ignored
               val j2 = afterColon(line, j1)
               if j2 != -1 then
                 val (nOpt, j3) = readInt(line, j2)
@@ -226,7 +298,7 @@ object KeywordParser:
                     i = j3
                   case None => i = j1
               else
-                out = out :+ PatchChange
+                // Relative patch increment ignored (patch is default behaviour)
                 i = j1
             case _ =>
               // Unrecognised word after version:, skip
@@ -240,7 +312,7 @@ object KeywordParser:
           val (tokOpt, j1) = readSemverToken(line, j0)
           tokOpt.foreach { s =>
             val norm = if s.startsWith("v") || s.startsWith("V") then s.drop(1) else s
-            VersionParser.parse(norm) match
+            reader.toVersion(norm) match
               case Right(v)            => out = out :+ TargetSet(v)
               case Left(_: ParseError) => () // ignore malformed targets
           }

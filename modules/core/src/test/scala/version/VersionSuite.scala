@@ -75,7 +75,7 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(Alpha.aliases, List("alpha", "a"))
     assertEquals(Beta.aliases, List("beta", "b"))
     assertEquals(ReleaseCandidate.aliases, List("rc", "cr"))
-    assertEquals(Snapshot.aliases, List("SNAPSHOT", "snapshot"))
+    assertEquals(Snapshot.aliases, List("SNAPSHOT"))
   }
 
   // --- PreRelease Tests ---
@@ -123,9 +123,9 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(PreRelease.snapshot.increment, PreRelease.snapshot)
   }
 
-  test("PreRelease.toString (SemVer format)") {
-    assertEquals(PreRelease.alpha(N5).toString, "alpha.5")
-    assertEquals(PreRelease.snapshot.toString, "SNAPSHOT")
+  test("PreRelease.show (SemVer format)") {
+    assertEquals(PreRelease.alpha(N5).show, "alpha.5")
+    assertEquals(PreRelease.snapshot.show, "SNAPSHOT")
   }
 
   test("PreRelease Ordering") {
@@ -155,7 +155,7 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
     assertEquals(v.preRelease, None)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version.apply(major, minor, patch, preRelease) creates a pre-release version") {
@@ -165,38 +165,24 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
     assertEquals(v.preRelease, pr)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version.apply(major, minor, patch, preRelease) with None creates a final release") {
     val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), None)
     assertEquals(v.preRelease, None)
-    assertEquals(v.buildMetadata, None)
+    assertEquals(v.metadata, None)
   }
 
   test("Version full constructor includes all fields") {
     val pr = Some(PreRelease.beta(N5))
-    val meta = Some(BuildMetadata(List("build", "123")))
+    val meta = Some(Metadata(List("build", "123")))
     val v = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(1), pr, meta)
     assertEquals(v.major.value, 2)
     assertEquals(v.minor.value, 0)
     assertEquals(v.patch.value, 1)
     assertEquals(v.preRelease, pr)
-    assertEquals(v.buildMetadata, meta)
-  }
-
-  test("Version.toString (SemVer format)") {
-    assertEquals(V1_2_3.toString, "1.2.3")
-
-    val vPre = V1_2_3.copy(preRelease = Some(PreRelease.alpha(N1)))
-    assertEquals(vPre.toString, "1.2.3-alpha.1")
-
-    val meta = BuildMetadata(List("build"))
-    val vMeta = V1_2_3.copy(buildMetadata = Some(meta))
-    assertEquals(vMeta.toString, "1.2.3+build")
-
-    val vFull = vPre.copy(buildMetadata = Some(meta))
-    assertEquals(vFull.toString, "1.2.3-alpha.1+build")
+    assertEquals(v.metadata, meta)
   }
 
   // --- Version Ordering (SemVer Precedence) ---
@@ -228,8 +214,8 @@ class VersionSuite extends munit.FunSuite:
   test("Version Ordering (Build Metadata Ignored)") {
     // Rule: Build metadata MUST be ignored when determining version precedence
     val v1 = V1_0_0
-    val v1MetaA = V1_0_0.copy(buildMetadata = Some(BuildMetadata(List("A"))))
-    val v1MetaB = V1_0_0.copy(buildMetadata = Some(BuildMetadata(List("B"))))
+    val v1MetaA = V1_0_0.copy(metadata = Some(Metadata(List("A"))))
+    val v1MetaB = V1_0_0.copy(metadata = Some(Metadata(List("B"))))
 
     // They are considered equal in precedence (compare == 0)
     assertEquals(v1.compare(v1MetaA), 0)
@@ -257,7 +243,7 @@ class VersionSuite extends munit.FunSuite:
       "1.0.1",
       "1.1.0",
       "2.0.0"
-    ).map(s => version.parser.VersionParser.parse(s).toOption.get)
+    ).map(s => s.toVersion.toOption.get)
 
     val shuffled = Random.shuffle(expectedOrder)
     val sorted = shuffled.sorted
@@ -269,8 +255,9 @@ class VersionSuite extends munit.FunSuite:
     }
 
     // Specific check for the metadata case ensuring they are adjacent/equivalent in precedence
-    val baseIndex = sorted.indexWhere(_.toString.equals("1.0.0"))
-    val metaIndex = sorted.indexWhere(_.toString.equals("1.0.0+build.123"))
+    given Version.Show = Version.Show.Extended
+    val baseIndex = sorted.indexWhere(_.show.equals("1.0.0"))
+    val metaIndex = sorted.indexWhere(_.show.equals("1.0.0+build.123"))
     assert(baseIndex >= 0 && metaIndex >= 0)
     assertEquals(sorted(baseIndex).compare(sorted(metaIndex)), 0)
   }
