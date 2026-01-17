@@ -33,7 +33,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "1.0.0")
+      assertEquals(v.show, "1.0.0")
     }
   }
 
@@ -44,7 +44,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "2.0.0")
+      assertEquals(v.show, "2.0.0")
     }
   }
 
@@ -208,7 +208,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val res = VersionCliCore.resolve(cfg(repo))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
-      assertEquals(v.toString, "1.0.0")
+      assertEquals(v.show, "1.0.0")
       assert(v.preRelease.isEmpty, "should be a concrete version, not a pre-release")
     }
   }

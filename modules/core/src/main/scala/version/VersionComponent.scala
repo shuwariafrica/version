@@ -134,7 +134,6 @@ object PreReleaseNumber extends ResettableVersionComponent[PreReleaseNumber]:
  */
 enum PreReleaseClassifier:
   case Dev, Milestone, Alpha, Beta, ReleaseCandidate, Snapshot
-  override inline def toString: String = PreReleaseClassifier.show(this)
 
 /** Provides behaviour, instances, and utilities for [[PreReleaseClassifier]].
  *
@@ -201,10 +200,7 @@ end PreReleaseClassifier
 final case class PreRelease @publicInBinary private (
   classifier: PreReleaseClassifier,
   number: Option[PreReleaseNumber]
-):
-
-  /** Delegates to [[PreRelease.show PreRelease.show]] to ensure format suitability for semantic versioning. */
-  override def toString: String = this.show
+)
 
 /** Provides factory methods, instances, and operations for [[PreRelease]].
  *

@@ -24,7 +24,7 @@ import version.errors.ParseError
 /** Commit message keyword parser for version resolution.
   *
   * Extracts version control keywords from commit messages following the specification in
-  * `docs/version-resolution-technical-specification.md`. Performs single-pass scanning with
+  * `docs/_docs/specification.md`. Performs single-pass scanning with
   * case-insensitive keyword detection and proper token boundary enforcement.
   *
   * Recognised keyword forms:

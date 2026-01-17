@@ -1,5 +1,7 @@
 # version Documentation Navigation
 
+index: getting-started.md
+
 subsection:
   - title: Getting Started
     page: getting-started.md

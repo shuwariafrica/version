@@ -59,16 +59,17 @@ A Git tag is recognised as a **valid version tag** if and only if:
 
 ### 3.2 Pre-release Classifier Hierarchy
 
-Classifiers are recognised case-insensitively via aliases. Precedence order (lowest to highest):
+Classifiers are recognised case-insensitively via aliases. The first alias listed is the canonical output form.
+Precedence order (lowest to highest):
 
-| Classifier        | Aliases                | Versioned                 |
-|-------------------|------------------------|---------------------------|
-| Development       | `dev`                  | Yes (requires number ≥ 1) |
-| Milestone         | `milestone`, `m`       | Yes                       |
-| Alpha             | `alpha`, `a`           | Yes                       |
-| Beta              | `beta`, `b`            | Yes                       |
-| Release Candidate | `rc`, `cr`             | Yes                       |
-| Snapshot          | `SNAPSHOT`, `snapshot` | No (must not have number) |
+| Classifier        | Aliases          | Versioned (requires number ≥ 1) |
+|-------------------|------------------|---------------------------------|
+| Development       | `dev`            | Yes                             |
+| Milestone         | `milestone`, `m` | Yes                             |
+| Alpha             | `alpha`, `a`     | Yes                             |
+| Beta              | `beta`, `b`      | Yes                             |
+| Release Candidate | `rc`, `cr`       | Yes                             |
+| Snapshot          | `SNAPSHOT`       | No (must not have number)       |
 
 ### 3.3 Multiple Tags on One Commit
 
@@ -85,6 +86,14 @@ The following are silently ignored:
 - Tags that fail SemVer parsing
 - Tags with unrecognised pre-release classifiers
 - Tags with invalid build metadata
+
+### 3.5 Repository-Wide Highest Tag
+
+When no reachable tag exists from the basis commit, the **repository-wide highest** valid tag (across all branches) is
+used for:
+
+- Default "no-base" derivation (target becomes `(highest.major + 1).0.0`)
+- Target directive validation (Rule C)
 
 ---
 
@@ -193,6 +202,15 @@ From highest to lowest:
 - **Major** change or set: resets Minor and Patch to 0
 - **Minor** change or set: resets Patch to 0
 - **Patch** change or set: no reset (no lower components)
+
+### 4.10 Invalid Directive Content
+
+The following are silently ignored:
+
+- Negative numbers or overflowed integers in absolute setters (e.g., `version: major: -1`)
+- Malformed target directives (unparseable SemVer core, e.g., `target: 1.2` or `target: a.b.c`)
+- Unrecognised words after `version:` (e.g., `version: majorx`)
+- Standalone shorthands without text after the colon (e.g., bare `fix:` or `breaking:`)
 
 ---
 
@@ -517,6 +535,7 @@ semver-literal       ::= <valid SemVer string; only core retained>
 | `target: 3.0.0` when repo highest final is `4.3.0` | Regression                 |
 | `fix:`                                             | Empty standalone shorthand |
 | `breaking:`                                        | Empty standalone shorthand |
+| `change: minor`                                    | Unrecognised keyword       |
 
 ---
 
@@ -530,14 +549,61 @@ semver-literal       ::= <valid SemVer string; only core retained>
 
 ---
 
-## 14. Determinism
+## 14. Summary Decision Table
+
+| Situation                          | Target Determination                                                  |
+|------------------------------------|-----------------------------------------------------------------------|
+| Valid target(s) survive rules A–F  | Highest target core                                                   |
+| No valid target; absolutes present | Apply absolutes (highest per component) with resets                   |
+| No absolutes; relatives present    | Apply highest-precedence relative (Major > Minor > Patch) with resets |
+| None; base pre-release             | Core unchanged                                                        |
+| None; base final                   | Patch + 1                                                             |
+| None; no base; repo has tags       | `(Highest.major + 1).0.0`                                             |
+| None; no tags at all               | `0.1.0`                                                               |
+
+---
+
+## 15. Determinism
 
 Given fixed repository state and configuration inputs, the derived version is deterministic and idempotent. Repeated
 executions produce identical results until repository state or inputs change.
 
 ---
 
-## 15. Out of Scope
+## 16. Compliance Checklist
+
+| Rule                                                            | Enforced |
+|-----------------------------------------------------------------|----------|
+| Optional leading `v` tag prefix                                 | Yes      |
+| Final outranks pre-release (same core)                          | Yes      |
+| Target precedence over all else                                 | Yes      |
+| Absolute > Relative                                             | Yes      |
+| Duplicate relatives coalesce                                    | Yes      |
+| Component resets (Major resets Minor+Patch; Minor resets Patch) | Yes      |
+| Equality allowed only vs pre-release core                       | Yes      |
+| Commit count excludes merges (first-parent only)                | Yes      |
+| Development versions always use `-SNAPSHOT` pre-release         | Yes      |
+| Build metadata ordering                                         | Yes      |
+| Branch normalisation rules                                      | Yes      |
+| Ignoring invalid tags/keywords                                  | Yes      |
+
+---
+
+## 17. Version String Rendering
+
+```
+<major>.<minor>.<patch>[-<pre-release>][+<metadata>]
+```
+
+Where:
+
+- `<major>.<minor>.<patch>` — required numeric components
+- `-<pre-release>` — optional; always `SNAPSHOT` for development versions
+- `+<metadata>` — optional; dot-separated identifiers (development versions only)
+
+---
+
+## 18. Out of Scope
 
 The following are explicitly not handled by this specification:
 

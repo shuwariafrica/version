@@ -16,7 +16,7 @@ The core library offers:
 
 - **Opaque types** for version components — zero-cost abstractions with validation
 - **Constrained pre-release classifiers** — a defined hierarchy with precedence ordering
-- **Composable operations** — bump, release, advance through pre-release stages
+- **Composable operations** — bump, progress through pre-release stages
 - **Robust parsing** — handles common version formats with customisable pre-release mapping
 
 ## Package Structure
@@ -54,20 +54,24 @@ v.preRelease // Some(PreRelease(Alpha, Some(1)))
 v.metadata // Some(Metadata(List("build", "456")))
 
 // Status
-v.isPreRelease // true
-v.isFinal // false
-v.isStable // true (major > 0)
-v.isSnapshot // false
+v.stable // true (major > 0 and not snapshot)
+v.snapshot // false
+v.preRelease.isDefined // true
 
-// Bumping
-v.nextMajor // 2.0.0
-v.nextMinor // 1.3.0
-v.nextPatch // 1.2.4
+// Bumping core components
+v.next[MajorVersion] // 2.0.0
+v.next[MinorVersion] // 1.3.0
+v.next[PatchNumber]  // 1.2.4
 
-// Pre-release transitions
-v.release // 1.2.3
-v.toSnapshot // 1.2.3-SNAPSHOT
-v.advance[PreReleaseClassifier.Beta.type] // Right(1.2.3-beta.1)
+// Pre-release transitions (precedence-aware)
+v.next[Alpha]   // 1.2.3-alpha.2 (same classifier → increment)
+v.next[Beta]    // 1.2.3-beta.1  (higher → advance in cycle)
+v.next[Dev]     // 1.2.4-dev.1   (lower → new patch cycle)
+
+// Direct pre-release assignment
+v.core // 1.2.3
+v.as[Snapshot] // 1.2.3-SNAPSHOT
+v.as[Beta] // 1.2.3-beta.1
 ```
 
 ## Platform Support

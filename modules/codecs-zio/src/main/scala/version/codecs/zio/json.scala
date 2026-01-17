@@ -43,7 +43,7 @@ given JsonCodec[PreReleaseClassifier] =
     str match
       case PreReleaseClassifier(classifier) => Right(classifier)
       case _                                => Left("Error decoding PreReleaseClassifier instance from provided input: " + s"\"$str\"")
-  JsonCodec.string.transformOrFail[PreReleaseClassifier](decoder, _.toString)
+  JsonCodec.string.transformOrFail[PreReleaseClassifier](decoder, _.show)
 
 // Metadata as JSON array of strings with validation
 given JsonCodec[Metadata] =

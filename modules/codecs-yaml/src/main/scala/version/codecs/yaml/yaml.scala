@@ -51,7 +51,7 @@ given YamlCodec[PatchNumber] = versionNumberFieldCodec(_.value, PatchNumber.from
 given YamlCodec[PreReleaseNumber] = versionNumberFieldCodec(_.value, PreReleaseNumber.from)
 
 given YamlCodec[PreReleaseClassifier] =
-  val encoder: YamlEncoder[PreReleaseClassifier] = YamlEncoder.forString.mapContra(_.toString)
+  val encoder: YamlEncoder[PreReleaseClassifier] = YamlEncoder.forString.mapContra(_.show)
   val decoder: YamlDecoder[PreReleaseClassifier] = new YamlDecoder[PreReleaseClassifier]:
     override def construct(node: Node)(implicit settings: LoadSettings): Either[ConstructError, PreReleaseClassifier] =
       YamlDecoder.forString.construct(node).flatMap {

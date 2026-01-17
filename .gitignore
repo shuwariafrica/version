@@ -5,9 +5,14 @@ target/
 *.iws
 *.iml
 *.ipr
+*.md
 .bloop/
 .bsp
 .metals
 .sbtopts
 null/
 metals.sbt
+
+!README.md
+!docs/
+!docs/**/*.md

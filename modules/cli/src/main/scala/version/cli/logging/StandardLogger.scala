@@ -90,14 +90,14 @@ final class StandardLogger(
 
   /** Format a version with appropriate colours based on its type. */
   private inline def formatVersion(version: Version): String =
-    val versionStr = version.toString
+    val versionStr = Version.Show.Extended.show(version)
     if version.preRelease.isEmpty then colourConfig.colourize(versionStr, AnsiColours.Green)
     else if version.snapshot then colourConfig.colourize(versionStr, AnsiColours.Red)
     else colourConfig.colourize(versionStr, AnsiColours.Yellow)
 
   /** Output a version to stdout with appropriate formatting. */
   def outputVersion(version: Version): Unit =
-    val formatted = if colourConfig.isCI then version.toString else formatVersion(version)
+    val formatted = if colourConfig.isCI then Version.Show.Extended.show(version) else formatVersion(version)
     println(formatted)
 
   private inline def levelPrefix(level: LogLevel): String = level match

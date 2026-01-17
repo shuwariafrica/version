@@ -70,7 +70,7 @@ given JsonValueCodec[PreReleaseClassifier] = new JsonValueCodec[PreReleaseClassi
     input match
       case PreReleaseClassifier(v) => v
       case _                       => in.decodeError("Error decoding PreReleaseClassifier instance.")
-  override def encodeValue(x: PreReleaseClassifier, out: JsonWriter): Unit = out.writeVal(x.toString)
+  override def encodeValue(x: PreReleaseClassifier, out: JsonWriter): Unit = out.writeVal(x.show)
   // scalafix:off DisableSyntax.null, DisableSyntax.asInstanceOf
   override def nullValue: PreReleaseClassifier = null.asInstanceOf[PreReleaseClassifier]
   // scalafix:on

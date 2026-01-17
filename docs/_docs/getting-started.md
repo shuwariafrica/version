@@ -36,16 +36,19 @@ val v = "1.2.3-alpha.1".toVersionUnsafe
 v.major.value // 1
 v.minor.value // 2
 v.patch.value // 3
-v.isPreRelease // true
+v.preRelease.isDefined // true
 
 // Bump versions
-v.nextMajor // 2.0.0
-v.nextMinor // 1.3.0
-v.nextPatch // 1.2.4
+v.next[MajorVersion] // 2.0.0
+v.next[MinorVersion] // 1.3.0
+v.next[PatchNumber]  // 1.2.4
+
+// Advance within same pre-release
+v.next[Alpha]  // 1.2.3-alpha.2
 
 // Work with pre-releases
-v.release // 1.2.3
-v.toSnapshot // 1.2.3-SNAPSHOT
+v.core // 1.2.3
+v.as[Snapshot] // 1.2.3-SNAPSHOT
 ```
 
 ## What's Included

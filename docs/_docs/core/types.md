@@ -171,7 +171,7 @@ val v = Version(
   Some(PreRelease.alpha(PreReleaseNumber.fromUnsafe(1))),
   None
 )
-v.toString // "1.2.3-alpha.1"
+v.show // "1.2.3-alpha.1"
 ```
 
 ## Ordering

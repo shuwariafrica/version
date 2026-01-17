@@ -123,9 +123,9 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(PreRelease.snapshot.increment, PreRelease.snapshot)
   }
 
-  test("PreRelease.toString (SemVer format)") {
-    assertEquals(PreRelease.alpha(N5).toString, "alpha.5")
-    assertEquals(PreRelease.snapshot.toString, "SNAPSHOT")
+  test("PreRelease.show (SemVer format)") {
+    assertEquals(PreRelease.alpha(N5).show, "alpha.5")
+    assertEquals(PreRelease.snapshot.show, "SNAPSHOT")
   }
 
   test("PreRelease Ordering") {
@@ -183,20 +183,6 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.patch.value, 1)
     assertEquals(v.preRelease, pr)
     assertEquals(v.metadata, meta)
-  }
-
-  test("Version.toString (SemVer format)") {
-    assertEquals(V1_2_3.toString, "1.2.3")
-
-    val vPre = V1_2_3.copy(preRelease = Some(PreRelease.alpha(N1)))
-    assertEquals(vPre.toString, "1.2.3-alpha.1")
-
-    val meta = Metadata(List("build"))
-    val vMeta = V1_2_3.copy(metadata = Some(meta))
-    assertEquals(vMeta.toString, "1.2.3+build")
-
-    val vFull = vPre.copy(metadata = Some(meta))
-    assertEquals(vFull.toString, "1.2.3-alpha.1+build")
   }
 
   // --- Version Ordering (SemVer Precedence) ---
@@ -269,8 +255,9 @@ class VersionSuite extends munit.FunSuite:
     }
 
     // Specific check for the metadata case ensuring they are adjacent/equivalent in precedence
-    val baseIndex = sorted.indexWhere(_.toString.equals("1.0.0"))
-    val metaIndex = sorted.indexWhere(_.toString.equals("1.0.0+build.123"))
+    given Version.Show = Version.Show.Extended
+    val baseIndex = sorted.indexWhere(_.show.equals("1.0.0"))
+    val metaIndex = sorted.indexWhere(_.show.equals("1.0.0+build.123"))
     assert(baseIndex >= 0 && metaIndex >= 0)
     assertEquals(sorted(baseIndex).compare(sorted(metaIndex)), 0)
   }

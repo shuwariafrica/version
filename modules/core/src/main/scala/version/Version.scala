@@ -29,17 +29,8 @@ final case class Version(
   metadata: Option[Metadata]
 ) extends Ordered[Version]:
 
-  /** Formats the version as a standard SemVer 2.0.0 string. */
-  override def toString: String =
-    val b = new StringBuilder(s"${major.value}.${minor.value}.${patch.value}")
-    preRelease.foreach(pr => b.append('-').append(pr.toString))
-    metadata.foreach(meta => b.append(meta.show))
-    b.toString() // FIXME: Use an instance of Show
-
   /** Compares this version with another version according to SemVer precedence rules. */
   override inline def compare(that: Version): Int = summon[Ordering[Version]].compare(this, that)
-
-end Version
 
 /** Provides factory methods, utility functions, and type class instances for [[Version]]. */
 object Version:
