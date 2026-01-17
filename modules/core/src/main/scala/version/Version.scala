@@ -44,27 +44,33 @@ end Version
 /** Provides factory methods, utility functions, and type class instances for [[Version]]. */
 object Version:
 
-  /** Represents the core components of a version that can be bumped. */
-  enum Component:
-    case Major, Minor, Patch
-
-  object Component:
-    given CanEqual[Component, Component] = CanEqual.derived
-
-  /** Type class describing how to bump a version given a specific opaque component type `F`.
+  /** Type class describing how to bump a version given a specific component type `F`.
     *
-    * This enables the generic `version.next[F]` operation.
+    * Enables the generic `version.next[F]` operation. Instances are provided for:
+    *   - Core components: [[MajorVersion]], [[MinorVersion]], [[PatchNumber]]
+    *   - Versioned pre-release classifiers: [[PreReleaseClassifier.Dev Dev]], [[PreReleaseClassifier.Milestone Milestone]],
+    *     [[PreReleaseClassifier.Alpha Alpha]], [[PreReleaseClassifier.Beta Beta]], [[PreReleaseClassifier.ReleaseCandidate ReleaseCandidate]]
     *
-    * Implementations must follow SemVer rules:
-    *   - Increment the targeted component
-    *   - Reset all lower-precedence components to their reset/minimum values
-    *   - Clear pre-release and build metadata (use the 3-arg Version.apply)
+    * [[PreReleaseClassifier.Snapshot Snapshot]] has no `Increment` instance — use `as[Snapshot]` instead.
+    *
+    * For core components:
+    *   - Increments the targeted component
+    *   - Resets all lower-precedence components
+    *   - Clears pre-release and build metadata
+    *
+    * For pre-release classifiers:
+    *   - Same classifier: increments the pre-release number
+    *   - Higher-precedence classifier: sets to `.1` of that classifier
+    *   - Lower-precedence classifier or snapshot: bumps patch, then sets to `.1` of that classifier
+    *   - Final version: sets to `.1` of that classifier on the current core
     */
   trait Increment[F]:
     extension (v: Version) def increment: Version
 
   /** Provides `given` instances for the [[Increment]] type class. */
   object Increment:
+    import PreReleaseClassifier.*
+
     given Increment[MajorVersion]:
       extension (v: Version)
         inline def increment: Version =
@@ -80,10 +86,44 @@ object Version:
         inline def increment: Version =
           Version(v.major, v.minor, v.patch.increment)
 
+    // --- Versioned Pre-Release Classifier Instances ---
+
+    private inline def classifierIncrement(v: Version, target: PreReleaseClassifier): Version =
+      val pr1 = PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset))
+      v.preRelease match
+        case None =>
+          // Final version → start pre-release cycle on current core
+          Version(v.major, v.minor, v.patch, pr1)
+        case Some(pr) if pr.classifier == target =>
+          // Same classifier → increment number
+          Version(v.major, v.minor, v.patch, pr.increment)
+        case Some(pr) if pr.classifier.ordinal < target.ordinal =>
+          // Current has lower precedence → advance to higher classifier
+          Version(v.major, v.minor, v.patch, pr1)
+        case Some(_) =>
+          // Current has higher or equal precedence (snapshot) → bump patch, start new cycle
+          Version(v.major, v.minor, v.patch.increment, pr1)
+
+    given Increment[Dev]:
+      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Dev)
+
+    given Increment[Milestone]:
+      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Milestone)
+
+    given Increment[Alpha]:
+      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Alpha)
+
+    given Increment[Beta]:
+      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Beta)
+
+    given Increment[ReleaseCandidate]:
+      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.ReleaseCandidate)
+  end Increment
+
   /** Type class capturing a concrete pre-release classifier as a type `C`.
     *
-    * Enables the generic `version.next[C]` and `version.as[C]` operations by associating the singleton type of the
-    * enum case (e.g., `PreReleaseClassifier.Alpha.type`) with the classifier value.
+    * Enables the generic `as[C]` operation by associating the singleton type of the enum case
+    * (e.g., `PreReleaseClassifier.Alpha`) with the classifier value.
     */
   trait PreReleaseClass[C]:
     /** Returns the [[PreReleaseClassifier]] value associated with this type class instance. */
@@ -91,18 +131,25 @@ object Version:
 
   /** Provides `given` instances for the [[PreReleaseClass]] type class. */
   object PreReleaseClass:
-    given PreReleaseClass[PreReleaseClassifier.Dev.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Dev
-    given PreReleaseClass[PreReleaseClassifier.Milestone.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Milestone
-    given PreReleaseClass[PreReleaseClassifier.Alpha.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Alpha
-    given PreReleaseClass[PreReleaseClassifier.Beta.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Beta
-    given PreReleaseClass[PreReleaseClassifier.ReleaseCandidate.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.ReleaseCandidate
-    given PreReleaseClass[PreReleaseClassifier.Snapshot.type]:
-      inline def classifier: PreReleaseClassifier = PreReleaseClassifier.Snapshot
+    import PreReleaseClassifier.*
+
+    given PreReleaseClass[Dev]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.Dev
+
+    given PreReleaseClass[Milestone]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.Milestone
+
+    given PreReleaseClass[Alpha]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.Alpha
+
+    given PreReleaseClass[Beta]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.Beta
+
+    given PreReleaseClass[ReleaseCandidate]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.ReleaseCandidate
+
+    given PreReleaseClass[Snapshot]:
+      def classifier: PreReleaseClassifier = PreReleaseClassifier.Snapshot
 
   /** Creates a `Version` instance from core components (final release). */
   inline def apply(major: MajorVersion, minor: MinorVersion, patch: PatchNumber): Version =
@@ -304,23 +351,11 @@ object Version:
   extension (v: Version)
     // --- Status Checks ---
 
-    /** Returns `true` if the major version is non-zero, indicating stability according to SemVer. */
-    inline def isStable: Boolean = v.major.isStable
-
-    /** Returns `true` if the version has pre-release information. */
-    inline def isPreRelease: Boolean = v.preRelease.nonEmpty
-
-    /** Returns `true` if the version is a final release (no pre-release information). */
-    inline def isFinal: Boolean = v.preRelease.isEmpty
-
-    /** Returns `true` if the major version is non-zero and there is no pre-release information. */
-    inline def isStableRelease: Boolean = v.major.isStable && v.preRelease.isEmpty
+    /** Returns `true` if the version represents a stable release (major > 0 and not a snapshot). */
+    inline def stable: Boolean = v.major.isStable && !v.snapshot
 
     /** Returns `true` if the pre-release classifier is [[PreReleaseClassifier.Snapshot]]. */
-    inline def isSnapshot: Boolean = v.preRelease.exists(_.isSnapshot)
-
-    /** Returns `true` if a pre-release exists and is not Snapshot (i.e., a release candidate). */
-    inline def isCandidate: Boolean = v.preRelease.exists(pr => !pr.isSnapshot)
+    inline def snapshot: Boolean = v.preRelease.exists(_.isSnapshot)
 
     /** Returns the core version (major.minor.patch) without pre-release or build metadata. */
     inline def core: Version = Version(v.major, v.minor, v.patch)
@@ -329,66 +364,42 @@ object Version:
 
     /** Returns the next logical [[Version]] with the specified component incremented.
       *
-      * Clears pre-release and build metadata.
+      * For core components ([[MajorVersion]], [[MinorVersion]], [[PatchNumber]]):
+      *   - Clears pre-release and build metadata
       *
-      * Type-safe generic API: choose which component to bump via the type parameter. Examples:
-      *   - `v.next[MajorVersion]`
-      *   - `v.next[MinorVersion]`
-      *   - `v.next[PatchNumber]`
+      * For versioned pre-release classifiers ([[PreReleaseClassifier.Dev Dev]], [[PreReleaseClassifier.Milestone Milestone]],
+      * [[PreReleaseClassifier.Alpha Alpha]], [[PreReleaseClassifier.Beta Beta]], [[PreReleaseClassifier.ReleaseCandidate ReleaseCandidate]]):
+      *   - Same classifier: increments the pre-release number
+      *   - Higher-precedence classifier: sets to `.1` of that classifier
+      *   - Lower-precedence classifier or snapshot: bumps patch, then sets to `.1` of that classifier
+      *   - Final version: sets to `.1` of that classifier on the current core
+      *
+      * [[PreReleaseClassifier.Snapshot Snapshot]] has no `Increment` instance — use `as[Snapshot]` instead.
+      *
+      * {{{
+      * // Core component examples
+      * v.next[MajorVersion]    // 1.2.3 → 2.0.0
+      * v.next[MinorVersion]    // 1.2.3 → 1.3.0
+      * v.next[PatchNumber]     // 1.2.3 → 1.2.4
+      *
+      * // Pre-release classifier examples
+      * v.next[Alpha]           // 1.2.3 → 1.2.3-alpha.1
+      * v.next[Alpha]           // 1.2.3-alpha.1 → 1.2.3-alpha.2
+      * v.next[Beta]            // 1.2.3-alpha.5 → 1.2.3-beta.1
+      * v.next[Alpha]           // 1.2.3-beta.1 → 1.2.4-alpha.1 (lower precedence → new patch)
+      * }}}
       */
     inline def next[F](using Increment[F]): Version = v.increment
 
-    /** Returns the next major version, resetting minor and patch to zero. */
-    inline def nextMajor: Version = Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)
-
-    /** Returns the next minor version, resetting patch to zero. */
-    inline def nextMinor: Version = Version(v.major, v.minor.increment, PatchNumber.reset)
-
-    /** Returns the next patch version. */
-    inline def nextPatch: Version = Version(v.major, v.minor, v.patch.increment)
-
-    // --- Pre-Release and Metadata Operations ---
-
-    /** Returns a new [[Version]] with the pre-release information removed (promoting to a final release).
-      *
-      * Build metadata is preserved.
-      */
-    def release: Version = v.copy(preRelease = None)
-
-    /** Returns a new [[Version]] marked as a Snapshot of the current base version. */
-    def toSnapshot: Version = v.copy(preRelease = Some(PreRelease.snapshot))
-
     // --- Typed Pre-Release Operations ---
 
-    /** Advance within pre-release classifiers.
+    /** Sets the pre-release to the given classifier with a specific number.
       *
-      *   - Requires current version to be a pre-release
-      *   - Target classifier must have equal or higher precedence; otherwise returns InvalidPreReleaseTransition
-      *   - If same classifier: increment number
-      *   - If higher classifier: start at 1 (for versioned classifiers) or set to Snapshot (no number)
-      */
-    inline def advance[C](using cls: PreReleaseClass[C]): Either[VersionError, Version] =
-      val target = cls.classifier
-      v.preRelease match
-        case None          => Left(NotAPreReleaseVersion())
-        case Some(current) =>
-          if current.classifier.equals(target) then
-            // Same classifier: increment if versioned; for Snapshot increment is a no-op
-            Right(v.copy(preRelease = Some(current.increment)))
-          else if current.classifier.ordinal < target.ordinal then
-            // Higher precedence: start at 1 for versioned classifiers, or set Snapshot
-            val nextPr =
-              if target.versioned then PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset))
-              else PreRelease.snapshot
-            Right(v.copy(preRelease = Some(nextPr)))
-          else
-            // Lower precedence transitions are disallowed
-            Left(InvalidPreReleaseTransition(current.classifier, target))
-
-    /** Force-set the pre-release to the given typed classifier with a specific number.
+      * Unlike `next[C]`, this does not consider precedence — it directly sets the classifier
+      * and number. Clears build metadata (consistent with `next[C]`).
       *
-      *   - Works on final or pre-release versions
-      *   - Validates that the classifier is versioned and the number >= 1
+      * @return
+      *   `Right(Version)` on success, `Left(error)` if the classifier is non-versioned or number is invalid.
       */
     inline def as[C](n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, Version] =
       val target = cls.classifier
@@ -396,26 +407,22 @@ object Version:
       else
         PreReleaseNumber.from(n) match
           case Left(err)  => Left(err)
-          case Right(num) => Right(v.copy(preRelease = Some(PreRelease.fromUnsafe(target, Some(num)))))
+          case Right(num) => Right(Version(v.major, v.minor, v.patch, PreRelease.fromUnsafe(target, Some(num))))
 
-    /** Force-set the pre-release to the given typed classifier using minimum/reset number or snapshot.
+    /** Sets the pre-release to the given classifier with the default number (1 for versioned, none for Snapshot).
       *
-      *   - If classifier is versioned -> number = 1
-      *   - If classifier is Snapshot -> no number
+      * Unlike `next[C]`, this does not consider precedence — it directly sets the classifier.
+      * Clears build metadata (consistent with `next[C]`).
+      *
+      * {{{
+      * v.as[Alpha]    // 1.2.3 → 1.2.3-alpha.1
+      * v.as[Snapshot] // 1.2.3 → 1.2.3-snapshot
+      * }}}
       */
     inline def as[C](using cls: PreReleaseClass[C]): Version =
       val target = cls.classifier
       val pr = if target.versioned then PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset)) else PreRelease.snapshot
-      v.copy(preRelease = Some(pr))
-
-    /** Returns a new [[Version]] with the specified pre-release explicitly set. Overwrites existing pre-release. */
-    def set(preRelease: PreRelease): Version = v.copy(preRelease = Some(preRelease))
-
-    /** Returns a new [[Version]] with the specified build metadata attached. Overwrites existing metadata. */
-    def set(metadata: Metadata): Version = v.copy(metadata = Some(metadata))
-
-    /** Returns a new [[Version]] with any build metadata removed. */
-    def dropMetadata: Version = v.copy(metadata = None)
+      Version(v.major, v.minor, v.patch, pr)
   end extension
 
 end Version

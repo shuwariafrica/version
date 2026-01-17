@@ -91,9 +91,9 @@ final class StandardLogger(
   /** Format a version with appropriate colours based on its type. */
   private inline def formatVersion(version: Version): String =
     val versionStr = version.toString
-    if version.isFinal then colourConfig.colourize(versionStr, AnsiColours.Green)
-    else if version.isPreRelease then colourConfig.colourize(versionStr, AnsiColours.Yellow)
-    else colourConfig.colourize(versionStr, AnsiColours.Red)
+    if version.preRelease.isEmpty then colourConfig.colourize(versionStr, AnsiColours.Green)
+    else if version.snapshot then colourConfig.colourize(versionStr, AnsiColours.Red)
+    else colourConfig.colourize(versionStr, AnsiColours.Yellow)
 
   /** Output a version to stdout with appropriate formatting. */
   def outputVersion(version: Version): Unit =

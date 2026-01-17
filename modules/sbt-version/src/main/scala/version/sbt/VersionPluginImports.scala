@@ -78,3 +78,4 @@ object VersionPluginImports:
     */
   val resolvedVersion: SettingKey[Version] =
     settingKey("Resolved semantic version for the current repository state. Use Version.Show instances for rendering.")
+end VersionPluginImports

@@ -31,14 +31,14 @@ import version.sbt.VersionPluginImports.*
 /** sbt plugin for automatic semantic version resolution from Git state.
   *
   * Provides the following keys:
-  *   - `resolvedVersion`: The full [[Version]] object with 40-character SHA for maximum flexibility
+  *   - `resolvedVersion`: The full [[version.Version Version]] object with 40-character SHA
   *   - `version`: Standard SemVer string for publishing (excludes build metadata by default)
   *   - `isSnapshot`: `true` if the resolved version is a snapshot
-  *   - `versionRead`: Customisable [[Version.Read]] instance for parsing version tags
-  *   - `versionShow`: Optional [[Version.Show]] instance for rendering
+  *   - `versionRead`: Customisable [[version.Version.Read Version.Read]] instance for parsing version tags
+  *   - `versionShow`: Optional [[version.Version.Show Version.Show]] instance for rendering
   *   - `versionBranchOverride`: Optional branch name override for CI environments
   *
-  * @see [[VersionPluginImports]] for all available settings and types.
+  * @see [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
   */
 object VersionPlugin extends AutoPlugin:
 
@@ -77,7 +77,7 @@ object VersionPlugin extends AutoPlugin:
           case Some(s) => s.show(v)
           case None    => Version.Show.Standard.show(v)
       },
-      isSnapshot := resolvedVersion.value.isSnapshot
+      isSnapshot := resolvedVersion.value.snapshot
     )
 
   override def projectSettings: Seq[Setting[?]] = Seq.empty

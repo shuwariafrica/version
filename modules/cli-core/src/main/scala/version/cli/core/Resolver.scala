@@ -77,7 +77,7 @@ object Resolver:
               targets = keywords.collect { case Keyword.TargetSet(v) => v },
               highestReachable = Some(baseTag),
               highestRepo = allTags.sorted.lastOption,
-              allRepoFinals = allTags.filter(_.version.isFinal),
+              allRepoFinals = allTags.filter(_.version.preRelease.isEmpty),
               isHeadOnFinalTag = false
             )
           yield targetOpt.getOrElse {
@@ -91,7 +91,7 @@ object Resolver:
             _ = logger.verbose(s"Commits (no base tag): ${commits.size}", "Resolver")
             keywords = extractKeywords(commits)
             highestRepo = allTags.sorted.lastOption
-            repoFinals = allTags.filter(_.version.isFinal)
+            repoFinals = allTags.filter(_.version.preRelease.isEmpty)
             targetOpt = TargetVersionCalculator.selectValidTarget(
               targets = keywords.collect { case Keyword.TargetSet(v) => v },
               highestReachable = None,

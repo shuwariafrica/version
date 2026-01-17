@@ -275,18 +275,4 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(sorted(baseIndex).compare(sorted(metaIndex)), 0)
   }
 
-  // --- Version.Component Enum Tests ---
-
-  test("Version.Component enum has three cases") {
-    import Version.Component.*
-    assertEquals(Version.Component.values.toList, List(Major, Minor, Patch))
-  }
-
-  test("Version.Component cases are comparable via CanEqual") {
-    import Version.Component.*
-    assertEquals(Major, Major)
-    assertNotEquals(Major, Minor)
-    assertNotEquals(Minor, Patch)
-  }
-
 end VersionSuite

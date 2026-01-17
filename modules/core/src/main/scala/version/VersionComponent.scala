@@ -142,6 +142,13 @@ enum PreReleaseClassifier:
  */
 object PreReleaseClassifier:
 
+  type Dev = PreReleaseClassifier.Dev.type
+  type Milestone = PreReleaseClassifier.Milestone.type
+  type Alpha = PreReleaseClassifier.Alpha.type
+  type Beta = PreReleaseClassifier.Beta.type
+  type ReleaseCandidate = PreReleaseClassifier.ReleaseCandidate.type
+  type Snapshot = PreReleaseClassifier.Snapshot.type
+
   extension (c: PreReleaseClassifier)
     /** Returns `true` if the classifier requires a [[PreReleaseNumber]]. */
     inline def versioned: Boolean = c match

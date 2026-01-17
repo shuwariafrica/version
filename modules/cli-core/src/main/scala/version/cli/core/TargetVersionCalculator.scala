@@ -38,7 +38,7 @@ object TargetVersionCalculator:
     isHeadOnFinalTag: Boolean
   ): Option[Version] =
     val parsedCore = targets.map(dropPre)
-    val reachableFinalCore = highestReachable.collect { case t if t.version.isFinal => dropPre(t.version) }
+    val reachableFinalCore = highestReachable.collect { case t if t.version.preRelease.isEmpty => dropPre(t.version) }
     val highestReach = highestReachable.map(_.version)
     val repoHighestFinalCore = allRepoFinals.map(_.version).map(dropPre).sorted.lastOption
     val repoHighest = highestRepo.map(_.version)
@@ -50,15 +50,15 @@ object TargetVersionCalculator:
       val ruleD = if isHeadOnFinalTag && reachableFinalCore.contains(tc) then false else true
       // B) If highest reachable is pre-release, allow equal to its core; reject lower
       val ruleB = highestReach match
-        case Some(v) if v.isPreRelease =>
+        case Some(v) if v.preRelease.isDefined =>
           val prCore = dropPre(v)
           tc >= prCore
         case _ => true
       // C) Repo-wide when no reachable base; equality allowed only vs pre-release core
       val ruleC =
         (repoHighestFinalCore, repoHighest) match
-          case (Some(rf), _)                       => tc > rf
-          case (None, Some(vh)) if vh.isPreRelease =>
+          case (Some(rf), _)                               => tc > rf
+          case (None, Some(vh)) if vh.preRelease.isDefined =>
             tc >= dropPre(vh)
           case (None, _) => true
       ruleA && ruleD && ruleB && ruleC
@@ -86,7 +86,7 @@ object TargetVersionCalculator:
       Version(baseVersion.major, minorSet.getOrElse(baseVersion.minor.increment), PatchNumber.reset)
     else if patchSet.isDefined || hasPatch then
       Version(baseVersion.major, baseVersion.minor, patchSet.getOrElse(baseVersion.patch.increment))
-    else if baseVersion.isPreRelease then dropPre(baseVersion)
+    else if baseVersion.preRelease.isDefined then dropPre(baseVersion)
     else Version(baseVersion.major, baseVersion.minor, baseVersion.patch.increment)
 
   private def dropPre(v: Version): Version = v.copy(preRelease = None, metadata = None)
