@@ -120,7 +120,10 @@ These tokens are interchangeable synonyms:
 |-----------|----------------------------|
 | Major     | `major`, `breaking`        |
 | Minor     | `minor`, `feature`, `feat` |
-| Patch     | `patch`, `fix`             |
+
+**Note:** `patch` and `fix` tokens are recognised for the absolute set form (`version: patch: N`) only. Relative
+patch increments (`version: patch`, `fix: message`) have no effect because patch increment is already the default
+behaviour when no major or minor change is specified.
 
 ### 4.4 Version Directive Forms
 
@@ -132,8 +135,7 @@ The `version:` keyword supports three forms:
 version: <bump-token>
 ```
 
-Examples: `version: major`, `version: breaking`, `version: minor`, `version: feature`, `version: feat`,
-`version: patch`, `version: fix`
+Examples: `version: major`, `version: breaking`, `version: minor`, `version: feature`, `version: feat`
 
 **Absolute Set** (set to specific value):
 
@@ -141,7 +143,7 @@ Examples: `version: major`, `version: breaking`, `version: minor`, `version: fea
 version: <bump-token>: <N>
 ```
 
-Examples: `version: major: 3`, `version: minor: 5`, `version: patch: 0`
+Examples: `version: major: 3`, `version: minor: 5`, `version: patch: 5`
 
 Each `<N>` must be a non-negative integer. If multiple absolutes target the same component, the highest value wins.
 
@@ -165,9 +167,11 @@ Valid examples:
 
 - `breaking: Remove deprecated API` → Major increment
 - `feat: Add caching support` → Minor increment
-- `fix: Handle null pointer` → Patch increment
 
-Invalid (no text after colon): `breaking:`, `fix:`, `feat:`
+**Note:** `fix: <text>` and `patch: <text>` shorthands are recognised for Conventional Commits compatibility but have
+no effect on version calculation — patch increment is already the default behaviour.
+
+Invalid (no text after colon): `breaking:`, `feat:`
 
 ### 4.6 Target Directive
 
@@ -397,11 +401,12 @@ Examples:
 ```bnf
 version-directive    ::= "version" ":" bump-token
                        | "version" ":" bump-token ":" integer
+                       | "version" ":" patch-token ":" integer
                        | "version" ":" "ignore"
 
 standalone-shorthand ::= bump-token ":" non-empty-text
 
-bump-token           ::= major-token | minor-token | patch-token
+bump-token           ::= major-token | minor-token
 
 major-token          ::= "major" | "breaking"
 minor-token          ::= "minor" | "feature" | "feat"
@@ -413,6 +418,9 @@ integer              ::= <decimal digits without sign>
 non-empty-text       ::= <any non-whitespace content>
 semver-literal       ::= <valid SemVer string; only core retained>
 ```
+
+**Note:** `patch-token` only applies to the absolute set form. Relative patch increments and standalone
+`fix:`/`patch:` shorthands are recognised but have no effect (patch increment is the default).
 
 ---
 
@@ -511,14 +519,14 @@ semver-literal       ::= <valid SemVer string; only core retained>
 
 - Base: `1.2.3`
 - Commits: `version: ignore` (docs), `fix: Edge case`
-- Result: `1.2.4-SNAPSHOT+...` (ignored commit excluded)
+- Result: `1.2.4-SNAPSHOT+...` (ignored commit excluded; `fix:` has no effect as patch is default)
 
 ### 11.17 Synonym Equivalence
 
 - `version: breaking` ≡ `version: major`
 - `version: feat: 5` ≡ `version: feature: 5` ≡ `version: minor: 5`
 - `feat: Add X` ≡ `feature: Add X` (both → minor)
-- `fix: Y` ≡ `patch: Y` (both → patch)
+- `fix: Y` ≡ `patch: Y` (both → no effect; patch is default)
 
 ---
 
@@ -533,7 +541,6 @@ semver-literal       ::= <valid SemVer string; only core retained>
 | `version: majorx`                                  | Not boundary-aligned       |
 | `retarget: 2.0.0`                                  | Not a keyword              |
 | `target: 3.0.0` when repo highest final is `4.3.0` | Regression                 |
-| `fix:`                                             | Empty standalone shorthand |
 | `breaking:`                                        | Empty standalone shorthand |
 | `change: minor`                                    | Unrecognised keyword       |
 

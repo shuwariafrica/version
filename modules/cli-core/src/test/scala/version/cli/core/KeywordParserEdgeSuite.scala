@@ -59,8 +59,8 @@ final class KeywordParserEdgeSuite extends FunSuite:
     // feature: new (shorthand) + feat: add (shorthand) + minor: some feature (shorthand)
     // + FEAT:feature (shorthand, no space) + version:minor = 5 MinorChange
     assertEquals(ks.count(_ == MinorChange), 5)
-    // FIX : bug fix + patch: some fix + FIX:fix with no space = 3 PatchChange
-    assertEquals(ks.count(_ == PatchChange), 3)
+    // fix:/patch: shorthands are recognised but ignored (patch is default behaviour)
+    // No PatchChange should be emitted
     // version: minor: 7 (absolute, spaces around colons)
     assert(ks.exists { case MinorSet(v) => v.value == 7; case _ => false })
     // version: patch: 00012 (absolute, leading zeros are parsed as decimal)

@@ -41,8 +41,8 @@ final class KeywordParserSuite extends FunSuite:
     assertEquals(ks.count(_ == MajorChange), 2)
     // Minor increment from minor, feature, and feat
     assertEquals(ks.count(_ == MinorChange), 3)
-    // Patch increment from both patch and fix
-    assertEquals(ks.count(_ == PatchChange), 2)
+    // Patch relative increments (version: patch, version: fix) are ignored (patch is default)
+    // No PatchChange should be emitted
   }
 
   test("standalone shorthands require non-empty text after colon") {
@@ -60,13 +60,13 @@ final class KeywordParserSuite extends FunSuite:
         |feat:
         |""".stripMargin
     val ks = KeywordParser.parse(msg)
-    // Valid shorthands (7 with text)
+    // Valid shorthands: major/breaking → MajorChange, feat/feature/minor → MinorChange
+    // fix/patch shorthands are recognised but ignored (patch is default behaviour)
     assertEquals(ks.count(_ == MajorChange), 2)
     assertEquals(ks.count(_ == MinorChange), 3) // feat, feature, minor
-    assertEquals(ks.count(_ == PatchChange), 2)
     // Invalid bare shorthands (no text) should NOT produce keywords
-    // Total should be 7, not 11
-    assertEquals(ks.size, 7)
+    // Total should be 5 (2 Major + 3 Minor), not 7
+    assertEquals(ks.size, 5)
   }
 
   test("legacy change: keyword is NOT supported") {

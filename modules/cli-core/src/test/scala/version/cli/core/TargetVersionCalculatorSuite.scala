@@ -105,7 +105,8 @@ final class TargetVersionCalculatorSuite extends FunSuite:
     val v2 = TargetVersionCalculator.fromKeywords(base, List(Keyword.MinorChange))
     assertEquals(v2, core(1, 3, 0))
 
-    val v3 = TargetVersionCalculator.fromKeywords(base, List(Keyword.PatchChange))
+    // No relative keywords → default patch increment
+    val v3 = TargetVersionCalculator.fromKeywords(base, Nil)
     assertEquals(v3, core(1, 2, 4))
 
     val v4 = TargetVersionCalculator.fromKeywords(

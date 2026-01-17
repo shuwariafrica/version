@@ -169,13 +169,12 @@ object KeywordParser:
         val j0 = afterColon(line, i + "minor".length)
         if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ MinorChange
         i = if j0 != -1 then j0 else i + "minor".length
+      // fix: and patch: standalone shorthands are recognised but ignored (patch is default)
       else if startsWithKW(line, i, "fix") then
         val j0 = afterColon(line, i + "fix".length)
-        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
         i = if j0 != -1 then j0 else i + "fix".length
       else if startsWithKW(line, i, "patch") && !startsWithKW(line, i, "patchversion") then
         val j0 = afterColon(line, i + "patch".length)
-        if j0 != -1 && hasNonEmptyText(line, j0) then out = out :+ PatchChange
         i = if j0 != -1 then j0 else i + "patch".length
       else if startsWithKW(line, i, "version") then
         val j0 = afterColon(line, i + "version".length)
@@ -213,6 +212,7 @@ object KeywordParser:
                 out = out :+ MinorChange
                 i = j1
             case w if w == "patch" || w == "fix" =>
+              // Only absolute form (version: patch: N) is meaningful; relative form is ignored
               val j2 = afterColon(line, j1)
               if j2 != -1 then
                 val (nOpt, j3) = readInt(line, j2)
@@ -222,7 +222,7 @@ object KeywordParser:
                     i = j3
                   case None => i = j1
               else
-                out = out :+ PatchChange
+                // Relative patch increment ignored (patch is default behaviour)
                 i = j1
             case _ =>
               // Unrecognised word after version:, skip

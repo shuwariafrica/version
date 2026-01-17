@@ -30,10 +30,10 @@ object Keyword:
   case object Ignore extends Keyword
 
   // Relative Change Keywords (coalesced to at-most one increment per component)
+  // Note: PatchChange is not needed as patch increment is the default behaviour
   sealed trait Relative extends Keyword
   case object MajorChange extends Relative
   case object MinorChange extends Relative
-  case object PatchChange extends Relative
 
   // Absolute Version Set Keywords (highest wins per component)
   sealed trait Absolute extends Keyword

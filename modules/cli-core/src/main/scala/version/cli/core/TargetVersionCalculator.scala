@@ -79,13 +79,11 @@ object TargetVersionCalculator:
 
     val hasMajor = relatives.contains(MajorChange)
     val hasMinor = relatives.contains(MinorChange)
-    val hasPatch = relatives.contains(PatchChange)
 
     if majorSet.isDefined || hasMajor then Version(majorSet.getOrElse(baseVersion.major.increment), MinorVersion.reset, PatchNumber.reset)
     else if minorSet.isDefined || hasMinor then
       Version(baseVersion.major, minorSet.getOrElse(baseVersion.minor.increment), PatchNumber.reset)
-    else if patchSet.isDefined || hasPatch then
-      Version(baseVersion.major, baseVersion.minor, patchSet.getOrElse(baseVersion.patch.increment))
+    else if patchSet.isDefined then Version(baseVersion.major, baseVersion.minor, patchSet.get)
     else if baseVersion.preRelease.isDefined then dropPre(baseVersion)
     else Version(baseVersion.major, baseVersion.minor, baseVersion.patch.increment)
 
