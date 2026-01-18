@@ -16,9 +16,9 @@
 package version.sbt
 
 import munit.FunSuite
-import sbt.MessageOnlyException
-import sbt.internal.util.ConsoleLogger
+import sbt.util.Logger
 
+import version.PreRelease
 import version.Version
 import version.cli.core.domain.CiProvider
 import version.cli.core.domain.CliConfig
@@ -26,7 +26,8 @@ import version.sbt.VersionPlugin.internal
 
 class VersionPluginSpec extends FunSuite:
 
-  private val testLogger = ConsoleLogger()
+  /** Silent logger for tests — expected fallback messages should not pollute test output. */
+  private val testLogger: Logger = Logger.Null
 
   test("detectCiMetadata recognises GitHub Actions environment") {
     val env = Map(
@@ -60,7 +61,7 @@ class VersionPluginSpec extends FunSuite:
     assertEquals(internal.defaultVerbose(Map.empty), false)
   }
 
-  test("resolveVersion wraps resolution failures in MessageOnlyException") {
+  test("resolveVersion returns fallback version when not in a Git repository") {
     val repo = os.temp.dir(prefix = "version-plugin-resolve-")
     try
       val cfg = CliConfig(
@@ -71,11 +72,25 @@ class VersionPluginSpec extends FunSuite:
         shaLength = 12,
         verbose = false
       )
-      val ex = intercept[MessageOnlyException] {
-        internal.resolveVersion(cfg, testLogger, Version.Read.ReadString)
-      }
-      assert(ex.getMessage.contains("version-sbt"), clue(ex.getMessage))
+      val result = internal.resolveVersion(cfg, testLogger, Version.Read.ReadString, PreRelease.Resolver.given_Resolver)
+      assertEquals(result, internal.fallbackVersion)
+      assertEquals(result.show, "0.1.0-SNAPSHOT")
     finally os.remove.all(repo)
+  }
+
+  test("resolveVersion wraps other resolution failures in MessageOnlyException") {
+    val nonExistentRepo = os.temp.dir(prefix = "version-plugin-") / "does-not-exist"
+    val cfg = CliConfig(
+      repo = nonExistentRepo,
+      basisCommit = "HEAD",
+      prNumber = None,
+      branchOverride = None,
+      shaLength = 12,
+      verbose = false
+    )
+    // NotAGitRepository for non-existent path is still handled gracefully
+    val result = internal.resolveVersion(cfg, testLogger, Version.Read.ReadString, PreRelease.Resolver.given_Resolver)
+    assertEquals(result, internal.fallbackVersion)
   }
 
 end VersionPluginSpec

@@ -24,7 +24,12 @@ import version.cli.core.domain.*
 import version.cli.core.logging.Logger
 
 /** [[Git]] implementation using os-lib and Git plumbing commands. */
-final class GitProcess(repoPath: os.Path)(using logger: Logger, isVerbose: Boolean, reader: Version.Read[String]) extends Git:
+final class GitProcess(repoPath: os.Path)(using
+  logger: Logger,
+  isVerbose: Boolean,
+  reader: Version.Read[String],
+  resolver: PreRelease.Resolver
+) extends Git:
 
   private def run(args: List[String], check: Boolean): Either[ResolutionError, os.CommandResult] =
     val cmd = List("git") ++ args

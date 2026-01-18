@@ -128,13 +128,18 @@ val `sbt-version` =
   project
     .in(file("modules/sbt-version"))
     .dependsOn(`version-cli-core`.jvm)
+    .dependsOn(`version-testkit`.jvm % Test)
     .enablePlugins(SbtPlugin)
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(sbtVersion := "2.0.0-RC8")
     .settings(Compile / scalacOptions -= "-deprecation")
     .settings(
-      scriptedLaunchOpts += (LocalRootProject / Keys.version)(v => s"-Dplugin.version=$v").value
+      scriptedBufferLog := true,
+      scriptedLaunchOpts ++= Seq(
+        s"-Dplugin.version=${(LocalRootProject / Keys.version).value}",
+        s"-Dsbt.boot.directory=${file(sys.props("user.home")) / ".sbt" / "boot"}"
+      )
     )
 
 val `version-jvm` =

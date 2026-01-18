@@ -2,13 +2,15 @@
 title: Contributing
 ---
 
-# Contributing
+## Contributing
 
 Contributions to `version` are welcome. This guide covers the project conventions and workflow.
 
-## Development Environment
+---
 
-### Prerequisites
+### Development Environment
+
+#### Prerequisites
 
 - **JDK**: @JDK_VERSION@ or later
 - **Scala**: @SCALA3_VERSION@
@@ -16,15 +18,7 @@ Contributions to `version` are welcome. This guide covers the project convention
 - **NodeJS**: For JS Platform tests
 - **Clang / LLVM**: For Native Platform tests
 
-### Project Setup
-
-```bash
-git clone https://github.com/shuwariafrica/version.git
-cd version
-sbt compile
-```
-
-### Running Tests
+#### Running Tests
 
 ```bash
 sbt test                    # All tests
@@ -35,18 +29,22 @@ sbt version-js/test         # All JS Platform Modules
 
 Tests run on JVM, Scala.js, and Scala Native platforms.
 
-## Code Style
+---
 
-### Formatting and Linting
+### Code Style
+
+#### Formatting and Linting
 
 ```bash
 sbt format      # Apply scalafmt + scalafix + license headers
 sbt check       # Verify formatting compliance
 ```
 
-## Architecture
+---
 
-### Module Structure
+### Architecture
+
+#### Module Structure
 
 | Module                | Scope             | Dependencies            |
 |-----------------------|-------------------|-------------------------|
@@ -58,7 +56,7 @@ sbt check       # Verify formatting compliance
 | `version-zio-prelude` | Type classes      | version, zio-prelude    |
 | `version-testkit`     | Test utilities    | version, munit          |
 
-### Version Resolution
+#### Version Resolution
 
 The resolution engine in `version-cli-core` follows the [Technical Specification](specification.md). Key components:
 
@@ -66,7 +64,9 @@ The resolution engine in `version-cli-core` follows the [Technical Specification
 - [[version.cli.core.TargetVersionCalculator]] — computes target version from keywords and validates targets
 - [[version.cli.core.Resolver]] — orchestrates the full resolution workflow
 
-## Pull Request Guidelines
+---
+
+### Pull Request Guidelines
 
 1. **One concern per PR** — focused changes are easier to review
 2. **Include tests** — coverage for new functionality and regressions
@@ -74,7 +74,7 @@ The resolution engine in `version-cli-core` follows the [Technical Specification
 4. **Update documentation** — keep README and docs in sync with changes
 5. **Run static checks** — `sbt check` must pass
 
-## Specification Changes
+### Specification Changes
 
 The [Technical Specification](specification.md) is normative. If code contradicts the specification, the specification
 wins. Changes to version resolution behaviour require:
@@ -84,7 +84,9 @@ wins. Changes to version resolution behaviour require:
 3. Comprehensive test coverage
 4. Documentation updates
 
-## Licence
+---
+
+### Licence
 
 By contributing, you agree that your contributions will be licensed under
 the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).

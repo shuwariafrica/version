@@ -32,12 +32,8 @@ subsection:
     index: sbt/overview.md
     directory: sbt
     subsection:
-      - title: Installation
-        page: sbt/installation.md
       - title: Settings
         page: sbt/settings.md
-      - title: Custom Rendering
-        page: sbt/rendering.md
 
   - title: Serialisation
     index: codecs/overview.md

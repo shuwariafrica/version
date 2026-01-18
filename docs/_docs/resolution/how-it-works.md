@@ -2,11 +2,9 @@
 title: How It Works
 ---
 
-# How It Works
+## How It Works
 
-The version resolution engine follows a deterministic algorithm.
-
-## Mode Selection
+The version resolution engine follows a deterministic algorithm in one of two modes:
 
 | Condition                                       | Result                  |
 |-------------------------------------------------|-------------------------|
@@ -15,7 +13,7 @@ The version resolution engine follows a deterministic algorithm.
 
 "Dirty" includes modified tracked files and untracked files (excluding ignored).
 
-## Concrete Version
+### Concrete Version
 
 At a clean tagged commit, the engine returns the exact tag:
 
@@ -24,13 +22,11 @@ Tag: v2.3.1
 Result: 2.3.1
 ```
 
-No pre-release or metadata is added.
-
-## Development Version
+### Development Version
 
 Between releases, the engine computes a target version:
 
-### Priority Order
+#### Priority Order
 
 1. **Valid target directive** — explicit `target: X.Y.Z` in commits
 2. **Absolute sets** — `version: major: 3` (highest per component)
@@ -41,9 +37,11 @@ Between releases, the engine computes a target version:
     - No base, repo has tags → highest major + 1
     - No tags anywhere → `0.1.0`
 
-### Build Metadata
+---
 
-Development versions include ordered metadata:
+### Metadata Identifiers
+
+The resolution engine attaches build metadata to development versions in the following order:
 
 | Order | Identifier     | Condition                    |
 |-------|----------------|------------------------------|
@@ -53,9 +51,13 @@ Development versions include ordered metadata:
 | 4     | `sha<hex>`     | Always (7-40 chars)          |
 | 5     | `dirty`        | Worktree dirty               |
 
-## Tag Recognition
+Whether metadata appears in the rendered string depends on the [Show instance](../core/operations.md#rendering).
 
-### Valid Tags
+---
+
+### Tag Recognition
+
+#### Valid Tags
 
 A tag is recognised if:
 
@@ -64,29 +66,31 @@ A tag is recognised if:
 - Pre-release classifiers map to known aliases
 - All components are valid integers
 
-### Multiple Tags
+#### Multiple Tags
 
 If multiple valid tags exist on one commit:
 
 - Final release outranks pre-release of same core
 - Otherwise, highest SemVer wins
 
-## Commit Scanning
+---
 
-### Scope
+### Commit Scanning
+
+#### Scope
 
 | Condition       | Scan Range                      |
 |-----------------|---------------------------------|
 | Base tag exists | Commits after base up to HEAD   |
 | No base tag     | All commits reachable from HEAD |
 
-### Traversal
+#### Traversal
 
 - **All commits are scanned**, including merge commits themselves
 - Keywords scanned from all reachable paths (traverses entire merge graph)
 - Commit count for metadata uses first-parent only, excluding merges
 
-### Ignore Directives
+#### Ignore Directives
 
 Commits can be excluded from version calculation:
 
@@ -99,7 +103,9 @@ Commits can be excluded from version calculation:
 
 **Use case**: When merging a PR, use `version: ignore-merged` in the merge commit to discard all incoming version directives and specify a consolidated directive instead.
 
-## Examples
+---
+
+### Examples
 
 | Scenario               | Base            | Result               |
 |------------------------|-----------------|----------------------|

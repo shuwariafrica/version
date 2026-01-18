@@ -70,7 +70,7 @@ Where metadata includes:
 
 Example: `1.2.4-SNAPSHOT+pr42.branchmain.commits5.shaabc1234.dirty`
 
-## In This Section
+#### See also
 
 - [How It Works](how-it-works.md) — detailed resolution flow
 - [Commit Directives](directives.md) — controlling versions via commits

@@ -152,7 +152,33 @@ jobs:
       - name: Package Project Products
         run: sbt --no-colors --supershell=false "version-js/package"
 
-  static-analysis:
+  test_sbt_scripted:
+    name: Execute sbt Scripted Tests
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java ${{ env.JDK_CURRENT }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_CURRENT }}
+          check-latest: true
+
+      - name: Set up sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Set up Coursier cache
+        uses: coursier/cache-action@v7
+
+      - name: Execute sbt Scripted Tests
+        run: sbt --no-colors --supershell=false "sbt-version/scripted"
+
+  static_analysis:
     name: Static Analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -205,7 +231,12 @@ jobs:
 
   publish:
     name: Publish Release
-    needs: [ test_jvm, test_native, test_js, static-analysis ]
+    needs: 
+      - test_jvm
+      - test_native
+      - test_js
+      - test_sbt_scripted
+      - static_analysis
     if: github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
 

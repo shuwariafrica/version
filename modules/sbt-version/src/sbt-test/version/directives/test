@@ -1,0 +1,38 @@
+# Directive parsing tests
+# Tests version: major, version: minor, target:, and standalone shorthands
+
+# Initialise git repository with v1.0.0 tag
+> gitInit
+> reload
+
+# After tag, default is patch bump
+> gitCommitWithMessage housekeeping
+> reload
+> checkVersionPrefix 1.0.1-SNAPSHOT
+
+# version: minor bumps minor, resets patch
+> gitCommitWithMessage version: minor
+> reload
+> checkVersionPrefix 1.1.0-SNAPSHOT
+
+# version: major bumps major, resets minor and patch
+> gitCommitWithMessage version: major
+> reload
+> checkVersionPrefix 2.0.0-SNAPSHOT
+
+# target: sets exact version (when valid)
+> gitCommitWithMessage target: 3.0.0
+> reload
+> checkVersionPrefix 3.0.0-SNAPSHOT
+
+# standalone shorthand: breaking:
+> gitTag v3.0.0
+> gitCommitWithMessage breaking: API overhaul
+> reload
+> checkVersionPrefix 4.0.0-SNAPSHOT
+
+# standalone shorthand: feat:
+> gitTag v4.0.0
+> gitCommitWithMessage feat: Add new feature
+> reload
+> checkVersionPrefix 4.1.0-SNAPSHOT

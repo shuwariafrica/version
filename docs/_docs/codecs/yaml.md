@@ -1,7 +1,7 @@
 ---
 title: scala-yaml
 ---
-# scala-yaml
+## scala-yaml
 
 Codecs for [scala-yaml](https://github.com/VirtusLab/scala-yaml).
 
@@ -9,7 +9,9 @@ Codecs for [scala-yaml](https://github.com/VirtusLab/scala-yaml).
 libraryDependencies += "africa.shuwari" %%  /* or `%%%` */ "version-codecs-yaml" % "@VERSION@"
 ```
 
-## Usage
+---
+
+### Usage
 
 ```scala
 import org.virtuslab.yaml.*
@@ -25,7 +27,7 @@ val decoded = yaml.as[Version]
 // Right(Version(1, 2, 3, Some(alpha.1), None))
 ```
 
-## In Data Structures
+### In Data Structures
 
 ```scala
 import org.virtuslab.yaml.*
@@ -38,7 +40,7 @@ pkg.asYaml
 // version: 1.0.0
 ```
 
-## Provided Codecs
+### Provided Codecs
 
 ```scala
 given YamlCodec[Version]
@@ -51,7 +53,7 @@ given YamlCodec[PreRelease]
 given YamlCodec[Metadata]
 ```
 
-## YAML Examples
+### YAML Examples
 
 ```yaml
 # Simple version
@@ -67,7 +69,7 @@ version: 1.2.3+build.456
 version: 1.2.3-rc.1+sha.abc123
 ```
 
-## Error Handling
+### Error Handling
 
 ```scala
 "not-a-version".as[Version]

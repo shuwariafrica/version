@@ -2,7 +2,7 @@
 title: ZIO Prelude
 ---
 
-# ZIO Prelude
+## ZIO Prelude
 
 [ZIO Prelude](https://github.com/zio/zio-prelude) type class instances for version types.
 
@@ -10,7 +10,7 @@ title: ZIO Prelude
 libraryDependencies += "africa.shuwari" %% /* or `%%%` */ "version-zio-prelude" % "@VERSION@"
 ```
 
-## Usage
+### Usage
 
 ```scala
 import zio.prelude.*
@@ -18,9 +18,11 @@ import version.*
 import version.zio.prelude.given
 ```
 
-## Provided Instances
+---
 
-### Ord
+### Provided Instances
+
+#### Ord
 
 Ordering for all comparable types:
 
@@ -38,7 +40,9 @@ Types with `Ord`:
 - [[version.PreReleaseClassifier]]
 - [[version.PreRelease]]
 
-### Equal
+---
+
+#### Equal
 
 Equality for all types:
 
@@ -49,7 +53,9 @@ Equal[Version].equal(v1, v1) // true
 Equal[Metadata].equal(bm1, bm2)
 ```
 
-### Hash
+---
+
+#### Hash
 
 Hashing for all types:
 
@@ -59,7 +65,9 @@ import zio.prelude.Hash
 Hash[Version].hash(v) // Int
 ```
 
-### Debug
+---
+
+#### Debug
 
 Pretty-printing for all types:
 
@@ -69,6 +77,8 @@ import zio.prelude.Debug
 Debug[Version].debug(v).render
 // "Version(1, 0, 0, None, None)"
 ```
+
+---
 
 ## Example Usage
 
@@ -92,6 +102,8 @@ versions.distinct
 // Sorting (uses Ord)
 versions.sorted
 ```
+
+---
 
 ## Platform Support
 

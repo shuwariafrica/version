@@ -2,7 +2,7 @@
 title: Core Library
 ---
 
-# Core Library
+## Core Library
 
 The `version` module provides a type-safe SemVer 2.0.0 model using Scala 3 opaque types.
 
@@ -10,7 +10,7 @@ The `version` module provides a type-safe SemVer 2.0.0 model using Scala 3 opaqu
 libraryDependencies += "africa.shuwari" %% /* or `%%%` */ "version" % "@VERSION@"
 ```
 
-## Overview
+### Overview
 
 The core library offers:
 
@@ -19,7 +19,7 @@ The core library offers:
 - **Composable operations** — bump, progress through pre-release stages
 - **Robust parsing** — handles common version formats with customisable pre-release mapping
 
-## Package Structure
+### Package Structure
 
 All types are exported from the `version` package:
 
@@ -27,7 +27,7 @@ All types are exported from the `version` package:
 import version.*
 ```
 
-## Types at a Glance
+### Types at a Glance
 
 | Type                             | Purpose                | Constraint                                |
 |----------------------------------|------------------------|-------------------------------------------|
@@ -40,7 +40,9 @@ import version.*
 | [[version.Metadata]]             | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
 | [[version.Version]]              | Complete version       | MAJOR.MINOR.PATCH[-PRERELEASE][+METADATA] |
 
-## Quick Reference
+---
+
+### Quick Reference
 
 ```scala
 import version.*
@@ -74,7 +76,7 @@ v.as[Snapshot] // 1.2.3-SNAPSHOT
 v.as[Beta] // 1.2.3-beta.1
 ```
 
-## Platform Support
+### Platform Support
 
 | Platform                             | Status |
 |--------------------------------------|:------:|
@@ -82,7 +84,9 @@ v.as[Beta] // 1.2.3-beta.1
 | Scala.js (@SCALAJS_VERSION@)         |   ✅    |
 | Scala Native (@SCALANATIVE_VERSION@) |   ✅    |
 
-## In This Section
+---
+
+#### See also
 
 - [Version Types](types.md) — detailed type documentation
 - [Parsing](parsing.md) — parsing versions from strings

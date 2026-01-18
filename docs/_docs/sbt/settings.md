@@ -2,124 +2,118 @@
 title: Settings
 ---
 
-# Settings
+## Settings
 
 Configuration settings for the sbt plugin.
 
-## versionShaLength
+### Available Keys
 
-SHA identifier truncation length.
+#### versionRead
+
+Customise how Git tags are parsed into `Version` values. The plugin uses the standard SemVer parser by default.
 
 ```scala
-versionShaLength := 12
+versionRead := Version.Read.ReadString
 ```
 
-|             |       |
-|-------------|-------|
-| **Type**    | `Int` |
-| **Range**   | 7–40  |
-| **Default** | `7`   |
+|             |                                    |
+|-------------|------------------------------------|
+| **Type**    | [[version.Version.Read]]`[String]` |
+| **Default** | [[version.Version.Read.ReadString]] |
 
-Example output: `shaabc1234567890` vs `shaabc1234`
+For custom parsers, see [Parsing — Custom Read](../core/parsing.md#custom-read-instances).
 
-## versionPrNumber
+---
 
-Pull request number for build metadata.
+#### versionResolver
+
+Customise how pre-release identifiers from Git tags are mapped to [[version.PreRelease]] values. The default resolver
+recognises standard classifiers (alpha, beta, rc, etc.) and their aliases.
 
 ```scala
-versionPrNumber := Some(42)
-
-// From environment
-versionPrNumber := sys.env.get("PR_NUMBER").flatMap(_.toIntOption)
+versionResolver := PreRelease.Resolver.given_Resolver
 ```
 
-|             |               |
-|-------------|---------------|
-| **Type**    | `Option[Int]` |
-| **Default** | `None`        |
+|             |                                               |
+|-------------|-----------------------------------------------|
+| **Type**    | [[version.PreRelease.Resolver]]               |
+| **Default** | [[version.PreRelease.Resolver.given_Resolver]] |
 
-Adds `pr42` to metadata when set.
+For custom resolvers, see [Parsing — Custom Resolver](../core/parsing.md#custom-pre-release-mapping).
 
-## versionBranchOverride
+---
 
-Override detected branch name.
+#### versionShow
+
+Controls how `ThisBuild / version` is rendered. `None` means "use [[version.Version.Show.Standard]]," which excludes
+build metadata. Supply `Some(showInstance)` to override the behaviour.
 
 ```scala
-versionBranchOverride := Some("release")
+versionShow := Some(Version.Show.Extended) // include metadata
+versionShow := None                        // default (no metadata)
+```
+
+|             |                                        |
+|-------------|----------------------------------------|
+| **Type**    | `Option[`[[version.Version.Show]]`]`   |
+| **Default** | `None` (→ [[version.Version.Show.Standard]]) |
+
+For custom Show implementations, see [Operations — Rendering](../core/operations.md#rendering).
+
+---
+
+#### resolvedVersion
+
+The fully resolved [[version.Version]] value for the current repository state. The plugin always records the complete
+40-character commit SHA in build metadata; rendering logic decides how much to surface.
+
+```scala
+val v = resolvedVersion.value
+val core = s"${v.major.value}.${v.minor.value}.${v.patch.value}"
+```
+
+|             |                        |
+|-------------|------------------------|
+| **Type**    | `SettingKey[Version]`  |
+
+Use this when you need structured data (e.g. to derive Docker tags) rather than the pre-rendered string.
+
+---
+
+#### versionBranchOverride
+
+Override the branch name detected from Git. Useful when CI performs detached checkouts.
+
+```scala
+versionBranchOverride := sys.env.get("GITHUB_REF_NAME")
 ```
 
 |             |                        |
 |-------------|------------------------|
 | **Type**    | `Option[String]`       |
-| **Default** | `None` (auto-detected) |
+| **Default** | `sys.env.get("VERSION_BRANCH")` |
 
-Use when CI checkouts don't preserve branch information.
+When unset, the plugin falls back to Git's current branch (if available).
 
-## versionRead
+---
 
-The [[version.Version.Read]]`[String]` instance used for parsing version tags.
+#### Environment Hooks
 
-```scala
-import version.Version
+Two environment variables influence resolution:
 
-// Default: use standard SemVer parser
-versionRead := Version.Read.ReadString
-```
+- `VERSION_BRANCH` — overrides the detected branch name (same effect as `versionBranchOverride`)
+- `VERSION_VERBOSE` — enables verbose logging from the underlying CLI core when set to a truthy value
 
-The [[version.PreRelease.Resolver]] is resolved contextually when version tags are parsed, not when the
-`Read` instance is created. Custom resolvers can be provided at the call site.
-
-|             |                                     |
-|-------------|-------------------------------------|
-| **Type**    | [[version.Version.Read]]`[String]`  |
-| **Default** | [[version.Version.Read.ReadString]] |
-
-## versionShow
-
-The [[version.Version.Show]] instance for rendering.
-
-```scala
-import version.Version
-
-// Include build metadata
-versionShow := Some(Version.Show.Extended)
-
-// Default: exclude metadata (None uses Standard internally)
-versionShow := None
-```
-
-|             |                                      |
-|-------------|--------------------------------------|
-| **Type**    | `Option[`[[version.Version.Show]]`]` |
-| **Default** | `None`                               |
-
-## versionResolutionResult
-
-Task returning the full resolution result.
-
-```scala
-val result = (versionResolutionResult).value
-
-result.version // Version
-result.isTagged // Boolean
-result.isDirty // Boolean
-result.baseTag // Option[String]
-result.commitCount // Int
-```
-
-|          |                          |
-|----------|--------------------------|
-| **Type** | `Task[ResolutionResult]` |
+---
 
 ## Example Configuration
 
 ```scala
 // build.sbt
-
-import version.Version
-
-versionShaLength := 10
-versionPrNumber := sys.env.get("GITHUB_PR_NUMBER").flatMap(_.toIntOption)
 versionBranchOverride := sys.env.get("GITHUB_REF_NAME")
+versionRead := Version.Read.ReadString
 versionShow := Some(Version.Show.Extended)
+
+// Access the structured version when needed
+def dockerTag = resolvedVersion.value.show(using Version.Show.Extended)
 ```

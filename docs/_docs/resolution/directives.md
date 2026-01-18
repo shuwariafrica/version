@@ -2,15 +2,15 @@
 title: Commit Directives
 ---
 
-# Commit Directives
+## Commit Directives
 
 Control version derivation through commit message keywords.
 
-## Version Directive
+### Version Directive
 
 The `version:` keyword supports three forms:
 
-### Relative Increment
+#### Relative Increment
 
 Bump by one:
 
@@ -20,7 +20,7 @@ version: minor
 version: patch
 ```
 
-### Absolute Set
+#### Absolute Set
 
 Set to specific value:
 
@@ -30,7 +30,7 @@ version: minor: 5
 version: patch: 2
 ```
 
-### Ignore
+#### Ignore
 
 Exclude commits from version calculation:
 
@@ -45,11 +45,14 @@ version: ignore-merged                    # Exclude all merged branch commits
 **SHA prefixes**: Must be at least 7 hexadecimal characters. Invalid SHA references (too short, non-hex characters, incomplete ranges) are silently ignored.
 
 **Use cases**:
+
 - `version: ignore` — Documentation-only or tooling commits
 - `version: ignore: abc1234` — Exclude a specific commit by SHA prefix
 - `version: ignore-merged` — When merging a PR, ignore all incoming commits and specify your own directive
 
-## Synonyms
+---
+
+### Synonyms
 
 | Component | Accepted Keywords          |
 |-----------|----------------------------|
@@ -65,7 +68,7 @@ version: minor      ≡  version: feature  ≡  version: feat
 version: patch      ≡  version: fix
 ```
 
-## Standalone Shorthands
+### Standalone Shorthands
 
 Use bump tokens as commit prefixes:
 
@@ -80,7 +83,7 @@ fix: Handle edge case              → Patch increment
 
 **Invalid**: `breaking:`, `fix:` (no text)
 
-## Target Directive
+### Target Directive
 
 Set the target version explicitly:
 
@@ -90,9 +93,11 @@ target: 2.0.0
 
 Subject to [validation rules](validation.md).
 
-## Parsing Rules
+---
 
-### Case Insensitivity
+### Parsing Rules
+
+#### Case Insensitivity
 
 ```
 version: MAJOR      ✓
@@ -100,7 +105,7 @@ VERSION: minor      ✓
 Target: 2.0.0       ✓
 ```
 
-### Whitespace Tolerance
+#### Whitespace Tolerance
 
 ```
 version:major       ✓
@@ -108,7 +113,7 @@ version : major     ✓
 version:  major     ✓
 ```
 
-### Boundary Alignment
+#### Boundary Alignment
 
 Keywords must be word-boundary aligned:
 
@@ -117,7 +122,7 @@ reversion: 1.0.0    ✗ (substring of "reversion")
 retarget: 2.0.0     ✗ (substring of "retarget")
 ```
 
-## Precedence
+### Precedence
 
 1. **Ignore** — commit excluded entirely
 2. **Valid target** — highest surviving target wins
@@ -125,7 +130,7 @@ retarget: 2.0.0     ✗ (substring of "retarget")
 4. **Relative changes** — coalesced, highest-precedence wins
 5. **Default** — based on base version
 
-## Coalescing
+### Coalescing
 
 Duplicate relative changes count as one:
 
@@ -136,7 +141,7 @@ Commit 2: feature: Add helper
 Result: Single minor increment
 ```
 
-## Component Reset
+### Component Reset
 
 When higher-precedence components change:
 
@@ -146,7 +151,9 @@ When higher-precedence components change:
 | Minor  | Patch to 0           |
 | Patch  | Nothing              |
 
-## Examples
+---
+
+### Examples
 
 | Commits                          | Base    | Result Core       |
 |----------------------------------|---------|-------------------|
@@ -156,9 +163,9 @@ When higher-precedence components change:
 | `target: 2.5.0`                  | `1.2.3` | `2.5.0`           |
 | `version: ignore` on all commits | `1.2.3` | `1.2.4` (default) |
 
-## Ignore Directive Examples
+#### Ignore Directive Examples
 
-### Ignore Specific Commits
+##### Ignore Specific Commits
 
 When a commit's version impact should be excluded:
 
@@ -169,7 +176,7 @@ When a commit's version impact should be excluded:
 Result: Commit A excluded, default patch applies
 ```
 
-### Ignore Merged Branch Commits
+##### Ignore Merged Branch Commits
 
 When merging a feature branch, consolidate version control in the merge commit:
 
@@ -184,7 +191,7 @@ When merging a feature branch, consolidate version control in the merge commit:
 Result: Feature branch commits excluded, merge commit's minor applies
 ```
 
-### Ignore Commit Range
+##### Ignore Commit Range
 
 Exclude a range of commits from version calculation:
 

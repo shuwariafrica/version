@@ -1,4 +1,4 @@
-# `version` — a modular Scala 3 toolkit for **intent-based versioning** conforming to SemVer 2.0.0.
+A Scala 3 toolkit for **intent-based versioning** conforming to [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## API Structure
 

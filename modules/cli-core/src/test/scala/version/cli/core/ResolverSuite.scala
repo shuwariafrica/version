@@ -17,7 +17,11 @@ package version.cli.core
 
 import munit.FunSuite
 
+import version.PreRelease
+import version.PreReleaseNumber
+import version.Version
 import version.cli.core.domain.*
+import version.errors
 import version.{*, given}
 
 // scalafix:off
@@ -191,6 +195,91 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val v = res.toOption.get
       assertEquals(v.show, "1.0.0")
       assert(v.preRelease.isEmpty, "should be a concrete version, not a pre-release")
+    }
+  }
+
+  test("Custom Resolver: maps non-standard pre-release identifier to canonical classifier") {
+    withFreshRepo("custom-resolver") { repo =>
+      // Create a tag with non-standard pre-release that default resolver would reject
+      initMinimalRepo(repo)
+      tag(repo, "v1.0.0-nightly", "nightly build")
+      commit(repo, "after nightly"): Unit
+
+      // Custom resolver: maps "nightly" to snapshot
+      val customResolver: PreRelease.Resolver = new PreRelease.Resolver:
+        extension (ids: List[String])
+          def resolve: Option[PreRelease] = ids match
+            case List("nightly") => Some(PreRelease.snapshot)
+            case _               => PreRelease.Resolver.given_Resolver.resolve(ids)
+
+      // Default resolver: should use fallback since "nightly" is unrecognised
+      val defaultResult = VersionCliCore.resolve(
+        cfg(repo),
+        logging.NullLogger,
+        verbose = false,
+        Version.Read.ReadString,
+        PreRelease.Resolver.given_Resolver
+      )
+      assert(defaultResult.isRight, clues(defaultResult))
+      // With default resolver, v1.0.0-nightly is not a valid base, so defaults apply
+      assertEquals(defaultResult.toOption.get.major.value, 0, clues(defaultResult)) // 0.1.0
+
+      // Resolve with custom resolver
+      val customResult = VersionCliCore.resolve(
+        cfg(repo),
+        logging.NullLogger,
+        verbose = false,
+        Version.Read.ReadString,
+        customResolver
+      )
+      assert(customResult.isRight, clues(customResult))
+      val v = customResult.toOption.get
+      // Now v1.0.0-nightly is recognised as v1.0.0-SNAPSHOT, so base is 1.0.0
+      // Default behaviour for pre-release base: core unchanged → 1.0.0-SNAPSHOT
+      assertEquals((v.major.value, v.minor.value, v.patch.value), (1, 0, 0), clues(v.toString))
+      assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
+    }
+  }
+
+  test("Custom Resolver: combined with Custom Read for non-standard tag format") {
+    withFreshRepo("custom-read-resolver") { repo =>
+      initMinimalRepo(repo)
+      // Tag with both non-standard prefix AND non-standard pre-release
+      tag(repo, "release-2.0.0-preview.3", "preview release")
+      commit(repo, "after preview"): Unit
+
+      // Custom reader: strips "release-" prefix
+      val customReader: Version.Read[String] = new Version.Read[String]:
+        extension (s: String)
+          def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version] =
+            val normalised = if s.startsWith("release-") then s.stripPrefix("release-") else s
+            Version.Read.ReadString.toVersion(normalised)
+          def toVersionUnsafe(using PreRelease.Resolver): Version =
+            toVersion.fold(e => throw e, identity)
+
+      // Custom resolver: maps "preview.N" to alpha.N
+      val customResolver: PreRelease.Resolver = new PreRelease.Resolver:
+        extension (ids: List[String])
+          def resolve: Option[PreRelease] = ids match
+            case List("preview", n) =>
+              n.toIntOption
+                .flatMap(i => PreReleaseNumber.from(i).toOption)
+                .map(PreRelease.alpha)
+            case _ => PreRelease.Resolver.given_Resolver.resolve(ids)
+
+      val result = VersionCliCore.resolve(
+        cfg(repo),
+        logging.NullLogger,
+        verbose = false,
+        customReader,
+        customResolver
+      )
+      assert(result.isRight, clues(result))
+      val v = result.toOption.get
+      // "release-2.0.0-preview.3" → parsed as "2.0.0-alpha.3"
+      // Base is 2.0.0-alpha.3, so default is core unchanged → 2.0.0-SNAPSHOT
+      assertEquals((v.major.value, v.minor.value, v.patch.value), (2, 0, 0), clues(v.toString))
+      assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
     }
   }
 
