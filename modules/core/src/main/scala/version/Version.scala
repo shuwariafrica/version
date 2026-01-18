@@ -310,6 +310,18 @@ object Version:
             s"+${truncated.mkString(".")}"
           }
           s"${v.major.value}.${v.minor.value}.${v.patch.value}$pre$meta"
+
+    /** Full SemVer rendering WITH complete build metadata (no truncation).
+      *
+      * Unlike [[Extended]], this preserves all metadata identifiers verbatim, including full SHA hashes. Use this for
+      * serialisation where round-trip fidelity is required.
+      */
+    object Full extends Show:
+      extension (v: Version)
+        def show: String =
+          val pre = v.preRelease.fold("")(pr => s"-${pr.show}")
+          val meta = v.metadata.fold("")(bm => s"+${bm.identifiers.mkString(".")}")
+          s"${v.major.value}.${v.minor.value}.${v.patch.value}$pre$meta"
   end Show
 
   /** Ordering according to Semantic Versioning 2.0.0 precedence rules. */

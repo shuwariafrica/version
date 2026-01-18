@@ -148,9 +148,9 @@ class JsoniterCodecsSuite extends munit.FunSuite:
   test("Jsoniter decoding of PreRelease instances") {
     validPreReleasePairs.foreach(kv => assertEquals(readFromString[PreRelease](kv._1), kv._2))
     // Validation: Snapshot with a number should fail
-    val _ = intercept[JsonReaderException](readFromString[PreRelease]("""{"classifier":"snapshot","number":1}"""))
+    intercept[JsonReaderException](readFromString[PreRelease]("""{"classifier":"snapshot","number":1}""")): Unit
     // Validation: Versioned classifier without a number should fail
-    val _ = intercept[JsonReaderException](readFromString[PreRelease]("""{"classifier":"rc"}"""))
+    intercept[JsonReaderException](readFromString[PreRelease]("""{"classifier":"rc"}""")): Unit
   }
 
   test("Jsoniter encoding of PreRelease instances") {
@@ -161,7 +161,7 @@ class JsoniterCodecsSuite extends munit.FunSuite:
     validVersionPairs.foreach(kv => assertEquals(readFromString[Version](kv._1), kv._2))
     // Validation: Invalid PreRelease in Version should fail
     val invalidVersionJson = """{"major":1,"minor":0,"patch":0,"preRelease":{"classifier":"snapshot","number":1}}"""
-    val _ = intercept[JsonReaderException](readFromString[Version](invalidVersionJson))
+    intercept[JsonReaderException](readFromString[Version](invalidVersionJson)): Unit
   }
 
   test("Jsoniter encoding of Version instances") {

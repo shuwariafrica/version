@@ -2,11 +2,11 @@
 title: Version Types
 ---
 
-# Version Types
+## Version Types
 
-## Component Types
+### Component Types
 
-### [[version.MajorVersion]]
+#### [[version.MajorVersion]]
 
 The major version number. Must be non-negative.
 
@@ -30,7 +30,7 @@ MajorVersion.minimum // MajorVersion(0)
 MajorVersion.reset // MajorVersion(0)
 ```
 
-### [[version.MinorVersion]]
+#### [[version.MinorVersion]]
 
 The minor version number. Must be non-negative.
 
@@ -41,7 +41,7 @@ minor.increment // MinorVersion(6)
 MinorVersion.reset // MinorVersion(0)
 ```
 
-### [[version.PatchNumber]]
+#### [[version.PatchNumber]]
 
 The patch version number. Must be non-negative.
 
@@ -52,7 +52,7 @@ patch.increment // PatchNumber(4)
 PatchNumber.reset // PatchNumber(0)
 ```
 
-### [[version.PreReleaseNumber]]
+#### [[version.PreReleaseNumber]]
 
 The pre-release version number. Must be positive (>= 1).
 
@@ -65,9 +65,11 @@ prn.value // 1
 prn.increment // PreReleaseNumber(2)
 ```
 
-## Pre-release Types
+---
 
-### [[version.PreReleaseClassifier]]
+### Pre-release Types
+
+#### [[version.PreReleaseClassifier]]
 
 An enumeration of constrained classifiers with defined precedence (lowest to highest):
 
@@ -100,7 +102,7 @@ PreReleaseClassifier.fromAlias("foo") // None
   case PreReleaseClassifier(c) => c // Beta
 ```
 
-### [[version.PreRelease]]
+#### [[version.PreRelease]]
 
 Combines a classifier with an optional version number:
 
@@ -130,7 +132,9 @@ pr.increment // PreRelease(Alpha, Some(2))
 pr.isAlpha // true
 ```
 
-## [[version.Metadata]]
+---
+
+### [[version.Metadata]]
 
 Build metadata identifiers. Each must match `[0-9A-Za-z-]+`.
 
@@ -150,7 +154,9 @@ bm.identifiers // List("sha", "abc123")
 bm.show // "+sha.abc123"
 ```
 
-## [[version.Version]]
+---
+
+### [[version.Version]]
 
 The complete SemVer 2.0.0 representation:
 
@@ -174,7 +180,9 @@ val v = Version(
 v.show // "1.2.3-alpha.1"
 ```
 
-## Ordering
+---
+
+### Ordering
 
 All types provide `Ordering` instances following SemVer precedence:
 

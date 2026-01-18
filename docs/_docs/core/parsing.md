@@ -2,45 +2,36 @@
 title: Parsing
 ---
 
-# Parsing
+## Parsing
 
-The core library provides robust parsing for SemVer 2.0.0 strings via the [[version.Version.Read]]`[A]` type class.
+The core library provides robust parsing for SemVer 2.0.0 strings via two type classes:
 
-## Basic Usage
+- [[version.Version.Read]]`[A]` — converts input types to `Version`
+- [[version.PreRelease.Resolver]] — maps pre-release identifiers to structured `PreRelease`
+
+### Basic Usage
 
 ```scala
 import version.*
 
-// Extension methods (via default given Read[String] in instances.scala)
-"1.2.3".toVersion           // Right(Version(1, 2, 3))
-"1.2.3-alpha.1".toVersion   // Right(Version(1, 2, 3, alpha.1))
-"invalid".toVersion         // Left(ParseError(...))
+// Extension methods require a Read[String] and Resolver in scope.
+// Both are provided by default via `import version.{given, *}`.
+"1.2.3".toVersion // Right(Version(1, 2, 3))
+"1.2.3-alpha.1".toVersion // Right(Version(1, 2, 3, alpha.1))
+"invalid".toVersion // Left(ParseError(...))
 
 // Unsafe variant throws on invalid input
-"1.2.3".toVersionUnsafe     // Version(1, 2, 3)
-"invalid".toVersionUnsafe   // throws ParseError
+"1.2.3".toVersionUnsafe // Version(1, 2, 3)
+"invalid".toVersionUnsafe // throws ParseError
 
-// Factory methods (equivalent to extension methods)
-Version.from("1.2.3")       // Right(Version(1, 2, 3))
+// Factory methods (equivalent)
+Version.from("1.2.3") // Right(Version(1, 2, 3))
 Version.fromUnsafe("1.2.3") // Version(1, 2, 3)
 ```
 
-## Explicit Reader Instance
+---
 
-For explicit instance passing or when avoiding implicit resolution:
-
-```scala
-import version.*
-
-// Use the singleton instance directly
-val reader: Version.Read[String] = Version.Read.ReadString
-
-// Use directly
-reader.toVersion("1.2.3")       // Right(Version(...))
-reader.toVersionUnsafe("1.2.3") // Version(...)
-```
-
-## Accepted Formats
+### Accepted Formats
 
 | Format      | Example                   | Notes                       |
 |-------------|---------------------------|-----------------------------|
@@ -50,7 +41,7 @@ reader.toVersionUnsafe("1.2.3") // Version(...)
 | Metadata    | `1.2.3+build.456`         | After `+`                   |
 | Full        | `1.2.3-alpha.1+build.456` | Pre-release before metadata |
 
-## Pre-release Formats
+### Pre-release Formats
 
 The default resolver recognises these classifiers:
 
@@ -74,7 +65,7 @@ Common variations are normalised:
 | `1.0.0-RC1`    | `rc.1`     |
 | `1.0.0-alpha1` | `alpha.1`  |
 
-## Build Metadata
+### Build Metadata
 
 Metadata identifiers must match `[0-9A-Za-z-]+`:
 
@@ -86,39 +77,69 @@ Metadata identifiers must match `[0-9A-Za-z-]+`:
 // Right(..., Some(Metadata(build, 456, dirty)))
 ```
 
-## Custom Pre-release Mapping
+---
 
-Implement [[version.PreRelease.Resolver]] to handle non-standard formats:
+### Custom Pre-release Mapping
+
+Implement [[version.PreRelease.Resolver]] to handle non-standard pre-release formats. The resolver receives
+dot-separated identifier tokens and returns `Some(PreRelease)` on success or `None` to reject.
 
 ```scala
 import version.*
 
-given PreRelease.Resolver with
+// Define a custom resolver
+val customResolver: PreRelease.Resolver = new PreRelease.Resolver:
   extension (identifiers: List[String])
     def resolve: Option[PreRelease] =
       identifiers match
-        // Treat "nightly" as snapshot
+        // Map "nightly" to snapshot
         case List("nightly") =>
           Some(PreRelease.snapshot)
 
-        // Treat "preview.N" as alpha
+        // Map "preview.N" to alpha
         case List("preview", n) =>
           n.toIntOption
             .flatMap(i => PreReleaseNumber.from(i).toOption)
             .map(PreRelease.alpha)
 
-        // Delegate to default resolver
+        // Delegate unrecognised formats to the default resolver
         case _ =>
           PreRelease.Resolver.given_Resolver.resolve(identifiers)
 
-"1.0.0-nightly".toVersion   // Right(Version(1, 0, 0, snapshot))
+// Use the custom resolver
+given PreRelease.Resolver = customResolver
+
+"1.0.0-nightly".toVersion   // Right(Version(1, 0, 0, SNAPSHOT))
 "1.0.0-preview.3".toVersion // Right(Version(1, 0, 0, alpha.3))
+"1.0.0-beta.1".toVersion    // Right(Version(1, 0, 0, beta.1)) — delegated
 ```
 
-## Custom Read Instances
+#### Resolver API
 
-Implement [[version.Version.Read]]`[A]` to parse custom input types. The typeclass requires a
-contextual [[version.PreRelease.Resolver]] for pre-release identifier mapping:
+```scala
+trait Resolver:
+  extension (identifiers: List[String]) def resolve: Option[PreRelease]
+```
+
+The `identifiers` parameter contains the pre-release string split by `.`. For example, `alpha.1` becomes
+`List("alpha", "1")`.
+
+#### Default Resolver
+
+Access the default resolver via `PreRelease.Resolver.given_Resolver`:
+
+```scala
+// Delegate to default for standard formats
+PreRelease.Resolver.given_Resolver.resolve(List("rc", "2"))
+// Some(PreRelease(ReleaseCandidate, Some(2)))
+```
+
+---
+
+### Custom Read Instances
+
+Implement [[version.Version.Read]]`[A]` to parse custom input types. The type class requires a contextual
+[[version.PreRelease.Resolver]] for pre-release mapping.
 
 ```scala
 import version.*
@@ -129,8 +150,6 @@ case class MyVersionFormat(major: Int, minor: Int, patch: Int)
 given Version.Read[MyVersionFormat] with
   extension (m: MyVersionFormat)
     def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version] =
-      // Component from() methods return Either[InvalidComponent, T]
-      // We map errors to ParseError for consistency with the Read contract
       for
         major <- MajorVersion.from(m.major).left.map(_ =>
           InvalidVersionFormat(s"${m.major}.${m.minor}.${m.patch}"))
@@ -149,7 +168,75 @@ given Version.Read[MyVersionFormat] with
 Version.from(MyVersionFormat(1, 2, 3)) // Right(Version(1, 2, 3))
 ```
 
-## Error Handling
+#### Read API
+
+```scala
+trait Read[A]:
+  extension (a: A)
+    def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version]
+    def toVersionUnsafe(using PreRelease.Resolver): Version
+```
+
+#### String Read with Custom Tag Prefix
+
+A common use case is supporting alternative tag prefixes (e.g., `release-` instead of `v`):
+
+```scala
+import version.*
+
+val releaseReader: Version.Read[String] = new Version.Read[String]:
+  extension (s: String)
+    def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version] =
+      val normalised = if s.startsWith("release-") then s.stripPrefix("release-") else s
+      Version.Read.ReadString.toVersion(normalised)
+
+    def toVersionUnsafe(using PreRelease.Resolver): Version =
+      toVersion match
+        case Right(v) => v
+        case Left(e)  => throw e
+
+given Version.Read[String] = releaseReader
+
+"release-1.2.3".toVersion // Right(Version(1, 2, 3))
+```
+
+---
+
+### Combining Read and Resolver
+
+When both custom parsing and custom pre-release mapping are required:
+
+```scala
+import version.*
+
+// Custom resolver: map "nightly" to SNAPSHOT
+val customResolver: PreRelease.Resolver = new PreRelease.Resolver:
+  extension (ids: List[String])
+    def resolve: Option[PreRelease] = ids match
+      case List("nightly") => Some(PreRelease.snapshot)
+      case _               => PreRelease.Resolver.given_Resolver.resolve(ids)
+
+// Custom reader: strip "release-" prefix
+val customReader: Version.Read[String] = new Version.Read[String]:
+  extension (s: String)
+    def toVersion(using PreRelease.Resolver): Either[errors.ParseError, Version] =
+      val normalised = if s.startsWith("release-") then s.stripPrefix("release-") else s
+      Version.Read.ReadString.toVersion(normalised)
+
+    def toVersionUnsafe(using PreRelease.Resolver): Version =
+      toVersion.fold(e => throw e, identity)
+
+// Bring both into scope
+given PreRelease.Resolver = customResolver
+given Version.Read[String] = customReader
+
+// Both customisations apply
+"release-2.0.0-nightly".toVersion // Right(Version(2, 0, 0, SNAPSHOT))
+```
+
+---
+
+### Error Handling
 
 Parse errors provide context:
 
@@ -164,7 +251,7 @@ import version.errors.*
     // ...
 ```
 
-## Validation Summary
+### Validation Summary
 
 | Component          | Constraint             | Error                     |
 |--------------------|------------------------|---------------------------|

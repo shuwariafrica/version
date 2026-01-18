@@ -1,7 +1,7 @@
 ---
 title: jsoniter-scala
 ---
-# jsoniter-scala
+## jsoniter-scala
 
 Codecs for [jsoniter-scala](https://github.com/plokhotnyuk/jsoniter-scala).
 
@@ -9,7 +9,9 @@ Codecs for [jsoniter-scala](https://github.com/plokhotnyuk/jsoniter-scala).
 libraryDependencies += "africa.shuwari" %%  /* or `%%%` */ "version-codecs-jsoniter" % "@VERSION@"
 ```
 
-## Usage
+---
+
+### Usage
 
 ```scala
 import com.github.plokhotnyuk.jsoniter_scala.core.*
@@ -26,7 +28,7 @@ val decoded = readFromString[Version](json)
 // Version(1, 2, 3, Some(alpha.1), None)
 ```
 
-## In Data Structures
+### In Data Structures
 
 ```scala
 case class Package(name: String, version: Version)
@@ -39,7 +41,7 @@ writeToString(pkg)
 // {"name":"my-lib","version":"1.0.0"}
 ```
 
-## Provided Codecs
+### Provided Codecs
 
 ```scala
 given JsonValueCodec[Version]
@@ -52,7 +54,7 @@ given JsonValueCodec[PreRelease]
 given JsonValueCodec[Metadata]
 ```
 
-## Error Handling
+### Error Handling
 
 ```scala
 import scala.util.Try

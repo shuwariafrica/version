@@ -1,0 +1,18 @@
+# Custom Read and Resolver instances test
+# Tests that users can provide custom Version.Read and PreRelease.Resolver instances
+# Uses a single tag 'release-2.5.0-nightly' that requires BOTH:
+# - Custom Read to strip 'release-' prefix
+# - Custom Resolver to map 'nightly' to SNAPSHOT
+
+# Initialise with combined custom tag
+> gitInit
+> reload
+
+# Both custom instances should work together
+# Custom Read strips 'release-' prefix, Custom Resolver maps 'nightly' to SNAPSHOT
+> checkBothCustomInstances
+
+# After commit, Extended should include metadata, Standard should not
+$ exec git -C . commit --allow-empty --no-gpg-sign -m "post-release work"
+> reload
+> checkExtendedShow

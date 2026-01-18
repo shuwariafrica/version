@@ -1,0 +1,5 @@
+# Fallback version test
+# Tests that plugin gracefully degrades to 0.1.0-SNAPSHOT when not in a Git repository
+
+# No git init - test should still work
+> checkFallback

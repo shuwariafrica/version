@@ -180,22 +180,29 @@ object KeywordParser:
 
   /** Extracts keywords from a commit message.
     *
-    * Scans the full message (subject and body) and returns all recognised version control
-    * keywords. Invalid or unrecognised directives are silently ignored.
+    * Scans the full message (subject and body) and returns all recognised version control keywords. Invalid or
+    * unrecognised directives are silently ignored.
+    *
+    * @param message
+    *   The full commit message to parse.
+    * @param reader
+    *   The [[Version.Read]] instance for parsing target versions.
+    * @param resolver
+    *   The [[PreRelease.Resolver]] for mapping pre-release identifiers.
     */
-  def parse(message: String)(using reader: Version.Read[String]): List[Keyword] =
+  def parse(message: String)(using reader: Version.Read[String], resolver: PreRelease.Resolver): List[Keyword] =
     // Process line by line for predictable boundaries with a single pass.
     val lines = message.split('\n')
     var acc = List.empty[Keyword]
     var idx = 0
     val m = lines.length
     while idx < m do
-      acc = acc ++ parseLine(lines(idx), reader)
+      acc = acc ++ parseLine(lines(idx))
       idx += 1
     acc
 
   // Internal: parse a single line.
-  private def parseLine(line: String, reader: Version.Read[String]): List[Keyword] =
+  private def parseLine(line: String)(using Version.Read[String], PreRelease.Resolver): List[Keyword] =
     var i = 0
     var out = List.empty[Keyword]
     val n = line.length
@@ -312,7 +319,7 @@ object KeywordParser:
           val (tokOpt, j1) = readSemverToken(line, j0)
           tokOpt.foreach { s =>
             val norm = if s.startsWith("v") || s.startsWith("V") then s.drop(1) else s
-            reader.toVersion(norm) match
+            norm.toVersion match
               case Right(v)            => out = out :+ TargetSet(v)
               case Left(_: ParseError) => () // ignore malformed targets
           }

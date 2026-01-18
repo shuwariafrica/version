@@ -2,7 +2,7 @@
 title: Serialisation
 ---
 
-# Serialisation
+## Serialisation
 
 Codec modules provide JSON and YAML serialisation for version types.
 
@@ -14,7 +14,7 @@ Codec modules provide JSON and YAML serialisation for version types.
 | [ZIO JSON](zio-json.md)       | zio-json       |
 | [scala-yaml](yaml.md)         | scala-yaml     |
 
-## Installation
+### Dependencies
 
 Choose your preferred library:
 
@@ -29,7 +29,9 @@ libraryDependencies += "africa.shuwari" %% /* or `%%%` */ "version-codecs-zio" %
 libraryDependencies += "africa.shuwari" %% /* or `%%%` */ "version-codecs-yaml" % "@VERSION@"
 ```
 
-## Usage Pattern
+---
+
+### Usage Pattern
 
 All modules follow the same pattern:
 
@@ -41,7 +43,7 @@ import version.codecs.jsoniter.given // or zio, yaml
 // Codecs are automatically available
 ```
 
-## Encoded Types
+### Encoded Types
 
 All modules encode these types:
 
@@ -56,7 +58,9 @@ All modules encode these types:
 | [[version.PreRelease]]           | String: `"alpha.1"`       |
 | [[version.Metadata]]             | Array: `["build", "456"]` |
 
-## Platform Support
+---
+
+### Platform Support
 
 All codec modules are cross-platform:
 

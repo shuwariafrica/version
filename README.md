@@ -32,17 +32,17 @@ distances from a _previous_ one.
 
 > **Note:** Requires sbt 2.x. Not compatible with sbt 1.x.
 
-Add to \`project/plugins.sbt\`:
+Add to `project/plugins.sbt`:
 
-\`\`\`scala
+```scala
 addSbtPlugin("africa.shuwari" % "sbt-version" % "<version>")
-\`\`\`
+```
 
-The plugin automatically derives and sets \`version\` for all projects.
+The plugin automatically derives and sets `version` for all projects.
 
 ### Library
 
-\`\`\`scala
+```scala
 //> using dep "africa.shuwari::version::<version>"
 
 import version.*
@@ -61,43 +61,43 @@ val release = Version(
 release.next[MinorVersion] // 1.3.0
 release.as[Snapshot] // 1.2.3-SNAPSHOT
 release.as[Alpha] // 1.2.3-alpha.1
-\`\`\`
+```
 
 ### Commit Directives
 
 Embed directives anywhere in commit messages to control versioning:
 
-\`\`\`text
+```text
 target: 2.5.0           # Set explicit target
 version: major          # Increment major (1.2.3 → 2.0.0)
 version: minor          # Increment minor (1.2.3 → 1.3.0)
 version: patch          # Increment patch (1.2.3 → 1.2.4)
-\`\`\`
+```
 
 Standalone shorthands (requires non-empty text after colon):
 
-\`\`\`text
+```text
 breaking: Remove deprecated API     # Major increment
 feat: Add caching support           # Minor increment
 fix: Handle edge case               # Patch increment
-\`\`\`
+```
 
 ## Modules
 
 | Module                    | Platforms       | Description                                |
 |---------------------------|-----------------|--------------------------------------------|
-| \`sbt-version\`             | sbt 2.x         | sbt plugin for build integration           |
-| \`version-cli\`             | JVM, Native     | CLI application                            |
-| \`version-cli-core\`        | JVM, Native     | Git-based version derivation engine        |
-| \`version\`                 | JVM, JS, Native | Core SemVer model, parsing, and operations |
-| \`version-codecs-jsoniter\` | JVM, JS, Native | jsoniter-scala codecs                      |
-| \`version-codecs-zio\`      | JVM, JS, Native | ZIO JSON codecs                            |
-| \`version-codecs-yaml\`     | JVM, JS, Native | scala-yaml codecs                          |
-| \`version-zio-prelude\`     | JVM, JS, Native | ZIO Prelude type class instances           |
+| `sbt-version`             | sbt 2.x         | sbt plugin for build integration           |
+| `version-cli`             | JVM, Native     | CLI application                            |
+| `version-cli-core`        | JVM, Native     | Git-based version derivation engine        |
+| `version`                 | JVM, JS, Native | Core SemVer model, parsing, and operations |
+| `version-codecs-jsoniter` | JVM, JS, Native | jsoniter-scala codecs                      |
+| `version-codecs-zio`      | JVM, JS, Native | ZIO JSON codecs                            |
+| `version-codecs-yaml`     | JVM, JS, Native | scala-yaml codecs                          |
+| `version-zio-prelude`     | JVM, JS, Native | ZIO Prelude type class instances           |
 
 ## Documentation
 
-Full documentation is available at **[dev.shuwari.africa/version](https://dev.shuwari.africa/version)**.
+See the **[documentation microsite](https://dev.shuwari.africa/version/docs)** for detailed documentation.
 
 - [Getting Started](https://dev.shuwari.africa/version/docs/getting-started)
 - [Core Library](https://dev.shuwari.africa/version/docs/core/overview)

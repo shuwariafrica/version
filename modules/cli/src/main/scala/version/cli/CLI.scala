@@ -19,6 +19,7 @@ import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
 import org.virtuslab.yaml.*
 import scopt.OParser
 
+import version.PreRelease
 import version.Version
 import version.cli.CliOptions.given
 import version.cli.core.ResolutionError
@@ -74,13 +75,13 @@ object CLI:
               verbose = resolvedOpts.verbose
             )
             val cfg = CliConfig.mergeWithCiMetadata(baseCfg, metadata)
-            // CLI application uses fixed default reader instance
-            Core.resolve(cfg, logger, resolvedOpts.verbose, Version.Read.ReadString) match
-              case Left(err) =>
-                logger.error(renderError(err))
+            // CLI application uses fixed default reader and resolver instances
+            Core.resolve(cfg, logger, resolvedOpts.verbose, Version.Read.ReadString, PreRelease.Resolver.given_Resolver) match
+              case Left(e) =>
+                logger.error(renderError(e))
                 sys.exit(1)
-              case Right(version) =>
-                val (consoleOutputs, fileWrites) = render(version, rc, logger)(using resolvedOpts.verbose)
+              case Right(v) =>
+                val (consoleOutputs, fileWrites) = render(v, rc, logger)(using resolvedOpts.verbose)
                 val failed = fileWrites.collect { case Left(m) => m }
                 if failed.nonEmpty then
                   failed.foreach(logger.error)

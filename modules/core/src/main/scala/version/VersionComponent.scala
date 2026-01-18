@@ -328,7 +328,7 @@ object PreRelease:
      */
     given Resolver:
       extension (identifiers: List[String])
-        inline def resolve: Option[PreRelease] =
+        def resolve: Option[PreRelease] =
           identifiers match
             case List(PreReleaseClassifier(c)) if !c.versioned =>
               Some(PreRelease(c, None)) //  Single identifier matching a non-versioned classifier

@@ -30,12 +30,14 @@ object Resolver:
 
   /** Resolves the repository version from Git state.
     *
-    * Requires contextual [[Logger]], verbosity flag, and [[Version.Read]] for tag parsing.
+    * Requires contextual [[Logger]], verbosity flag, [[Version.Read]] for tag parsing, and [[PreRelease.Resolver]] for
+    * mapping pre-release identifiers.
     */
   def resolve(config: CliConfig, git: Git)(using
     logger: Logger,
     isVerbose: Boolean,
-    reader: Version.Read[String]
+    reader: Version.Read[String],
+    resolver: PreRelease.Resolver
   ): Either[ResolutionError, Version] =
     logger.verbose(s"Begin resolution basisCommit=${config.basisCommit}", "Resolver")
     for
@@ -60,7 +62,12 @@ object Resolver:
     basisCommitSha: CommitSha,
     isDirty: Boolean,
     allTags: List[Tag]
-  )(using logger: Logger, isVerbose: Boolean, reader: Version.Read[String]): Either[ResolutionError, Version] =
+  )(using
+    logger: Logger,
+    isVerbose: Boolean,
+    reader: Version.Read[String],
+    resolver: PreRelease.Resolver
+  ): Either[ResolutionError, Version] =
     for
       reachable <- git.findReachableTags(basisCommitSha)
       _ = logger.verbose(s"Reachable tags: ${reachable.map(_.name.value).mkString(",")}", "Resolver")
@@ -123,6 +130,7 @@ object Resolver:
     */
   private def extractKeywords(commits: List[Commit], git: Git)(using
     reader: Version.Read[String],
+    resolver: PreRelease.Resolver,
     logger: Logger,
     isVerbose: Boolean
   ): Either[ResolutionError, List[Keyword]] =

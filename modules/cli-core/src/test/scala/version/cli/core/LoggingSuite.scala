@@ -76,7 +76,7 @@ final class LoggingSuite extends FunSuite with TestRepoSupport:
     withFreshRepo("logging-off") { repo =>
       val logger = BufferingLogger()
       val cfg = CliConfig(repo = repo, basisCommit = "HEAD", prNumber = None, branchOverride = None, shaLength = 12, verbose = false)
-      val _ = VersionCliCore.resolve(cfg, logger, false)
+      VersionCliCore.resolve(cfg, logger, false): Unit
       // Expect no verbose entries captured
       assertEquals(logger.entries.count(_.level == LogLevel.Verbose), 0)
     }
