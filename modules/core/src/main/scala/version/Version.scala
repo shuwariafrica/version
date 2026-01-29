@@ -64,17 +64,17 @@ object Version:
 
     given Increment[MajorVersion]:
       extension (v: Version)
-        inline def increment: Version =
+        def increment: Version =
           Version(v.major.increment, MinorVersion.reset, PatchNumber.reset)
 
     given Increment[MinorVersion]:
       extension (v: Version)
-        inline def increment: Version =
+        def increment: Version =
           Version(v.major, v.minor.increment, PatchNumber.reset)
 
     given Increment[PatchNumber]:
       extension (v: Version)
-        inline def increment: Version =
+        def increment: Version =
           Version(v.major, v.minor, v.patch.increment)
 
     // --- Versioned Pre-Release Classifier Instances ---
@@ -96,19 +96,19 @@ object Version:
           Version(v.major, v.minor, v.patch.increment, pr1)
 
     given Increment[Dev]:
-      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Dev)
+      extension (v: Version) def increment: Version = classifierIncrement(v, PreReleaseClassifier.Dev)
 
     given Increment[Milestone]:
-      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Milestone)
+      extension (v: Version) def increment: Version = classifierIncrement(v, PreReleaseClassifier.Milestone)
 
     given Increment[Alpha]:
-      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Alpha)
+      extension (v: Version) def increment: Version = classifierIncrement(v, PreReleaseClassifier.Alpha)
 
     given Increment[Beta]:
-      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.Beta)
+      extension (v: Version) def increment: Version = classifierIncrement(v, PreReleaseClassifier.Beta)
 
     given Increment[ReleaseCandidate]:
-      extension (v: Version) inline def increment: Version = classifierIncrement(v, PreReleaseClassifier.ReleaseCandidate)
+      extension (v: Version) def increment: Version = classifierIncrement(v, PreReleaseClassifier.ReleaseCandidate)
   end Increment
 
   /** Type class capturing a concrete pre-release classifier as a type `C`.

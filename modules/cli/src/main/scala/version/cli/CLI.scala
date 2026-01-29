@@ -21,7 +21,6 @@ import scopt.OParser
 
 import version.PreRelease
 import version.Version
-import version.cli.CliOptions.given
 import version.cli.core.ResolutionError
 import version.cli.core.VersionCliCore as Core
 import version.cli.core.domain.CiMetadata
