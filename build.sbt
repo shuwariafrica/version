@@ -1,7 +1,7 @@
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.7.4"),
+    crossScalaVersions := List("3.8.1"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
@@ -16,7 +16,7 @@ inThisBuild(
 )
 
 val libraries = new {
-  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.3.2")
+  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.4.0")
   val `jsoniter-scala` =
     Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.8")
   val `jsoniter-scala-macros` = `jsoniter-scala`(_.withName("jsoniter-scala-macros"))
@@ -33,6 +33,7 @@ val version =
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/core"))
+    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.boilerplate))
@@ -44,6 +45,7 @@ val `version-zio-prelude` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/zio-prelude"))
     .dependsOn(version)
+    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.`zio-prelude`))
@@ -55,6 +57,7 @@ val `version-codecs-jsoniter` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-jsoniter"))
     .dependsOn(version)
+    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.`jsoniter-scala`))
@@ -67,6 +70,7 @@ val `version-codecs-zio` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-zio"))
     .dependsOn(version)
+    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependency(libraries.`zio-json`))
@@ -78,6 +82,7 @@ val `version-codecs-yaml` =
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/codecs-yaml"))
     .dependsOn(version)
+    .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`scala-yaml`))
@@ -88,6 +93,7 @@ val `version-testkit` =
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/testkit"))
+    .settings(fatalWarningsSetting)
     .settings(libraryDependency(libraries.`os-lib`))
     .settings(publish / skip := true)
     .nativeSettings(nativeSettings)
@@ -99,6 +105,7 @@ val `version-cli-core` =
     .in(file("modules/cli-core"))
     .dependsOn(version)
     .dependsOn(`version-testkit` % Test)
+    .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(libraryDependency(libraries.`os-lib`))
@@ -113,6 +120,7 @@ val `version-cli` =
     .dependsOn(`version-testkit` % Test)
     .dependsOn(`version-codecs-jsoniter`)
     .dependsOn(`version-codecs-yaml`)
+    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(publishSettings)
@@ -130,6 +138,7 @@ val `sbt-version` =
     .dependsOn(`version-cli-core`.jvm)
     .dependsOn(`version-testkit`.jvm % Test)
     .enablePlugins(SbtPlugin)
+    .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(sbtVersion := "2.0.0-RC8")
@@ -220,6 +229,15 @@ def formattingSettings =
     scalafmtDetailedError := true,
     scalafmtPrintDiff := true
   )
+
+// Workaround: Scala 3.8+ deprecated -Xfatal-warnings in favour of -Werror
+// Must be applied at project level AFTER sbt-shuwari's projectSettings add their options
+def fatalWarningsSetting: List[Setting[?]] = List(
+  ScalaCompiler.compilerOptions ~= { opts =>
+    opts.filterNot(_.option == "-Xfatal-warnings")
+  },
+  Compile / compile / scalacOptions += "-Werror"
+)
 
 def libraryDependency(library: Def.Initialize[ModuleID]) = libraryDependencies += library.value
 
