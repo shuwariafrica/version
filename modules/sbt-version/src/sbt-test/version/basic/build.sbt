@@ -67,8 +67,8 @@ gitTagPreRelease := {
 }
 
 dirty := {
-  import java.nio.file._, StandardOpenOption._
-  import scala.jdk.CollectionConverters._
+  import java.nio.file.*, StandardOpenOption.*
+  import scala.jdk.CollectionConverters.*
   Files.write(baseDirectory.value.toPath.resolve("dirty.txt"), Seq("dirty").asJava, CREATE, APPEND): Unit
 }
 
@@ -157,7 +157,7 @@ checkNestedVersionAccess := {
   val computed = computeVersionString.value
   assert(computed.contains("Version: 0.1.0"), s"Unexpected computed string: $computed")
   assert(computed.contains("snapshot=true"), s"Expected snapshot=true: $computed")
-  
+
   // Also verify we can use resolvedVersion directly after the nested call
   val v = resolvedVersion.value
   assert(v.snapshot, "Expected snapshot version")
