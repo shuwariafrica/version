@@ -45,7 +45,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Execute Unit Tests
         run: sbt --no-colors --supershell=false "version-jvm/test"
@@ -78,7 +78,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       # Scala Native toolchains per OS
       - name: Install LLVM/Clang toolchain (Ubuntu)
@@ -144,7 +144,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Execute Unit Tests
         run: sbt --no-colors --supershell=false "version-js/test"
@@ -173,7 +173,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Execute sbt Scripted Tests
         run: sbt --no-colors --supershell=false "sbt-version/scripted"
@@ -199,7 +199,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Verify Source Formatting
         id: scalafmt
@@ -257,7 +257,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Import Signing Key
         uses: crazy-max/ghaction-import-gpg@v6
@@ -302,7 +302,7 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v7
+        uses: coursier/cache-action@v8
 
       - name: Build Documentation Site
         id: build-site
