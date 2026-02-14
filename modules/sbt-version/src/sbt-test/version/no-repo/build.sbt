@@ -5,7 +5,7 @@ lazy val root = project
   .enablePlugins(VersionPlugin)
   .settings(
     name := "no-repo-test",
-    scalaVersion := "3.7.4",
+    scalaVersion := "3.8.1",
     // Task to verify fallback version is used
     TaskKey[Unit]("checkFallback") := {
       val v = resolvedVersion.value

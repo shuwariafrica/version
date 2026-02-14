@@ -1,7 +1,7 @@
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.7.4"),
+    crossScalaVersions := List("3.8.1"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
