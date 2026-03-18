@@ -59,11 +59,11 @@ object Metadata extends OpaqueType[Metadata]:
    * @throws InvalidMetadata
    *   if any identifier is empty or contains invalid characters.
    */
-  def apply(identifiers: List[String]): Metadata = fromUnsafe(identifiers)
+  inline def apply(inline identifiers: List[String]): Metadata = fromUnsafe(identifiers)
 
   /** Semantic alias for [[unwrap]]. Returns the list of metadata identifiers. */
   extension (metadata: Metadata)
     inline def identifiers: List[String] = unwrap(metadata)
-    /** Returns the SemVer-compliant metadata string (including leading '+'). */
-    inline def show: String = s"+${unwrap(metadata).mkString(".")}"
+    /** Returns the dot-separated metadata identifiers. */
+    inline def show: String = unwrap(metadata).mkString(".")
 end Metadata

@@ -19,6 +19,7 @@ import version.*
 import version.cli.core.domain.*
 import version.cli.core.git.Git
 import version.cli.core.logging.Logger
+import version.cli.core.logging.Verbose
 import version.cli.core.parsing.KeywordParser
 
 /** Version resolution engine.
@@ -35,7 +36,7 @@ object Resolver:
     */
   def resolve(config: CliConfig, git: Git)(using
     logger: Logger,
-    isVerbose: Boolean,
+    verbose: Verbose,
     reader: Version.Read[String],
     resolver: PreRelease.Resolver
   ): Either[ResolutionError, Version] =
@@ -64,7 +65,7 @@ object Resolver:
     allTags: List[Tag]
   )(using
     logger: Logger,
-    isVerbose: Boolean,
+    verbose: Verbose,
     reader: Version.Read[String],
     resolver: PreRelease.Resolver
   ): Either[ResolutionError, Version] =
@@ -132,7 +133,7 @@ object Resolver:
     reader: Version.Read[String],
     resolver: PreRelease.Resolver,
     logger: Logger,
-    isVerbose: Boolean
+    verbose: Verbose
   ): Either[ResolutionError, List[Keyword]] =
     // Phase 1: Parse all keywords and collect ignore directives
     val parsed = commits.map(c => (c, KeywordParser.parse(c.message)))

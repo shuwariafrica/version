@@ -33,7 +33,7 @@ final class LoggingSuite extends FunSuite with TestRepoSupport:
     withFreshRepo("logging-git") { repo =>
       val logger = BufferingLogger()
       given Logger = logger
-      given Boolean = true
+      given Verbose = Verbose.enabled
       val git = new GitProcess(repo)
       // Exercise several methods
       val head = git.resolveRev("HEAD").toOption.get
@@ -59,7 +59,7 @@ final class LoggingSuite extends FunSuite with TestRepoSupport:
       os.write.append(repo / "README.md", "\nextra\n"): Unit
       val logger = BufferingLogger()
       val cfg = CliConfig(repo = repo, basisCommit = "HEAD", prNumber = None, branchOverride = None, shaLength = 12, verbose = true)
-      val res = VersionCliCore.resolve(cfg, logger, true)
+      val res = VersionCliCore.resolve(cfg, logger, Verbose.enabled)
       assert(res.isRight, clues(res))
       val msgs = logger.entries.map(_.message)
       // Begin + snapshot path entered
@@ -76,7 +76,7 @@ final class LoggingSuite extends FunSuite with TestRepoSupport:
     withFreshRepo("logging-off") { repo =>
       val logger = BufferingLogger()
       val cfg = CliConfig(repo = repo, basisCommit = "HEAD", prNumber = None, branchOverride = None, shaLength = 12, verbose = false)
-      VersionCliCore.resolve(cfg, logger, false): Unit
+      VersionCliCore.resolve(cfg, logger, Verbose.disabled): Unit
       // Expect no verbose entries captured
       assertEquals(logger.entries.count(_.level == LogLevel.Verbose), 0)
     }

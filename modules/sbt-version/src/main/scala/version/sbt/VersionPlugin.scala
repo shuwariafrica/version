@@ -27,6 +27,7 @@ import version.cli.core.environment.CiDetector
 import version.cli.core.logging.LogEntry
 import version.cli.core.logging.LogLevel
 import version.cli.core.logging.Logger as CoreLogger
+import version.cli.core.logging.Verbose
 import version.sbt.VersionPluginImports.*
 import version.{*, given}
 
@@ -118,7 +119,7 @@ object VersionPlugin extends AutoPlugin:
     ): Version =
       val logger = new SbtCoreLogger(sbtLog)
       sbtLog.info(s"version-sbt: resolving version from ${cfg.repo}")
-      VersionCliCore.resolve(cfg, logger, cfg.verbose, reader, resolver) match
+      VersionCliCore.resolve(cfg, logger, Verbose(cfg.verbose), reader, resolver) match
         case scala.util.Left(ResolutionError.NotAGitRepository(path)) =>
           sbtLog.info(s"version-sbt: Not a Git repository at $path, using fallback version ${fallbackVersion.show}")
           fallbackVersion

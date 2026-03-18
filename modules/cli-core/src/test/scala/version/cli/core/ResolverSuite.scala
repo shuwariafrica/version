@@ -21,6 +21,7 @@ import version.PreRelease
 import version.PreReleaseNumber
 import version.Version
 import version.cli.core.domain.*
+import version.cli.core.logging.Verbose
 import version.errors
 import version.{*, given}
 
@@ -86,7 +87,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       // Should include sha of the provided basis commit, abbreviated
       val abbrev12 = full.take(12)
       val meta = v.metadata.map(_.show).getOrElse("")
-      assert(meta.contains(s"+branch"), clues(meta))
+      assert(meta.contains("branch"), clues(meta))
       assert(meta.contains(s".sha$abbrev12"), clues(meta))
       assert(v.preRelease.exists(_.isSnapshot), clues(v.toString))
     }
@@ -216,7 +217,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val defaultResult = VersionCliCore.resolve(
         cfg(repo),
         logging.NullLogger,
-        verbose = false,
+        verbose = Verbose.disabled,
         Version.Read.ReadString,
         PreRelease.Resolver.given_Resolver
       )
@@ -228,7 +229,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val customResult = VersionCliCore.resolve(
         cfg(repo),
         logging.NullLogger,
-        verbose = false,
+        verbose = Verbose.disabled,
         Version.Read.ReadString,
         customResolver
       )
@@ -270,7 +271,7 @@ final class ResolverSuite extends FunSuite with TestRepoSupport:
       val result = VersionCliCore.resolve(
         cfg(repo),
         logging.NullLogger,
-        verbose = false,
+        verbose = Verbose.disabled,
         customReader,
         customResolver
       )

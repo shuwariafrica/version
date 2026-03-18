@@ -17,8 +17,6 @@ package version
 
 import boilerplate.OpaqueType
 
-import scala.annotation.publicInBinary
-
 import version.errors.InvalidComponent
 import version.errors.InvalidMajorVersion
 import version.errors.InvalidMinorVersion
@@ -67,8 +65,14 @@ transparent trait VersionComponent[T] extends OpaqueType[T]:
     /** Alias for [[unwrap]]. Retrieves the underlying integer value of the component. */
     inline def value: Int = unwrap(t)
 
-    /** Returns a new instance incremented by one. */
-    inline def increment: T = wrap(unwrap(t) + 1)
+    /** Returns a new instance incremented by one.
+     *
+     * Saturates at `Int.MaxValue` - incrementing the maximum value returns it unchanged.
+     */
+    inline def increment: T =
+      val current = unwrap(t)
+      if current == Int.MaxValue then wrap(current)
+      else wrap(current + 1)
 
   given Ordering[T] = Ordering.by(unwrap)
 end VersionComponent
@@ -88,6 +92,9 @@ object MajorVersion extends ResettableVersionComponent[MajorVersion]:
   protected inline def error(value: Int): Error = InvalidMajorVersion(value)
   inline def wrap(value: Int): MajorVersion = value
   inline def unwrap(mv: MajorVersion): Int = mv
+  inline def apply(inline value: Int): MajorVersion =
+    inline if value < 0 then compiletime.error("MajorVersion must be non-negative (>= 0)")
+    else wrap(value)
   extension (v: MajorVersion)
     /** Returns `true` if the major version is greater than 0, indicating a stable release according to SemVer. */
     inline def isStable: Boolean = unwrap(v) > 0
@@ -102,6 +109,9 @@ object MinorVersion extends ResettableVersionComponent[MinorVersion]:
   protected inline def error(value: Int): Error = InvalidMinorVersion(value)
   inline def wrap(value: Int): MinorVersion = value
   inline def unwrap(mv: MinorVersion): Int = mv
+  inline def apply(inline value: Int): MinorVersion =
+    inline if value < 0 then compiletime.error("MinorVersion must be non-negative (>= 0)")
+    else wrap(value)
 
 /** Represents a patch number. Must be non-negative (>= 0). */
 opaque type PatchNumber = Int
@@ -113,6 +123,9 @@ object PatchNumber extends ResettableVersionComponent[PatchNumber]:
   protected inline def error(value: Int): Error = InvalidPatchNumber(value)
   inline def wrap(value: Int): PatchNumber = value
   inline def unwrap(pn: PatchNumber): Int = pn
+  inline def apply(inline value: Int): PatchNumber =
+    inline if value < 0 then compiletime.error("PatchNumber must be non-negative (>= 0)")
+    else wrap(value)
 
 /** Represents a pre-release number. Must be positive (>= 1). */
 opaque type PreReleaseNumber = Int
@@ -124,6 +137,9 @@ object PreReleaseNumber extends ResettableVersionComponent[PreReleaseNumber]:
   protected inline def error(value: Int): Error = InvalidPreReleaseNumber(value)
   inline def wrap(value: Int): PreReleaseNumber = value
   inline def unwrap(prn: PreReleaseNumber): Int = prn
+  inline def apply(inline value: Int): PreReleaseNumber =
+    inline if value < 1 then compiletime.error("PreReleaseNumber must be positive (>= 1)")
+    else wrap(value)
 
 /** Represents the supported pre-release classifiers in order of precedence (lowest to highest).
  *
@@ -197,7 +213,7 @@ end PreReleaseClassifier
  * @param number
  *   The version number associated with the classifier, if applicable.
  */
-final case class PreRelease @publicInBinary private (
+final case class PreRelease private (
   classifier: PreReleaseClassifier,
   number: Option[PreReleaseNumber]
 )

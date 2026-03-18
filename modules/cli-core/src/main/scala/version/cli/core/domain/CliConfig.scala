@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.cli.core.domain
 
+import version.cli.core.ResolutionError
+
 /** Pure configuration for a version resolution run.
   *
   * @param repo
@@ -41,6 +43,19 @@ final case class CliConfig(
 
 object CliConfig:
   given CanEqual[CliConfig, CliConfig] = CanEqual.derived
+
+  /** Validated construction. Returns `Left` if `shaLength` is outside [7, 40] or `basisCommit` is empty. */
+  def from(
+    repo: os.Path,
+    basisCommit: String,
+    prNumber: Option[Int],
+    branchOverride: Option[String],
+    shaLength: Int,
+    verbose: Boolean
+  ): Either[ResolutionError, CliConfig] =
+    if basisCommit.isEmpty then Left(ResolutionError.Message("basisCommit must not be empty"))
+    else if shaLength < 7 || shaLength > 40 then Left(ResolutionError.InvalidShaLength(shaLength))
+    else Right(new CliConfig(repo, basisCommit, prNumber, branchOverride, shaLength, verbose))
 
   def apply(): CliConfig =
     new CliConfig(

@@ -30,11 +30,11 @@ object LogLevel:
   given CanEqual[LogLevel, LogLevel] = CanEqual.derived
 
   extension (level: LogLevel)
-    /** Check if this level should be logged given the current configuration. */
-    inline def isEnabled(inline isVerbose: Boolean): Boolean =
+    /** Check if this level should be logged given a [[Verbose]] flag. */
+    inline def isEnabled(inline verbose: Verbose): Boolean =
       inline level match
         case LogLevel.Error   => true
-        case LogLevel.Verbose => isVerbose
+        case LogLevel.Verbose => verbose.isEnabled
 
 /** Pure data representing a log entry. */
 final case class LogEntry(
@@ -75,21 +75,21 @@ object Logger:
       * The message expression is only evaluated if verbose logging is enabled, providing zero-cost abstraction for
       * expensive debug computations.
       */
-    def verbose(message: String, context: String)(using isVerbose: Boolean): Unit =
-      if isVerbose then logger.log(LogEntry(LogLevel.Verbose, message, if context.nonEmpty then Some(context) else None))
-    def verbose(message: String)(using isVerbose: Boolean): Unit =
-      if isVerbose then logger.log(LogEntry(LogLevel.Verbose, message, None))
+    def verbose(message: String, context: String)(using v: Verbose): Unit =
+      if v.isEnabled then logger.log(LogEntry(LogLevel.Verbose, message, if context.nonEmpty then Some(context) else None))
+    def verbose(message: String)(using v: Verbose): Unit =
+      if v.isEnabled then logger.log(LogEntry(LogLevel.Verbose, message, None))
 
     /** Log a verbose message with lazy evaluation of an expensive computation.
       *
       * The computation is only performed if verbose logging is enabled.
       */
-    def verboseLazy[T](computation: => T, messageTemplate: T => String, context: String)(using isVerbose: Boolean): Unit =
-      if isVerbose then
+    def verboseLazy[T](computation: => T, messageTemplate: T => String, context: String)(using v: Verbose): Unit =
+      if v.isEnabled then
         val result = computation
         logger.log(LogEntry(LogLevel.Verbose, messageTemplate(result), if context.nonEmpty then Some(context) else None))
-    def verboseLazy[T](computation: => T, messageTemplate: T => String)(using isVerbose: Boolean): Unit =
-      if isVerbose then
+    def verboseLazy[T](computation: => T, messageTemplate: T => String)(using v: Verbose): Unit =
+      if v.isEnabled then
         val result = computation
         logger.log(LogEntry(LogLevel.Verbose, messageTemplate(result), None))
   end extension

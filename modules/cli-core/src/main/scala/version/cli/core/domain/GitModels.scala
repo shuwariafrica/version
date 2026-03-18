@@ -15,38 +15,67 @@
  ****************************************************************************/
 package version.cli.core.domain
 
-import version.Version
+import boilerplate.OpaqueType
 
-/** An abstraction for a Git commit SHA. Backed by a lowercased string. */
+import version.Version
+import version.cli.core.ResolutionError
+
+/** A Git commit SHA. Normalised to lowercase on construction.
+  *
+  * Instances may be constructed via [[CommitSha$ CommitSha]].
+  */
 opaque type CommitSha = String
 
-object CommitSha:
-  /** Wraps a string as a [[CommitSha]], normalising to lowercase for consistency. */
-  inline def apply(sha: String): CommitSha = sha.toLowerCase
+/** Provides factory methods and operations for [[CommitSha]]. */
+object CommitSha extends OpaqueType[CommitSha]:
+  type Type = String
+  type Error = ResolutionError.InvalidCommitSha
 
-  /** Unwraps the [[CommitSha]] to its string value. */
-  extension (sha: CommitSha) inline def value: String = sha
+  inline def wrap(sha: String): CommitSha = sha.toLowerCase
+  inline def unwrap(sha: CommitSha): String = sha
 
-  given CanEqual[CommitSha, CommitSha] = CanEqual.derived
+  protected inline def validate(value: String): Option[Error] =
+    if value.nonEmpty && value.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
+    then None
+    else Some(ResolutionError.InvalidCommitSha(value))
 
-/** An abstraction for a Git tag name (as-is, not normalised). */
+  inline def apply(inline value: String): CommitSha = fromUnsafe(value)
+
+  extension (sha: CommitSha)
+    /** The lowercase hex string value. */
+    inline def value: String = unwrap(sha)
+
+/** A Git tag name (preserved as-is).
+  *
+  * Instances may be constructed via [[TagName$ TagName]].
+  */
 opaque type TagName = String
 
-object TagName:
-  inline def apply(name: String): TagName = name
-  extension (name: TagName) inline def value: String = name
-  given CanEqual[TagName, TagName] = CanEqual.derived
+/** Provides factory methods and operations for [[TagName]]. */
+object TagName extends OpaqueType[TagName]:
+  type Type = String
+  type Error = ResolutionError.InvalidTagName
 
-/** Represents a Git commit (SHA + full message + parent info for merge detection). Pure data.
+  inline def wrap(name: String): TagName = name
+  inline def unwrap(name: TagName): String = name
+
+  protected inline def validate(value: String): Option[Error] =
+    if value.nonEmpty then None
+    else Some(ResolutionError.InvalidTagName(value))
+
+  inline def apply(inline value: String): TagName = fromUnsafe(value)
+
+  extension (name: TagName)
+    /** The tag name string. */
+    inline def value: String = unwrap(name)
+
+/** Represents a Git commit (SHA + full message + parent info for merge detection).
   *
-  * @param sha
-  *   Full commit SHA (lowercase).
-  * @param message
-  *   Full commit message (subject + body).
-  * @param parentCount
-  *   Number of parent commits. A commit with `parentCount >= 2` is a merge commit.
+  * Instances may be constructed via [[Commit$ Commit]].
   */
 final case class Commit(sha: CommitSha, message: String, parentCount: Int)
+
+/** Provides instances and operations for [[Commit]]. */
 object Commit:
   given CanEqual[Commit, Commit] = CanEqual.derived
 
@@ -54,8 +83,13 @@ object Commit:
     /** Whether this commit is a merge commit (has multiple parents). */
     inline def isMerge: Boolean = c.parentCount >= 2
 
-/** Represents a parsed and validated SemVer Git tag. Pure data. */
+/** Represents a parsed and validated version tag.
+  *
+  * Instances may be constructed via [[Tag$ Tag]].
+  */
 final case class Tag(name: TagName, commitSha: CommitSha, version: Version)
+
+/** Provides instances for [[Tag]]. */
 object Tag:
   given CanEqual[Tag, Tag] = CanEqual.derived
   given Ordering[Tag] = Ordering.by(_.version)

@@ -28,6 +28,7 @@ import version.cli.core.domain.CliConfig
 import version.cli.core.environment.CiDetector
 import version.cli.core.logging.LogConfig
 import version.cli.core.logging.Logger
+import version.cli.core.logging.Verbose
 import version.cli.logging.ColourConfig
 import version.cli.logging.StandardLogger
 import version.codecs.jsoniter.given
@@ -57,7 +58,7 @@ object CLI:
           else ColourConfig.fromEnvironment(resolvedOpts.ci)
         val logger = StandardLogger(logConfig, colourCfg)
 
-        given Boolean = resolvedOpts.verbose
+        given Verbose = Verbose(resolvedOpts.verbose)
 
         logger.verbose(
           s"Resolving in ${resolvedOpts.repository} at ${resolvedOpts.basisCommit}; sinks=${renderSinkSummary(resolvedOpts)}; ci=${resolvedOpts.ci}",
@@ -75,12 +76,12 @@ object CLI:
             )
             val cfg = CliConfig.mergeWithCiMetadata(baseCfg, metadata)
             // CLI application uses fixed default reader and resolver instances
-            Core.resolve(cfg, logger, resolvedOpts.verbose, Version.Read.ReadString, PreRelease.Resolver.given_Resolver) match
+            Core.resolve(cfg, logger, Verbose(resolvedOpts.verbose), Version.Read.ReadString, PreRelease.Resolver.given_Resolver) match
               case Left(e) =>
                 logger.error(renderError(e))
                 sys.exit(1)
               case Right(v) =>
-                val (consoleOutputs, fileWrites) = render(v, rc, logger)(using resolvedOpts.verbose)
+                val (consoleOutputs, fileWrites) = render(v, rc, logger)(using Verbose(resolvedOpts.verbose))
                 val failed = fileWrites.collect { case Left(m) => m }
                 if failed.nonEmpty then
                   failed.foreach(logger.error)
@@ -118,7 +119,7 @@ object CLI:
       if s.destination.isEmpty && acc.exists(o => o.kind == s.kind && o.destination.isEmpty) then acc else acc :+ s
     }
 
-  private def render(version: Version, rc: ResolveConfig, logger: Logger)(using Boolean): (List[String], List[Either[String, Unit]]) =
+  private def render(version: Version, rc: ResolveConfig, logger: Logger)(using Verbose): (List[String], List[Either[String, Unit]]) =
     val consoleBuf = scala.collection.mutable.ListBuffer.empty[String]
     val fileResults = scala.collection.mutable.ListBuffer.empty[Either[String, Unit]]
     rc.sinks.foreach { sink =>

@@ -21,12 +21,13 @@ import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
 import version.cli.core.logging.Logger
 import version.cli.core.logging.NullLogger
+import version.cli.core.logging.Verbose
 import version.{*, given}
 
 final class GitProcessSuite extends FunSuite with TestRepoSupport:
 
   given Logger = NullLogger
-  given Boolean = false
+  given Verbose = Verbose.disabled
 
   test("listAllTags returns only annotated tags; ignores lightweight and invalid") {
     withFreshRepo("listAllTags") { repo =>

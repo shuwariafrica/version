@@ -72,9 +72,9 @@ class MetadataSuite extends munit.FunSuite:
     assertEquals(ex2.identifiers, List.empty)
   }
 
-  test("Metadata.show should format correctly with '+' prefix and dot separation") {
+  test("Metadata.show should format correctly with dot separation") {
     val metadata = Metadata(List("sha", "a9f8e6d"))
-    assertEquals(metadata.show, "+sha.a9f8e6d")
+    assertEquals(metadata.show, "sha.a9f8e6d")
   }
 
 end MetadataSuite

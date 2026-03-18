@@ -19,6 +19,7 @@ import version.Metadata
 import version.cli.core.domain.*
 import version.cli.core.git.Git
 import version.cli.core.logging.Logger
+import version.cli.core.logging.Verbose
 
 // scalafix:off
 /** Constructs Metadata for development versions according to the specification. */
@@ -33,7 +34,7 @@ object MetadataBuilder:
     basisCommitSha: CommitSha,
     baseVersionCommitSha: Option[CommitSha],
     isDirty: Boolean
-  )(using logger: Logger, isVerbose: Boolean): Either[ResolutionError, Metadata] =
+  )(using logger: Logger, verbose: Verbose): Either[ResolutionError, Metadata] =
     for
       _ <- if config.shaLength < 7 || config.shaLength > 40 then Left(ResolutionError.InvalidShaLength(config.shaLength)) else Right(())
       prId = config.prNumber.map(n => s"pr${Math.max(0, n)}")
@@ -55,6 +56,7 @@ object MetadataBuilder:
 
   /** Branch normalisation as per spec. */
   private def normalize(name: String): String =
+    // Hotpath: single-pass character normalisation avoids intermediate string allocations
     val lower = name.toLowerCase
     val sb = new StringBuilder(lower.length)
     var prevHyphen = false

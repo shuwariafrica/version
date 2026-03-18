@@ -280,19 +280,28 @@ object Version:
     /** Summons the contextual show instance. */
     inline def apply(using s: Show): Show = s
 
+    // Hotpath: batch rendering of version collections benefits from reduced allocations
+    private inline def appendCore(sb: StringBuilder, v: Version): Unit =
+      sb.append(v.major.value).append('.').append(v.minor.value).append('.').append(v.patch.value): Unit
+
+    private inline def appendPreRelease(sb: StringBuilder, v: Version): Unit =
+      v.preRelease.foreach(pr => sb.append('-').append(pr.show): Unit)
+
     /** Standard SemVer rendering WITHOUT build metadata. */
     object Standard extends Show:
       extension (v: Version)
         def show: String =
-          val core = s"${v.major.value}.${v.minor.value}.${v.patch.value}"
-          v.preRelease.fold(core)(pr => s"$core-${pr.show}")
+          val sb = new StringBuilder(24)
+          appendCore(sb, v)
+          appendPreRelease(sb, v)
+          sb.result()
 
     /** Extended SemVer rendering WITH build metadata.
       *
       * SHA identifiers (prefixed with `sha`) are truncated to 7 characters following the standard git short-SHA
       * convention.
       *
-      * Not a `given` by default — promote to local `given` when needed:
+      * Not a `given` by default - promote to local `given` when needed:
       * {{{
       * given Version.Show = Version.Show.Extended
       * }}}
@@ -300,16 +309,23 @@ object Version:
     object Extended extends Show:
       extension (v: Version)
         def show: String =
-          val pre = v.preRelease.fold("")(pr => s"-${pr.show}")
-          val meta = v.metadata.fold("") { bm =>
-            val truncated = bm.identifiers.map { id =>
+          val sb = new StringBuilder(64)
+          appendCore(sb, v)
+          appendPreRelease(sb, v)
+          v.metadata.foreach { bm =>
+            sb.append('+'): Unit
+            // Hotpath: index-based loop avoids iterator allocation
+            val ids = bm.identifiers
+            var i = 0 // scalafix:ok DisableSyntax.var
+            while i < ids.length do // scalafix:ok DisableSyntax.while
+              if i > 0 then sb.append('.'): Unit
+              val id = ids(i)
               // Truncate SHA identifiers to 7 chars (git short-SHA convention)
-              if id.startsWith("sha") && id.length > 10 then s"sha${id.slice(3, 10)}"
-              else id
-            }
-            s"+${truncated.mkString(".")}"
+              if id.startsWith("sha") && id.length > 10 then sb.append("sha").append(id.substring(3, 10)): Unit
+              else sb.append(id): Unit
+              i += 1
           }
-          s"${v.major.value}.${v.minor.value}.${v.patch.value}$pre$meta"
+          sb.result()
 
     /** Full SemVer rendering WITH complete build metadata (no truncation).
       *
@@ -319,9 +335,11 @@ object Version:
     object Full extends Show:
       extension (v: Version)
         def show: String =
-          val pre = v.preRelease.fold("")(pr => s"-${pr.show}")
-          val meta = v.metadata.fold("")(bm => s"+${bm.identifiers.mkString(".")}")
-          s"${v.major.value}.${v.minor.value}.${v.patch.value}$pre$meta"
+          val sb = new StringBuilder(64)
+          appendCore(sb, v)
+          appendPreRelease(sb, v)
+          v.metadata.foreach(bm => sb.append('+').append(bm.show): Unit)
+          sb.result()
   end Show
 
   /** Ordering according to Semantic Versioning 2.0.0 precedence rules. */

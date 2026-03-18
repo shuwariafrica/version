@@ -20,13 +20,18 @@ import scala.util.control.NoStackTrace
 import version.PreReleaseClassifier
 import version.PreReleaseNumber
 
-/** Base trait for all errors produced by the version library. Modelled as an ADT and extending [[RuntimeException]]
-  * with [[NoStackTrace]] for compatibility with both functional error handling (`Either`) and exception throwing in
-  * critical validation paths.
+/** Base trait for all errors produced by the version library.
+  *
+  * Extends [[RuntimeException]] with [[NoStackTrace]] for compatibility with both functional error handling (`Either`)
+  * and exception-based validation paths. Category-specific sealed sub-traits provide exhaustive matching within each
+  * error domain.
   */
-sealed trait VersionError extends RuntimeException with NoStackTrace derives CanEqual:
+trait VersionError extends RuntimeException with NoStackTrace:
   def message: String
   final override def getMessage: String = message
+
+object VersionError:
+  given CanEqual[VersionError, VersionError] = CanEqual.derived
 
 // --- Validation Errors (for programmatic creation) ---
 

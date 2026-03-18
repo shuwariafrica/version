@@ -38,7 +38,7 @@ final class MetadataBuilderSuite extends FunSuite with TestRepoSupport:
       val v = result.toOption.get
       val meta = v.metadata.map(_.show).getOrElse("")
       // Canonical order: pr, branch, commits, sha, dirty
-      assert(meta.startsWith("+pr42.branchfeature-abc-123.commits"), s"metadata was: $meta")
+      assert(meta.startsWith("pr42.branchfeature-abc-123.commits"), s"metadata was: $meta")
       assert(meta.contains(".sha"), s"metadata was: $meta")
     }
   }
@@ -73,7 +73,7 @@ final class MetadataBuilderSuite extends FunSuite with TestRepoSupport:
       assert(res1.isRight)
       val v1 = res1.toOption.get
       val m1 = v1.metadata.map(_.show).getOrElse("")
-      assert(m1.contains("+branchr-f-weird-name"))
+      assert(m1.contains("branchr-f-weird-name"))
 
       // Detached HEAD should render branchdetached
       val head = os.proc("git", "rev-parse", "HEAD").call(cwd = repo, check = true).out.text().trim
@@ -85,7 +85,7 @@ final class MetadataBuilderSuite extends FunSuite with TestRepoSupport:
       assert(res2.isRight)
       val v2 = res2.toOption.get
       val m2 = v2.metadata.map(_.show).getOrElse("")
-      assert(m2.contains("+branchdetached"))
+      assert(m2.contains("branchdetached"))
     }
   }
 

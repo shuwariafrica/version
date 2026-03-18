@@ -15,12 +15,13 @@
  ****************************************************************************/
 package version.cli.core
 
-import scala.util.control.NoStackTrace
+import version.errors.VersionError
 
-/** Base trait for all errors produced by the version-cli-core library. */
-sealed trait ResolutionError extends RuntimeException with NoStackTrace:
-  def message: String
-  final override def getMessage: String = message
+/** Errors produced during version resolution from Git state.
+  *
+  * Extends [[VersionError]] to provide a unified error hierarchy across the library.
+  */
+sealed transparent trait ResolutionError extends VersionError
 
 object ResolutionError:
   given CanEqual[ResolutionError, ResolutionError] = CanEqual.derived
@@ -58,4 +59,12 @@ object ResolutionError:
   /** CLI: empty path after '=' in an --emit specification. */
   final case class EmptyEmitPath(spec: String) extends ResolutionError:
     def message: String = s"Empty path after '=' in --emit $spec"
+
+  /** Invalid commit SHA - must be non-empty and contain only hexadecimal characters. */
+  final case class InvalidCommitSha(value: String) extends ResolutionError:
+    def message: String = s"Invalid commit SHA: '$value'. Must be non-empty and contain only hexadecimal characters [0-9a-fA-F]."
+
+  /** Invalid tag name - must be non-empty. */
+  final case class InvalidTagName(value: String) extends ResolutionError:
+    def message: String = s"Invalid tag name: '$value'. Must be non-empty."
 end ResolutionError

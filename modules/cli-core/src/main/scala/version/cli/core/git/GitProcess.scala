@@ -22,11 +22,12 @@ import version.cli.core.ResolutionError.InvalidShaLength
 import version.cli.core.ResolutionError.NotAGitRepository
 import version.cli.core.domain.*
 import version.cli.core.logging.Logger
+import version.cli.core.logging.Verbose
 
 /** [[Git]] implementation using os-lib and Git plumbing commands. */
 final class GitProcess(repoPath: os.Path)(using
   logger: Logger,
-  isVerbose: Boolean,
+  verbose: Verbose,
   reader: Version.Read[String],
   resolver: PreRelease.Resolver
 ) extends Git:

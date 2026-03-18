@@ -23,6 +23,7 @@ import version.cli.core.domain.*
 import version.cli.core.git.GitProcess
 import version.cli.core.logging.Logger
 import version.cli.core.logging.NullLogger
+import version.cli.core.logging.Verbose
 
 /** Public API entry point for version resolution.
   *
@@ -50,7 +51,7 @@ object VersionCliCore:
   // Internal shared implementation
   private def resolveImpl(
     config: CliConfig
-  )(using Logger, Boolean, Version.Read[String], PreRelease.Resolver): Either[ResolutionError, Version] =
+  )(using Logger, Verbose, Version.Read[String], PreRelease.Resolver): Either[ResolutionError, Version] =
     summon[Logger].verbose(s"Initialising Git interface at ${config.repo}", "Core")
     val git = new GitProcess(config.repo)
     Resolver.resolve(config, git)
@@ -64,7 +65,7 @@ object VersionCliCore:
   @targetName("resolveImplicit")
   def resolveImplicit(using
     Logger,
-    Boolean,
+    Verbose,
     Version.Read[String],
     PreRelease.Resolver
   )(config: CliConfig): Either[ResolutionError, Version] =
@@ -75,12 +76,12 @@ object VersionCliCore:
   def resolve(
     config: CliConfig,
     logger: Logger,
-    verbose: Boolean,
+    verbose: Verbose,
     reader: Version.Read[String],
     resolver: PreRelease.Resolver
   ): Either[ResolutionError, Version] =
     given Logger = logger
-    given Boolean = verbose
+    given Verbose = verbose
     given Version.Read[String] = reader
     given PreRelease.Resolver = resolver
     resolveImpl(config)
@@ -90,17 +91,17 @@ object VersionCliCore:
   def resolve(
     config: CliConfig,
     logger: Logger,
-    verbose: Boolean
+    verbose: Verbose
   )(using Version.Read[String], PreRelease.Resolver): Either[ResolutionError, Version] =
     given Logger = logger
-    given Boolean = verbose
+    given Verbose = verbose
     resolveImpl(config)
 
   /** Resolves the version with configuration only, using `NullLogger` and contextual reader/resolver. */
   @targetName("resolveConfigOnly")
   def resolve(config: CliConfig)(using Version.Read[String], PreRelease.Resolver): Either[ResolutionError, Version] =
     given Logger = NullLogger
-    given Boolean = config.verbose
+    given Verbose = Verbose(config.verbose)
     resolveImpl(config)
 
   /** Resolves the version with default configuration, using `NullLogger` and contextual reader/resolver. */

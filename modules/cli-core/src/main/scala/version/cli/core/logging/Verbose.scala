@@ -13,32 +13,31 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.zio
+package version.cli.core.logging
 
-import zio.prelude.*
+import boilerplate.OpaqueType
 
-import version.MajorVersion
-import version.MinorVersion
-import version.PatchNumber
-import version.PreRelease
-import version.PreReleaseClassifier
-import version.PreReleaseNumber
-import version.Version
+/** Controls whether verbose/debug logging is enabled during version resolution.
+  *
+  * Replaces raw `Boolean` as a contextual parameter to prevent ambiguity with other `given Boolean` instances.
+  *
+  * Instances may be constructed via [[Verbose$ Verbose]].
+  */
+opaque type Verbose = Boolean
 
-object prelude:
+/** Provides factory methods and operations for [[Verbose]]. */
+object Verbose extends OpaqueType[Verbose]:
+  type Type = Boolean
+  type Error = Nothing
 
-  given Equal[MajorVersion] = Equal.default
-  given Equal[MinorVersion] = Equal.default
-  given Equal[PatchNumber] = Equal.default
-  given Equal[PreReleaseNumber] = Equal.default
-  given Equal[PreReleaseClassifier] = Equal.default
-  given Equal[PreRelease] = Equal.default
-  given Equal[Version] = Equal.default
+  inline def wrap(value: Boolean): Verbose = value
+  inline def unwrap(value: Verbose): Boolean = value
+  protected inline def validate(value: Boolean): Option[Nothing] = None
+  inline def apply(inline value: Boolean): Verbose = wrap(value)
 
-  given Ord[MajorVersion] = Ord.default
-  given Ord[MinorVersion] = Ord.default
-  given Ord[PatchNumber] = Ord.default
-  given Ord[PreReleaseNumber] = Ord.default
-  given Ord[PreReleaseClassifier] = Ord.default
-  given Ord[PreRelease] = Ord.default
-  given Ord[Version] = Ord.default
+  val enabled: Verbose = wrap(true)
+  val disabled: Verbose = wrap(false)
+
+  extension (v: Verbose)
+    /** Whether verbose logging is enabled. */
+    inline def isEnabled: Boolean = unwrap(v)

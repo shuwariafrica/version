@@ -89,35 +89,4 @@ class PreludeSpec extends FunSuite:
     )
   }
 
-  test("Commutative[MajorVersion] should correctly combine MajorVersion instances") {
-    val expected = MajorVersion.fromUnsafe(3)
-    val a = MajorVersion.fromUnsafe(1)
-    val b = MajorVersion.fromUnsafe(2)
-    assertEquals(a <> b, expected)
-    assertEquals(b <> a, expected)
-  }
-
-  test("Commutative[MinorVersion] should correctly combine MinorVersion instances") {
-    val expected = MinorVersion.fromUnsafe(3)
-    val a = MinorVersion.fromUnsafe(1)
-    val b = MinorVersion.fromUnsafe(2)
-    assertEquals(a <> b, expected)
-    assertEquals(b <> a, expected)
-  }
-
-  test("Commutative[PatchNumber] should correctly combine PatchNumber instances") {
-    val expected = PatchNumber.fromUnsafe(3)
-    val a = PatchNumber.fromUnsafe(1)
-    val b = PatchNumber.fromUnsafe(2)
-    assertEquals(a <> b, expected)
-    assertEquals(b <> a, expected)
-  }
-
-  test("Commutative[PreReleaseNumber] should correctly combine PreReleaseNumber instances") {
-    val expected = PreReleaseNumber.fromUnsafe(3)
-    val a = PreReleaseNumber.fromUnsafe(1)
-    val b = PreReleaseNumber.fromUnsafe(2)
-    assertEquals(a <> b, expected)
-    assertEquals(b <> a, expected)
-  }
 end PreludeSpec
