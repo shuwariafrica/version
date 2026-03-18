@@ -1,7 +1,7 @@
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.8.1"),
+    crossScalaVersions := List("3.8.2"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
@@ -141,7 +141,7 @@ val `sbt-version` =
     .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
-    .settings(sbtVersion := "2.0.0-RC8")
+    .settings(sbtVersion := "2.0.0-RC9")
     .settings(Compile / scalacOptions -= "-deprecation")
     .settings(
       scriptedBufferLog := true,
