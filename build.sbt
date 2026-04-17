@@ -89,18 +89,14 @@ val `sbt-version` =
     .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
-    .settings(sbtVersion := "2.0.0-RC9")
+    .settings(sbtVersion := "2.0.0-RC12")
     .settings(Compile / scalacOptions -= "-deprecation")
     .settings(
       scriptedBufferLog := true,
       scriptedLaunchOpts ++= Seq(
         s"-Dplugin.version=${(LocalRootProject / Keys.version).value}",
         s"-Dsbt.boot.directory=${file(sys.props("user.home")) / ".sbt" / "boot"}"
-      ),
-      scripted :=
-        streams.value.log.warn(
-          "Scripted tests skipped: sbt 2.0.0-RC9 (Scala 3.8.1) cannot read TASTy from Scala 3.8.2"
-        )
+      )
     )
 
 val `version-jvm` =
