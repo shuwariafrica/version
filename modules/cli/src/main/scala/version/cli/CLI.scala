@@ -15,29 +15,25 @@
  ****************************************************************************/
 package version.cli
 
-import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
-import org.virtuslab.yaml.*
 import scopt.OParser
 
-import version.PreRelease
-import version.Version
-import version.cli.core.ResolutionError
-import version.cli.core.VersionCliCore as Core
-import version.cli.core.domain.CiMetadata
-import version.cli.core.domain.CliConfig
-import version.cli.core.environment.CiDetector
-import version.cli.core.logging.LogConfig
-import version.cli.core.logging.Logger
-import version.cli.core.logging.Verbose
 import version.cli.logging.ColourConfig
+import version.cli.logging.LogConfig
 import version.cli.logging.StandardLogger
-import version.codecs.jsoniter.given
-import version.codecs.yaml.given
+import version.resolution.ResolutionConfig
+import version.resolution.ResolutionError
+import version.resolution.VersionCliCore as Core
+import version.resolution.domain.CiMetadata
+import version.resolution.environment.CiDetector
+import version.resolution.logging.Logger
+import version.resolution.logging.Verbose
+import version.resolution.openRepository
+import version.semver.SemVer
 
 /** Command-line entry point for version-cli.
   *
   * This CLI:
-  *   - Invokes version-cli-core to resolve a Version for a repository
+  *   - Invokes the resolution module to resolve a Version for a repository
   *   - Prints the result in one or more formats: pretty | compact | json | yaml
   *
   * Effects are confined to main; underlying core remains pure.
@@ -66,17 +62,17 @@ object CLI:
 
         resolvedOpts.command match
           case rc: ResolveConfig =>
-            val baseCfg = CliConfig(
-              repo = resolvedOpts.repository,
-              basisCommit = resolvedOpts.basisCommit,
-              prNumber = resolvedOpts.prNumber,
-              branchOverride = resolvedOpts.branchOverride,
-              shaLength = resolvedOpts.shaLength,
-              verbose = resolvedOpts.verbose
-            )
-            val cfg = CliConfig.mergeWithCiMetadata(baseCfg, metadata)
-            // CLI application uses fixed default reader and resolver instances
-            Core.resolve(cfg, logger, Verbose(resolvedOpts.verbose), Version.Read.ReadString, PreRelease.Resolver.given_Resolver) match
+            val baseCfg = ResolutionConfig
+              .default[SemVer](resolvedOpts.repository.toString)
+              .copy(
+                basisCommit = resolvedOpts.basisCommit,
+                prNumber = resolvedOpts.prNumber,
+                branchOverride = resolvedOpts.branchOverride,
+                shaLength = resolvedOpts.shaLength,
+                verbose = resolvedOpts.verbose
+              )
+            val cfg = baseCfg.mergeWith(metadata)
+            Core.resolve(cfg, openRepository, logger, Verbose(resolvedOpts.verbose)) match
               case Left(e) =>
                 logger.error(renderError(e))
                 sys.exit(1)
@@ -99,8 +95,8 @@ object CLI:
   end main
 
   private def applyPostParseDefaults(o: CliOptions, metadata: Option[CiMetadata]): CliOptions =
-    val inferredPr = o.prNumber.orElse(CliConfig.inferPullRequestNumber(metadata))
-    val inferredBranch = o.branchOverride.orElse(CliConfig.inferBranchOverride(metadata))
+    val inferredPr = o.prNumber.orElse(metadata.flatMap(_.inferPullRequestNumber))
+    val inferredBranch = o.branchOverride.orElse(metadata.flatMap(_.inferBranchOverride))
     val inferredCi = if o.ci then true else metadata.exists(_.isCi)
     val base = o.copy(prNumber = inferredPr, branchOverride = inferredBranch, ci = inferredCi)
     base.command match
@@ -119,21 +115,20 @@ object CLI:
       if s.destination.isEmpty && acc.exists(o => o.kind == s.kind && o.destination.isEmpty) then acc else acc :+ s
     }
 
-  private def render(version: Version, rc: ResolveConfig, logger: Logger)(using Verbose): (List[String], List[Either[String, Unit]]) =
+  private def render(version: SemVer, rc: ResolveConfig, logger: Logger)(using Verbose): (List[String], List[Either[String, Unit]]) =
     val consoleBuf = scala.collection.mutable.ListBuffer.empty[String]
     val fileResults = scala.collection.mutable.ListBuffer.empty[Either[String, Unit]]
     rc.sinks.foreach { sink =>
       val content = sink.kind match
         case SinkKind.Console => renderConsole(version, rc.consoleStyle)
-        case SinkKind.Raw     => version.show
-        case SinkKind.Json    => writeToString(version)
-        case SinkKind.Yaml    => version.asYaml
+        case SinkKind.Raw     => version.show // VersionScheme canonical
+        case SinkKind.Json    => SemVerJson.toJson(version)
       sink.destination match
         case Some(path) =>
           try
             // ensure parent directories exist
-            os.makeDir.all(path / os.up)
-            os.write.over(path, content)
+            java.nio.file.Files.createDirectories(path.getParent)
+            java.nio.file.Files.writeString(path, content)
             logger.verbose(s"Wrote ${sink.kind.toString.toLowerCase} output to $path", "CLI")
             fileResults += Right(())
           catch case t: Throwable => fileResults += Left(s"Failed to write $path: ${t.getMessage}")
@@ -141,16 +136,16 @@ object CLI:
     }
     (consoleBuf.toList, fileResults.toList)
 
-  private def renderConsole(v: Version, style: ConsoleStyle): String = style match
+  private def renderConsole(v: SemVer, style: ConsoleStyle): String = style match
     case ConsoleStyle.Pretty  => renderConsolePretty(v)
     case ConsoleStyle.Compact => v.show
 
-  private def renderConsolePretty(v: Version): String =
+  private def renderConsolePretty(v: SemVer): String =
     val b = new StringBuilder
     val sep = System.lineSeparator()
     b.append(s"Version:$sep")
     b.append(s"  version   : ${v.show}$sep")
-    b.append(s"  extended  : ${Version.Show.Extended.show(v)}$sep")
+    b.append(s"  extended  : ${SemVer.Formatter.extended.format(v)}$sep")
     b.append(s"  preRelease: ${v.preRelease.fold("none")(_.show)}$sep")
     b.append(s"  metadata  : ${v.metadata.map(_.show).getOrElse("none")}$sep")
     b.result()

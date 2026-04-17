@@ -15,5 +15,15 @@
  ****************************************************************************/
 package version.cli
 
-/** Re-exports [[version.testkit.TestRepoSupport]] for cli tests. */
-trait TestRepoSupport extends version.testkit.TestRepoSupport
+import version.resolution.logging.Logger
+import version.resolution.logging.NullLogger
+import version.resolution.logging.Verbose
+
+/** Re-exports [[version.testkit.TestRepoSupport]] for cli tests.
+  *
+  * Provides default `given` instances for `Logger` (NullLogger) and `Verbose` (disabled) so that tests calling
+  * `VersionCliCore.resolve(config)` resolve the contextual overload without additional ceremony.
+  */
+trait TestRepoSupport extends version.testkit.TestRepoSupport:
+  given Logger = NullLogger
+  given Verbose = Verbose.disabled

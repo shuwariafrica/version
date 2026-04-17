@@ -19,26 +19,27 @@ import sbt.*
 import sbt.Keys.{version as _, *}
 import sbt.util.Logger as SbtLogger
 
-import version.cli.core.ResolutionError
-import version.cli.core.VersionCliCore
-import version.cli.core.domain.CiMetadata
-import version.cli.core.domain.CliConfig
-import version.cli.core.environment.CiDetector
-import version.cli.core.logging.LogEntry
-import version.cli.core.logging.LogLevel
-import version.cli.core.logging.Logger as CoreLogger
-import version.cli.core.logging.Verbose
+import version.resolution.GitError
+import version.resolution.ResolutionConfig
+import version.resolution.ResolutionError
+import version.resolution.VersionCliCore
+import version.resolution.domain.CiMetadata
+import version.resolution.environment.CiDetector
+import version.resolution.logging.LogEntry
+import version.resolution.logging.LogLevel
+import version.resolution.logging.Logger as CoreLogger
+import version.resolution.logging.Verbose
+import version.resolution.openRepository
 import version.sbt.VersionPluginImports.*
-import version.{*, given}
+import version.semver.*
 
 /** sbt plugin for automatic semantic version resolution from Git state.
   *
   * Provides the following keys:
-  *   - `resolvedVersion`: The full [[version.Version Version]] object with 40-character SHA
+  *   - `resolvedVersion`: The full [[version.semver.SemVer SemVer]] object with 40-character SHA
   *   - `version`: Standard SemVer string for publishing (excludes build metadata by default)
   *   - `isSnapshot`: `true` if the resolved version is a snapshot
-  *   - `versionRead`: Customisable [[version.Version.Read Version.Read]] instance for parsing version tags
-  *   - `versionShow`: Optional [[version.Version.Show Version.Show]] instance for rendering
+  *   - `versionFormatter`: Optional [[version.semver.SemVer.Formatter SemVer.Formatter]] for rendering
   *   - `versionBranchOverride`: Optional branch name override for CI environments
   *
   * @see [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
@@ -53,42 +54,39 @@ object VersionPlugin extends AutoPlugin:
   override def buildSettings: Seq[Setting[?]] =
     Seq(
       versionBranchOverride := sys.env.get("VERSION_BRANCH"),
-      versionRead := Version.Read.ReadString,
-      versionResolver := PreRelease.Resolver.given_Resolver,
-      versionShow := None,
+      versionTagParser := ResolutionConfig.default[SemVer]("").tagParser,
+      versionFormatter := None,
       resolvedVersion :=
         {
           val log = sLog.value
-          val reader = versionRead.value
-          val resolver = versionResolver.value
-          val repo = os.Path((LocalRootProject / baseDirectory).value.toPath)
-          log.debug(s"version-sbt: repo path = $repo, .git exists = ${os.exists(repo / ".git")}")
+          val tagParser = versionTagParser.value
+          val repo = (LocalRootProject / baseDirectory).value.getAbsolutePath
+          log.debug(s"version-sbt: repo path = $repo")
           val env = sys.env
           val metadata = internal.detectCiMetadata(env)
-          val base =
-            CliConfig(
-              repo = repo,
-              basisCommit = "HEAD",
-              prNumber = None,
+          val base = ResolutionConfig
+            .default[SemVer](repo)
+            .copy(
               branchOverride = versionBranchOverride.value,
               shaLength = 40,
-              verbose = internal.defaultVerbose(env)
+              verbose = internal.defaultVerbose(env),
+              tagParser = tagParser
             )
-          val cfg = CliConfig.mergeWithCiMetadata(base, metadata)
-          internal.resolveVersion(cfg, log, reader, resolver)
+          val cfg = base.mergeWith(metadata)
+          internal.resolveVersion(cfg, log)
         },
       Keys.version := {
         val v = resolvedVersion.value
-        versionShow.value match
-          case Some(s) => s.show(v)
-          case None    => Version.Show.Standard.show(v)
+        versionFormatter.value match
+          case Some(f) => f.format(v)
+          case None    => v.show
       },
       isSnapshot := resolvedVersion.value.snapshot
     )
 
   override def projectSettings: Seq[Setting[?]] = Seq.empty
 
-  /** Adapts sbt's [[SbtLogger]] to the `version-cli-core` [[CoreLogger]] interface. */
+  /** Adapts sbt's [[SbtLogger]] to the resolution module's [[CoreLogger]] interface. */
   final private class SbtCoreLogger(underlying: SbtLogger) extends CoreLogger:
     override def log(entry: LogEntry): Unit =
       val prefix = entry.context.fold("")(ctx => s"[$ctx] ")
@@ -109,18 +107,16 @@ object VersionPlugin extends AutoPlugin:
       * Per specification, `0.1.0` is the target when no tags exist. For non-repository contexts, we provide
       * `0.1.0-SNAPSHOT` to indicate development state.
       */
-    val fallbackVersion: Version = "0.1.0-SNAPSHOT".toVersionUnsafe
+    val fallbackVersion: SemVer = SemVer.parseUnsafe("0.1.0-SNAPSHOT")
 
     def resolveVersion(
-      cfg: CliConfig,
-      sbtLog: SbtLogger,
-      reader: Version.Read[String],
-      resolver: PreRelease.Resolver
-    ): Version =
+      cfg: ResolutionConfig[SemVer],
+      sbtLog: SbtLogger
+    ): SemVer =
       val logger = new SbtCoreLogger(sbtLog)
-      sbtLog.info(s"version-sbt: resolving version from ${cfg.repo}")
-      VersionCliCore.resolve(cfg, logger, Verbose(cfg.verbose), reader, resolver) match
-        case scala.util.Left(ResolutionError.NotAGitRepository(path)) =>
+      sbtLog.info(s"version-sbt: resolving version from ${cfg.repoPath}")
+      VersionCliCore.resolve(cfg, openRepository, logger, Verbose(cfg.verbose)) match
+        case scala.util.Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(path))) =>
           sbtLog.info(s"version-sbt: Not a Git repository at $path, using fallback version ${fallbackVersion.show}")
           fallbackVersion
         case scala.util.Left(err) =>

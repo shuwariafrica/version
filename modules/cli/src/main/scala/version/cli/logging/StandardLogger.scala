@@ -15,12 +15,20 @@
  ****************************************************************************/
 package version.cli.logging
 
-import version.Version
-import version.cli.core.logging.LogConfig
-import version.cli.core.logging.LogEntry
-import version.cli.core.logging.LogLevel
-import version.cli.core.logging.Logger
 import version.cli.logging.AnsiColours.colorize
+import version.resolution.logging.LogEntry
+import version.resolution.logging.LogLevel
+import version.resolution.logging.Logger
+import version.semver.SemVer
+
+/** Configuration for logging behaviour. */
+final case class LogConfig(
+  isVerbose: Boolean,
+  isCI: Boolean
+)
+
+object LogConfig:
+  given CanEqual[LogConfig, LogConfig] = CanEqual.derived
 
 /** ANSI colour codes for terminal output. */
 object AnsiColours:
@@ -89,15 +97,15 @@ final class StandardLogger(
 ) extends BaseLogger(logConfig):
 
   /** Format a version with appropriate colours based on its type. */
-  private inline def formatVersion(version: Version): String =
-    val versionStr = Version.Show.Extended.show(version)
+  private inline def formatVersion(version: SemVer): String =
+    val versionStr = SemVer.Formatter.extended.format(version)
     if version.preRelease.isEmpty then colourConfig.colourize(versionStr, AnsiColours.Green)
     else if version.snapshot then colourConfig.colourize(versionStr, AnsiColours.Red)
     else colourConfig.colourize(versionStr, AnsiColours.Yellow)
 
   /** Output a version to stdout with appropriate formatting. */
-  def outputVersion(version: Version): Unit =
-    val formatted = if colourConfig.isCI then Version.Show.Extended.show(version) else formatVersion(version)
+  def outputVersion(version: SemVer): Unit =
+    val formatted = if colourConfig.isCI then SemVer.Formatter.extended.format(version) else formatVersion(version)
     println(formatted)
 
   private inline def levelPrefix(level: LogLevel): String = level match
@@ -124,10 +132,6 @@ object StandardLogger:
   /** Create a standard logger with default colour detection. */
   def apply(logConfig: LogConfig): StandardLogger =
     new StandardLogger(logConfig, ColourConfig.fromEnvironment(logConfig.isCI))
-
-/** Null logger that discards all output. Useful for testing and library usage. */
-object NullLogger extends Logger:
-  def log(entry: LogEntry): Unit = ()
 
 /** Simple logger that outputs plain text without colours. Useful for testing. */
 final class PlainLogger(logConfig: LogConfig) extends BaseLogger(logConfig):

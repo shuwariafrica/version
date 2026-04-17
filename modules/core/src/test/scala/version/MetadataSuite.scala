@@ -16,6 +16,7 @@
 package version
 
 import version.errors.InvalidMetadata
+import version.semver.*
 
 class MetadataSuite extends munit.FunSuite:
 

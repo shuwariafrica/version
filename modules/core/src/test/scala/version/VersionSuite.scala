@@ -15,12 +15,14 @@
  ****************************************************************************/
 package version
 
+import scala.math.Ordering.Implicits.infixOrderingOps
 import scala.util.Random
 
-import version.PreReleaseClassifier.*
 import version.errors.*
+import version.semver.*
+import version.semver.PreReleaseClassifier.*
 
-/** Tests for the core composite data structures: PreReleaseClassifier, PreRelease, and Version (including Ordering and
+/** Tests for the core composite data structures: PreReleaseClassifier, PreRelease, and SemVer (including Ordering and
   * construction).
   */
 class VersionSuite extends munit.FunSuite:
@@ -85,18 +87,18 @@ class VersionSuite extends munit.FunSuite:
 
   test("PreRelease construction constraints (Missing Number)") {
     // Versioned classifiers must have a number
-    val ex1 = intercept[MissingPreReleaseNumber](PreRelease.fromUnsafe(Alpha, None))
-    assertEquals(ex1.classifier, Alpha)
+    val ex1 = intercept[MissingQualifierNumber](PreRelease.fromUnsafe(Alpha, None))
+    assertEquals(ex1.classifier, "alpha")
 
-    val ex2 = intercept[MissingPreReleaseNumber](PreRelease.fromUnsafe(ReleaseCandidate, None))
-    assertEquals(ex2.classifier, ReleaseCandidate)
+    val ex2 = intercept[MissingQualifierNumber](PreRelease.fromUnsafe(ReleaseCandidate, None))
+    assertEquals(ex2.classifier, "rc")
   }
 
   test("PreRelease construction constraints (Unexpected Number)") {
     // Non-versioned classifiers must NOT have a number
-    val ex = intercept[UnexpectedPreReleaseNumber](PreRelease.fromUnsafe(Snapshot, Some(N1)))
-    assertEquals(ex.classifier, Snapshot)
-    assertEquals(ex.number, N1)
+    val ex = intercept[UnexpectedQualifierNumber](PreRelease.fromUnsafe(Snapshot, Some(N1)))
+    assertEquals(ex.classifier, "SNAPSHOT")
+    assertEquals(ex.number, 1)
   }
 
   test("PreRelease.from returns Either for validation") {
@@ -107,12 +109,12 @@ class VersionSuite extends munit.FunSuite:
     // Invalid: versioned without number
     val left1 = PreRelease.from(Alpha, None)
     assert(left1.isLeft)
-    assert(left1.left.exists { case _: MissingPreReleaseNumber => true; case _ => false })
+    assert(left1.left.exists { case _: MissingQualifierNumber => true; case _ => false })
 
     // Invalid: non-versioned with number
     val left2 = PreRelease.from(Snapshot, Some(N1))
     assert(left2.isLeft)
-    assert(left2.left.exists { case _: UnexpectedPreReleaseNumber => true; case _ => false })
+    assert(left2.left.exists { case _: UnexpectedQualifierNumber => true; case _ => false })
   }
 
   test("PreRelease.increment") {
@@ -141,16 +143,16 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(expectedOrder.shuffle.sorted, expectedOrder)
   }
 
-  // --- Version Tests ---
+  // --- SemVer Tests ---
 
-  private val V1_0_0 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(0))
-  private val V1_2_3 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
-  private val V2_0_0 = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(0))
+  private val V1_0_0 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(0), Patch.fromUnsafe(0))
+  private val V1_2_3 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
+  private val V2_0_0 = SemVer(Major.fromUnsafe(2), Minor.fromUnsafe(0), Patch.fromUnsafe(0))
 
-  // --- Version Factory Overloads ---
+  // --- SemVer Factory Overloads ---
 
-  test("Version.apply(major, minor, patch) creates a final release") {
-    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
+  test("SemVer.apply(major, minor, patch) creates a final release") {
+    val v = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
     assertEquals(v.major.value, 1)
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
@@ -158,9 +160,9 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.metadata, None)
   }
 
-  test("Version.apply(major, minor, patch, preRelease) creates a pre-release version") {
+  test("SemVer.apply(major, minor, patch, preRelease) creates a pre-release version") {
     val pr = Some(PreRelease.alpha(N1))
-    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), pr)
+    val v = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3), pr)
     assertEquals(v.major.value, 1)
     assertEquals(v.minor.value, 2)
     assertEquals(v.patch.value, 3)
@@ -168,16 +170,16 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.metadata, None)
   }
 
-  test("Version.apply(major, minor, patch, preRelease) with None creates a final release") {
-    val v = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3), None)
+  test("SemVer.apply(major, minor, patch, preRelease) with None creates a final release") {
+    val v = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3), None)
     assertEquals(v.preRelease, None)
     assertEquals(v.metadata, None)
   }
 
-  test("Version full constructor includes all fields") {
+  test("SemVer full constructor includes all fields") {
     val pr = Some(PreRelease.beta(N5))
     val meta = Some(Metadata(List("build", "123")))
-    val v = Version(MajorVersion.fromUnsafe(2), MinorVersion.fromUnsafe(0), PatchNumber.fromUnsafe(1), pr, meta)
+    val v = SemVer(Major.fromUnsafe(2), Minor.fromUnsafe(0), Patch.fromUnsafe(1), pr, meta)
     assertEquals(v.major.value, 2)
     assertEquals(v.minor.value, 0)
     assertEquals(v.patch.value, 1)
@@ -185,15 +187,15 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.metadata, meta)
   }
 
-  // --- Version Ordering (SemVer Precedence) ---
+  // --- SemVer Ordering (SemVer Precedence) ---
 
-  test("Version Ordering (Core Components)") {
+  test("SemVer Ordering (Core Components)") {
     assert(V1_0_0 < V1_2_3)
     assert(V1_2_3 < V2_0_0)
     assert(V1_0_0 < V2_0_0)
   }
 
-  test("Version Ordering (Pre-Release vs Release)") {
+  test("SemVer Ordering (Pre-Release vs Release)") {
     // Rule: Release versions have higher precedence than pre-release versions (1.0.0 > 1.0.0-alpha)
     val release = V1_0_0
     val pre = V1_0_0.copy(preRelease = Some(PreRelease.alpha(N1)))
@@ -201,7 +203,7 @@ class VersionSuite extends munit.FunSuite:
     assert(pre < release)
   }
 
-  test("Version Ordering (Pre-Release comparison)") {
+  test("SemVer Ordering (Pre-Release comparison)") {
     // Rule: Pre-releases are compared based on classifier precedence and number
     val vA1 = V1_0_0.copy(preRelease = Some(PreRelease.alpha(N1)))
     val vA5 = V1_0_0.copy(preRelease = Some(PreRelease.alpha(N5)))
@@ -211,23 +213,23 @@ class VersionSuite extends munit.FunSuite:
     assert(vA5 < vB1) // Classifier precedence
   }
 
-  test("Version Ordering (Build Metadata Ignored)") {
+  test("SemVer Ordering (Build Metadata Ignored)") {
     // Rule: Build metadata MUST be ignored when determining version precedence
     val v1 = V1_0_0
     val v1MetaA = V1_0_0.copy(metadata = Some(Metadata(List("A"))))
     val v1MetaB = V1_0_0.copy(metadata = Some(Metadata(List("B"))))
 
     // They are considered equal in precedence (compare == 0)
-    assertEquals(v1.compare(v1MetaA), 0)
-    assertEquals(v1MetaA.compare(v1MetaB), 0)
+    assertEquals(summon[Ordering[SemVer]].compare(v1, v1MetaA), 0)
+    assertEquals(summon[Ordering[SemVer]].compare(v1MetaA, v1MetaB), 0)
 
     // Note: They are not structurally equal (case class equality differs)
     assertNotEquals(v1, v1MetaA)
   }
 
-  test("Version comprehensive Ordering test") {
+  test("SemVer comprehensive Ordering test") {
     // Based on SemVer spec examples and internal hierarchy
-    // We use the parser here to easily generate the expected Version objects.
+    // We use the parser here to easily generate the expected SemVer objects.
     // This implicitly trusts the parser, but focuses the test on the Ordering implementation.
 
     val expectedOrder = List(
@@ -243,7 +245,7 @@ class VersionSuite extends munit.FunSuite:
       "1.0.1",
       "1.1.0",
       "2.0.0"
-    ).map(s => s.toVersion.toOption.get)
+    ).map(s => SemVer.parse(s).toOption.get)
 
     val shuffled = Random.shuffle(expectedOrder)
     val sorted = shuffled.sorted
@@ -255,11 +257,11 @@ class VersionSuite extends munit.FunSuite:
     }
 
     // Specific check for the metadata case ensuring they are adjacent/equivalent in precedence
-    given Version.Show = Version.Show.Extended
-    val baseIndex = sorted.indexWhere(_.show.equals("1.0.0"))
-    val metaIndex = sorted.indexWhere(_.show.equals("1.0.0+build.123"))
+    val fmt = SemVer.Formatter.extended
+    val baseIndex = sorted.indexWhere(v => fmt.format(v) == "1.0.0")
+    val metaIndex = sorted.indexWhere(v => fmt.format(v) == "1.0.0+build.123")
     assert(baseIndex >= 0 && metaIndex >= 0)
-    assertEquals(sorted(baseIndex).compare(sorted(metaIndex)), 0)
+    assertEquals(summon[Ordering[SemVer]].compare(sorted(baseIndex), sorted(metaIndex)), 0)
   }
 
 end VersionSuite

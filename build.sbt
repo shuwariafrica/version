@@ -1,7 +1,7 @@
 inThisBuild(
   List(
     scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.8.2"),
+    crossScalaVersions := List("3.8.3"),
     organization := "africa.shuwari",
     description := "Simple utilities and data structures for the management of application versioning.",
     homepage := Some(url("https://github.com/shuwarifrica/version")),
@@ -16,16 +16,11 @@ inThisBuild(
 )
 
 val libraries = new {
-  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.6.0")
-  val `jsoniter-scala` =
-    Def.setting("com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.8")
-  val `jsoniter-scala-macros` = `jsoniter-scala`(_.withName("jsoniter-scala-macros"))
+  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.7.0")
+  val jgit = "org.eclipse.jgit" % "org.eclipse.jgit" % "7.6.0.202603022253-r"
   val `os-lib` = Def.setting("com.lihaoyi" %%% "os-lib" % "0.11.7")
   val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.1")
-  val `scala-yaml` = Def.setting("org.virtuslab" %%% "scala-yaml" % "0.3.1")
   val scopt = Def.setting("com.github.scopt" %%% "scopt" % "4.1.1-M3")
-  val `zio-json` = Def.setting("dev.zio" %%% "zio-json" % "0.8.0")
-  val `zio-prelude` = Def.setting("dev.zio" %%% "zio-prelude" % "1.0.0-RC45")
 }
 
 val version =
@@ -39,55 +34,6 @@ val version =
     .settings(libraryDependency(libraries.boilerplate))
     .nativeSettings(nativeSettings)
 
-val `version-zio-prelude` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/zio-prelude"))
-    .dependsOn(version)
-    .settings(fatalWarningsSetting)
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .settings(libraryDependency(libraries.`zio-prelude`))
-    .nativeSettings(nativeSettings)
-
-val `version-codecs-jsoniter` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-jsoniter"))
-    .dependsOn(version)
-    .settings(fatalWarningsSetting)
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .settings(libraryDependency(libraries.`jsoniter-scala`))
-    .settings(libraryDependency(libraries.`jsoniter-scala-macros`(_.withConfigurations(Some(Provided.name)))))
-    .nativeSettings(nativeSettings)
-
-val `version-codecs-zio` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-zio"))
-    .dependsOn(version)
-    .settings(fatalWarningsSetting)
-    .settings(unitTestSettings)
-    .settings(publishSettings)
-    .settings(libraryDependency(libraries.`zio-json`))
-    .nativeSettings(nativeSettings)
-
-val `version-codecs-yaml` =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/codecs-yaml"))
-    .dependsOn(version)
-    .settings(fatalWarningsSetting)
-    .settings(publishSettings)
-    .settings(unitTestSettings)
-    .settings(libraryDependency(libraries.`scala-yaml`))
-    .nativeSettings(nativeSettings)
-
 val `version-testkit` =
   crossProject(JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -98,44 +44,46 @@ val `version-testkit` =
     .settings(publish / skip := true)
     .nativeSettings(nativeSettings)
 
-val `version-cli-core` =
+val resolution =
   crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
+    .crossType(CrossType.Full)
     .withoutSuffixFor(JVMPlatform)
-    .in(file("modules/cli-core"))
+    .in(file("modules/resolution"))
     .dependsOn(version)
     .dependsOn(`version-testkit` % Test)
     .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
-    .settings(libraryDependency(libraries.`os-lib`))
     .nativeSettings(nativeSettings)
+    .settings(libraryDependencies += libraries.`os-lib`.value % Test)
+    .jvmSettings(libraryDependencies += libraries.jgit)
+    .nativeConfigure(_.enablePlugins(Libgit2Build))
+    .settings(noticeMappingSettings)
 
 val `version-cli` =
   crossProject(JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .withoutSuffixFor(JVMPlatform)
     .in(file("modules/cli"))
-    .dependsOn(`version-cli-core`)
+    .dependsOn(resolution)
     .dependsOn(`version-testkit` % Test)
-    .dependsOn(`version-codecs-jsoniter`)
-    .dependsOn(`version-codecs-yaml`)
     .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
-    .settings(publishSettings)
     .settings(libraryDependency(libraries.scopt))
+    .settings(libraryDependencies += libraries.`os-lib`.value % Test)
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(publish / skip := true)
     .jvmSettings(run / fork := true)
     .enablePlugins(BuildInfoPlugin)
     .settings(buildInfoSettings)
     .nativeSettings(nativeSettings)
+    .nativeConfigure(_.enablePlugins(Libgit2Build))
 
 val `sbt-version` =
   project
     .in(file("modules/sbt-version"))
-    .dependsOn(`version-cli-core`.jvm)
+    .dependsOn(resolution.jvm)
     .dependsOn(`version-testkit`.jvm % Test)
     .enablePlugins(SbtPlugin)
     .settings(fatalWarningsSetting)
@@ -149,9 +97,6 @@ val `sbt-version` =
         s"-Dplugin.version=${(LocalRootProject / Keys.version).value}",
         s"-Dsbt.boot.directory=${file(sys.props("user.home")) / ".sbt" / "boot"}"
       ),
-      // TODO: Re-enable when sbt 2.0.0 GA ships with Scala 3.8.2+
-      // sbt 2.0.0-RC9 uses Scala 3.8.1 which cannot read TASTy from Scala 3.8.2
-      // (stdlib capture checking annotations incompatible across patch versions)
       scripted :=
         streams.value.log.warn(
           "Scripted tests skipped: sbt 2.0.0-RC9 (Scala 3.8.1) cannot read TASTy from Scala 3.8.2"
@@ -164,12 +109,8 @@ val `version-jvm` =
     .notPublished
     .aggregate(
       version.jvm,
-      `version-zio-prelude`.jvm,
-      `version-codecs-jsoniter`.jvm,
-      `version-codecs-zio`.jvm,
-      `version-codecs-yaml`.jvm,
       `version-testkit`.jvm,
-      `version-cli-core`.jvm,
+      resolution.jvm,
       `version-cli`.jvm,
       `sbt-version`
     )
@@ -180,12 +121,8 @@ val `version-native` =
     .notPublished
     .aggregate(
       version.native,
-      `version-zio-prelude`.native,
-      `version-codecs-jsoniter`.native,
-      `version-codecs-zio`.native,
-      `version-codecs-yaml`.native,
       `version-testkit`.native,
-      `version-cli-core`.native,
+      resolution.native,
       `version-cli`.native
     )
 
@@ -194,11 +131,7 @@ val `version-js` =
     .in(file(".js"))
     .notPublished
     .aggregate(
-      version.js,
-      `version-zio-prelude`.js,
-      `version-codecs-jsoniter`.js,
-      `version-codecs-zio`.js,
-      `version-codecs-yaml`.js
+      version.js
     )
 
 val `version-root` =
@@ -210,14 +143,9 @@ val `version-root` =
     .aggregate(`version-jvm`, `version-js`, `version-native`)
     .enablePlugins(VersionUnidocPlugin)
     .settings(
-      // Filter to JVM projects for unified documentation
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
         version.jvm,
-        `version-zio-prelude`.jvm,
-        `version-codecs-jsoniter`.jvm,
-        `version-codecs-zio`.jvm,
-        `version-codecs-yaml`.jvm,
-        `version-cli-core`.jvm,
+        resolution.jvm,
         `sbt-version`
       )
     )
@@ -225,6 +153,9 @@ val `version-root` =
 def nativeSettings = List(
   Test / parallelExecution := true
 )
+
+def noticeMappingSettings: Seq[Setting[?]] = List(
+  Compile / packageBin / mappings += ((ThisBuild / baseDirectory).value / "NOTICE" -> "META-INF/NOTICE"))
 
 def unitTestSettings: List[Setting[?]] = List(
   libraryDependencies += libraries.munit.value % Test,

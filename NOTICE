@@ -1,0 +1,26 @@
+version
+Copyright 2023 Shuwari Africa Ltd.
+
+=========================================================================
+Third-party software acknowledgements
+=========================================================================
+
+This project includes software developed by third parties.
+
+JGit (JVM backend)
+  Copyright Eclipse Foundation and JGit contributors.
+  Licensed under the Eclipse Distribution License v1.0.
+  https://www.eclipse.org/org/documents/edl-v10.php
+
+libgit2 v1.9.2 (Native backend, statically linked)
+  Copyright the libgit2 contributors.
+  Licensed under GNU General Public License v2 with a Linking Exception.
+  libgit2 source code is not modified by this project.
+  See META-INF/licenses/libgit2-COPYING in the native artefact, or
+  vendor/libgit2/COPYING in the source distribution.
+  https://libgit2.org/
+
+zlib (bundled within the libgit2 static library, Native backend only)
+  Copyright Jean-loup Gailly and Mark Adler.
+  Licensed under the zlib License.
+  See META-INF/licenses/zlib-LICENSE in the native artefact.

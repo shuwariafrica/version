@@ -15,15 +15,16 @@
  ****************************************************************************/
 package version
 
-import version.PreReleaseClassifier.*
 import version.errors.*
+import version.semver.*
+import version.semver.PreReleaseClassifier.*
 
-/** Tests the ergonomic API provided by the extension methods in [[Version$ Version]]. */
+/** Tests the ergonomic API provided by the extension methods in [[SemVer$ SemVer]]. */
 class VersionOperationsSuite extends munit.FunSuite:
 
   // --- Fixtures ---
-  private val V1_2_3 = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(3))
-  private val V0_1_0 = Version(MajorVersion.fromUnsafe(0), MinorVersion.fromUnsafe(1), PatchNumber.fromUnsafe(0))
+  private val V1_2_3 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
+  private val V0_1_0 = SemVer(Major.fromUnsafe(0), Minor.fromUnsafe(1), Patch.fromUnsafe(0))
   private val V1_2_3_D1 = V1_2_3.copy(preRelease = Some(PreRelease.dev(PreReleaseNumber.fromUnsafe(1))))
   private val V1_2_3_M1 = V1_2_3.copy(preRelease = Some(PreRelease.milestone(PreReleaseNumber.fromUnsafe(1))))
   private val V1_2_3_A5 = V1_2_3.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.fromUnsafe(5))))
@@ -63,25 +64,25 @@ class VersionOperationsSuite extends munit.FunSuite:
 
   // --- Version Bumping (next[F] for core components) ---
 
-  test("next[MajorVersion]") {
-    val expected = Version(MajorVersion.fromUnsafe(2), MinorVersion.reset, PatchNumber.reset)
-    assertEquals(V1_2_3.next[MajorVersion], expected)
+  test("next[Major]") {
+    val expected = SemVer(Major.fromUnsafe(2), Minor.reset, Patch.reset)
+    assertEquals(V1_2_3.next[Major], expected)
   }
 
-  test("next[MinorVersion]") {
-    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(3), PatchNumber.reset)
-    assertEquals(V1_2_3.next[MinorVersion], expected)
+  test("next[Minor]") {
+    val expected = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(3), Patch.reset)
+    assertEquals(V1_2_3.next[Minor], expected)
   }
 
-  test("next[PatchNumber]") {
-    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(2), PatchNumber.fromUnsafe(4))
-    assertEquals(V1_2_3.next[PatchNumber], expected)
+  test("next[Patch]") {
+    val expected = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(4))
+    assertEquals(V1_2_3.next[Patch], expected)
   }
 
   test("next[F] for core components clears pre-release and metadata") {
-    val expected = Version(MajorVersion.fromUnsafe(1), MinorVersion.fromUnsafe(3), PatchNumber.reset)
-    assertEquals(V1_2_3_A5.next[MinorVersion], expected)
-    assertEquals(V1_2_3_RC1_Meta.next[MinorVersion], expected)
+    val expected = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(3), Patch.reset)
+    assertEquals(V1_2_3_A5.next[Minor], expected)
+    assertEquals(V1_2_3_RC1_Meta.next[Minor], expected)
   }
 
   // --- Version Bumping (next[C] for pre-release classifiers) ---
@@ -103,41 +104,41 @@ class VersionOperationsSuite extends munit.FunSuite:
   }
 
   test("next[C] to higher-precedence classifier advances within cycle") {
-    // Alpha (ordinal 2) → Beta (ordinal 3)
+    // Alpha (ordinal 2) -> Beta (ordinal 3)
     val expectedB1 = V1_2_3.copy(preRelease = Some(PreRelease.beta(PreReleaseNumber.reset)))
     assertEquals(V1_2_3_A5.next[Beta], expectedB1)
 
-    // Dev (ordinal 0) → RC (ordinal 4)
+    // Dev (ordinal 0) -> RC (ordinal 4)
     val expectedRC1 = V1_2_3.copy(preRelease = Some(PreRelease.releaseCandidate(PreReleaseNumber.reset)))
     assertEquals(V1_2_3_D1.next[ReleaseCandidate], expectedRC1)
   }
 
   test("next[C] to lower-precedence classifier bumps patch") {
-    // Beta (ordinal 3) → Alpha (ordinal 2) = bump patch
-    val V1_2_4_A1 = Version(
-      MajorVersion.fromUnsafe(1),
-      MinorVersion.fromUnsafe(2),
-      PatchNumber.fromUnsafe(4),
+    // Beta (ordinal 3) -> Alpha (ordinal 2) = bump patch
+    val V1_2_4_A1 = SemVer(
+      Major.fromUnsafe(1),
+      Minor.fromUnsafe(2),
+      Patch.fromUnsafe(4),
       PreRelease.alpha(PreReleaseNumber.reset)
     )
     assertEquals(V1_2_3_B1.next[Alpha], V1_2_4_A1)
 
-    // RC (ordinal 4) → Dev (ordinal 0) = bump patch
-    val V1_2_4_D1 = Version(
-      MajorVersion.fromUnsafe(1),
-      MinorVersion.fromUnsafe(2),
-      PatchNumber.fromUnsafe(4),
+    // RC (ordinal 4) -> Dev (ordinal 0) = bump patch
+    val V1_2_4_D1 = SemVer(
+      Major.fromUnsafe(1),
+      Minor.fromUnsafe(2),
+      Patch.fromUnsafe(4),
       PreRelease.dev(PreReleaseNumber.reset)
     )
     assertEquals(V1_2_3_RC1.next[Dev], V1_2_4_D1)
   }
 
   test("next[C] from snapshot bumps patch (snapshot has highest precedence)") {
-    // Snapshot (ordinal 5) → Alpha (ordinal 2) = bump patch
-    val V1_2_4_A1 = Version(
-      MajorVersion.fromUnsafe(1),
-      MinorVersion.fromUnsafe(2),
-      PatchNumber.fromUnsafe(4),
+    // Snapshot (ordinal 5) -> Alpha (ordinal 2) = bump patch
+    val V1_2_4_A1 = SemVer(
+      Major.fromUnsafe(1),
+      Minor.fromUnsafe(2),
+      Patch.fromUnsafe(4),
       PreRelease.alpha(PreReleaseNumber.reset)
     )
     assertEquals(V1_2_3_Snap.next[Alpha], V1_2_4_A1)
@@ -171,60 +172,36 @@ class VersionOperationsSuite extends munit.FunSuite:
   }
 
   test("as[C](n) returns error for invalid number") {
-    assertEquals(V1_2_3.as[Alpha](0), Left(InvalidPreReleaseNumber(0)))
+    assertEquals(V1_2_3.as[Alpha](0), Left(InvalidComponent(0, "Pre-release number", "a positive number (>= 1)")))
   }
 
   test("as[C](n) returns error for non-versioned classifier") {
-    assertEquals(V1_2_3.as[Snapshot](1), Left(ClassifierNotVersioned(PreReleaseClassifier.Snapshot)))
+    assertEquals(V1_2_3.as[Snapshot](1), Left(ClassifierNotVersioned("SNAPSHOT")))
   }
 
   test("as[C] clears build metadata") {
     val base = V1_2_3_RC1_Meta
-    val expectedAs = Version(V1_2_3.major, V1_2_3.minor, V1_2_3.patch, PreRelease.alpha(PreReleaseNumber.reset))
+    val expectedAs = SemVer(V1_2_3.major, V1_2_3.minor, V1_2_3.patch, PreRelease.alpha(PreReleaseNumber.reset))
     assertEquals(base.as[Alpha], expectedAs)
     assert(base.as[Alpha].metadata.isEmpty)
 
-    val expectedAsN = Right(Version(V1_2_3.major, V1_2_3.minor, V1_2_3.patch, PreRelease.alpha(PreReleaseNumber.fromUnsafe(5))))
+    val expectedAsN = Right(SemVer(V1_2_3.major, V1_2_3.minor, V1_2_3.patch, PreRelease.alpha(PreReleaseNumber.fromUnsafe(5))))
     assertEquals(base.as[Alpha](5), expectedAsN)
     assert(base.as[Alpha](5).exists(_.metadata.isEmpty))
   }
 
-  // --- Version.Read Typeclass ---
+  // --- SemVer Parsing ---
 
-  test("String extension 'toVersion'") {
-    assertEquals("1.2.3".toVersion, Right(V1_2_3))
-    assertEquals("1.2.3-rc.1+build123".toVersion, Right(V1_2_3_RC1_Meta))
-    assert("invalid".toVersion.isLeft)
+  test("SemVer.parse") {
+    assertEquals(SemVer.parse("1.2.3"), Right(V1_2_3))
+    assertEquals(SemVer.parse("1.2.3-rc.1+build123"), Right(V1_2_3_RC1_Meta))
+    assert(SemVer.parse("invalid").isLeft)
   }
 
-  test("String extension 'toVersionUnsafe'") {
-    assertEquals("1.2.3".toVersionUnsafe, V1_2_3)
-    assertEquals("1.2.3-rc.1+build123".toVersionUnsafe, V1_2_3_RC1_Meta)
-    intercept[errors.ParseError]("invalid".toVersionUnsafe)
-  }
-
-  test("Version.from[A] factory method") {
-    assertEquals(Version.from("1.2.3"), Right(V1_2_3))
-    assertEquals(Version.from("1.2.3-rc.1+build123"), Right(V1_2_3_RC1_Meta))
-    assert(Version.from("invalid").isLeft)
-  }
-
-  test("Version.fromUnsafe[A] factory method") {
-    assertEquals(Version.fromUnsafe("1.2.3"), V1_2_3)
-    assertEquals(Version.fromUnsafe("1.2.3-rc.1+build123"), V1_2_3_RC1_Meta)
-    intercept[errors.ParseError](Version.fromUnsafe("invalid"))
-  }
-
-  test("Version.Read.ReadString is a stable singleton instance") {
-    val reader = Version.Read.ReadString
-    assertEquals(reader.toVersion("1.2.3"), Right(V1_2_3))
-    assertEquals(reader.toVersionUnsafe("1.2.3"), V1_2_3)
-    assert(reader.toVersion("invalid").isLeft)
-  }
-
-  test("Version.Read.apply summons the contextual instance") {
-    val reader = Version.Read[String]
-    assertEquals(reader.toVersion("1.2.3"), Right(V1_2_3))
+  test("SemVer.parseUnsafe") {
+    assertEquals(SemVer.parseUnsafe("1.2.3"), V1_2_3)
+    assertEquals(SemVer.parseUnsafe("1.2.3-rc.1+build123"), V1_2_3_RC1_Meta)
+    intercept[errors.ParseError](SemVer.parseUnsafe("invalid"))
   }
 
   // --- PreRelease isDev extension ---

@@ -1,15 +1,14 @@
-.idea/
-.vscode/
-ext/
+.*
+!*.github/
+!.gitattributes
+!.gitmodules
+!.scalafix.conf
+!.scalafmt.conf
 target/
 *.iws
 *.iml
 *.ipr
 *.md
-.bloop/
-.bsp
-.metals
-.sbtopts
 null/
 metals.sbt
 

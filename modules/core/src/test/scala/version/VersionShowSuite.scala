@@ -15,152 +15,120 @@
  ****************************************************************************/
 package version
 
-/** Tests for the [[Version.Show]] type class — both standard instances and custom implementations. */
+import version.semver.*
+
+/** Tests for [[SemVer.Formatter]] and the scheme-canonical `show` method. */
 class VersionShowSuite extends munit.FunSuite:
 
-  // Helpers
   private def V(major: Int, minor: Int, patch: Int) =
-    Version(MajorVersion.fromUnsafe(major), MinorVersion.fromUnsafe(minor), PatchNumber.fromUnsafe(patch))
+    SemVer(Major.fromUnsafe(major), Minor.fromUnsafe(minor), Patch.fromUnsafe(patch))
 
   private def PRN(i: Int) = PreReleaseNumber.fromUnsafe(i)
 
-  // --- Version.Show.Standard Tests ---
+  // --- show (VersionScheme canonical) ---
 
-  test("Version.Show.Standard: core version only") {
-    val v = V(1, 2, 3)
-    assertEquals(v.show, "1.2.3")
+  test("show: core version only") {
+    assertEquals(V(1, 2, 3).show, "1.2.3")
   }
 
-  test("Version.Show.Standard: with pre-release") {
+  test("show: with pre-release") {
     val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
     assertEquals(v.show, "1.0.0-alpha.1")
   }
 
-  test("Version.Show.Standard: with snapshot pre-release") {
+  test("show: with snapshot pre-release") {
     val v = V(2, 0, 0).copy(preRelease = Some(PreRelease.snapshot))
     assertEquals(v.show, "2.0.0-SNAPSHOT")
   }
 
-  test("Version.Show.Standard: excludes build metadata") {
+  test("show: excludes build metadata") {
     val meta = Metadata(List("sha1234567890abc", "branch", "main"))
     val v = V(1, 2, 3).copy(metadata = Some(meta))
     assertEquals(v.show, "1.2.3")
   }
 
-  test("Version.Show.Standard: pre-release present, metadata excluded") {
+  test("show: pre-release present, metadata excluded") {
     val meta = Metadata(List("sha1234567890abc"))
     val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.beta(PRN(5))), metadata = Some(meta))
     assertEquals(v.show, "1.0.0-beta.5")
   }
 
-  // --- Version.Show.Extended Tests ---
-
-  test("Version.Show.Extended: core version only") {
-    given Version.Show = Version.Show.Extended
-    val v = V(1, 2, 3)
-    assertEquals(v.show, "1.2.3")
-  }
-
-  test("Version.Show.Extended: with pre-release only") {
-    given Version.Show = Version.Show.Extended
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(PRN(3))))
-    assertEquals(v.show, "1.0.0-rc.3")
-  }
-
-  test("Version.Show.Extended: with build metadata only") {
-    given Version.Show = Version.Show.Extended
-    val meta = Metadata(List("build", "123"))
-    val v = V(1, 2, 3).copy(metadata = Some(meta))
-    assertEquals(v.show, "1.2.3+build.123")
-  }
-
-  test("Version.Show.Extended: with both pre-release and metadata") {
-    given Version.Show = Version.Show.Extended
-    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
-    // SHA truncated to 7 chars (git convention)
-    assertEquals(v.show, "1.0.0-alpha.1+sha1234567.branch.main")
-  }
-
-  test("Version.Show.Extended: complex metadata with SHA truncation") {
-    given Version.Show = Version.Show.Extended
-    val meta = Metadata(List("pr42", "branchfeature-x", "commits5", "shaabcdef1234567", "dirty"))
-    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
-    // SHA truncated to 7 chars (git convention)
-    assertEquals(v.show, "2.1.0-SNAPSHOT+pr42.branchfeature-x.commits5.shaabcdef1.dirty")
-  }
-
-  // --- Explicit Instance Selection ---
-
-  test("Explicit selection of Show instance via using") {
-    val meta = Metadata(List("build"))
-    val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
-
-    // Use the Show instances directly
-    assertEquals(Version.Show.Standard.show(v), "1.2.3-alpha.1")
-    assertEquals(Version.Show.Extended.show(v), "1.2.3-alpha.1+build")
-  }
-
-  // --- Custom Show Instance Tests ---
-
-  test("Custom Show instance can be provided") {
-    // Custom instance that only shows major version with 'v' prefix
-    given customShow: Version.Show:
-      extension (v: Version) def show: String = s"v${v.major.value}"
-
-    val v = V(3, 2, 1).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
-    assertEquals(v.show, "v3")
-  }
-
-  test("Custom Show instance with v prefix and no metadata") {
-    // Custom instance that adds 'v' prefix and excludes metadata
-    given vPrefixShow: Version.Show:
-      extension (v: Version)
-        def show: String =
-          val core = s"v${v.major.value}.${v.minor.value}.${v.patch.value}"
-          v.preRelease.fold(core)(pr => s"$core-${pr.show}")
-
-    val meta = Metadata(List("sha1234567890abcdef"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
-    assertEquals(v.show, "v1.0.0-SNAPSHOT")
-  }
-
-  test("Custom Show instance overrides when in scope") {
-    // Define custom in local scope — should be used
-    given customShow: Version.Show:
-      extension (v: Version) def show: String = "custom"
-
-    val v = V(1, 2, 3)
-    assertEquals(v.show, "custom")
-  }
-
-  // --- Show.apply Summoner ---
-
-  test("Version.Show.apply summons the contextual instance") {
-    val showInstance = Version.Show.apply
-    val v = V(1, 2, 3)
-    assertEquals(showInstance.show(v), "1.2.3")
-  }
-
-  test("Version.Show.apply summons Extended when promoted to given") {
-    given Version.Show = Version.Show.Extended
-    val showInstance = Version.Show.apply
-    val meta = Metadata(List("build"))
-    val v = V(1, 2, 3).copy(metadata = Some(meta))
-    assertEquals(showInstance.show(v), "1.2.3+build")
-  }
-
-  // --- All Pre-Release Classifiers with Show ---
-
-  test("Version.Show renders all pre-release classifiers correctly") {
+  test("show: renders all pre-release classifiers correctly") {
     val prn = PRN(1)
-
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(prn))).show, "1.0.0-dev.1")
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.milestone(prn))).show, "1.0.0-milestone.1")
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(prn))).show, "1.0.0-alpha.1")
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.beta(prn))).show, "1.0.0-beta.1")
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(prn))).show, "1.0.0-rc.1")
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot)).show, "1.0.0-SNAPSHOT")
+  }
+
+  // --- Formatter.standard ---
+
+  test("Formatter.standard: same output as show") {
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(Metadata(List("build"))))
+    assertEquals(SemVer.Formatter.standard.format(v), v.show)
+  }
+
+  // --- Formatter.extended ---
+
+  test("Formatter.extended: core version only") {
+    assertEquals(SemVer.Formatter.extended.format(V(1, 2, 3)), "1.2.3")
+  }
+
+  test("Formatter.extended: with pre-release only") {
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(PRN(3))))
+    assertEquals(SemVer.Formatter.extended.format(v), "1.0.0-rc.3")
+  }
+
+  test("Formatter.extended: with build metadata only") {
+    val meta = Metadata(List("build", "123"))
+    val v = V(1, 2, 3).copy(metadata = Some(meta))
+    assertEquals(SemVer.Formatter.extended.format(v), "1.2.3+build.123")
+  }
+
+  test("Formatter.extended: with both pre-release and metadata") {
+    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
+    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
+    assertEquals(SemVer.Formatter.extended.format(v), "1.0.0-alpha.1+sha1234567.branch.main")
+  }
+
+  test("Formatter.extended: SHA truncation") {
+    val meta = Metadata(List("pr42", "branchfeature-x", "commits5", "shaabcdef1234567", "dirty"))
+    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
+    assertEquals(SemVer.Formatter.extended.format(v), "2.1.0-SNAPSHOT+pr42.branchfeature-x.commits5.shaabcdef1.dirty")
+  }
+
+  // --- Formatter.full ---
+
+  test("Formatter.full: preserves complete metadata") {
+    val meta = Metadata(List("build"))
+    val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
+    assertEquals(SemVer.Formatter.full.format(v), "1.2.3-alpha.1+build")
+  }
+
+  test("Formatter.full: preserves full SHA (no truncation)") {
+    val longSha = "shaabcdef1234567890"
+    val meta = Metadata(List(longSha, "branch", "main"))
+    val v = V(1, 0, 0).copy(metadata = Some(meta))
+    assertEquals(SemVer.Formatter.full.format(v), s"1.0.0+$longSha.branch.main")
+  }
+
+  // --- Explicit variant selection ---
+
+  test("Formatter variants compared side by side") {
+    val meta = Metadata(List("build"))
+    val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
+    assertEquals(SemVer.Formatter.standard.format(v), "1.2.3-alpha.1")
+    assertEquals(SemVer.Formatter.extended.format(v), "1.2.3-alpha.1+build")
+    assertEquals(SemVer.Formatter.full.format(v), "1.2.3-alpha.1+build")
+  }
+
+  // --- Custom Formatter ---
+
+  test("Custom Formatter implementation") {
+    val vPrefix: SemVer.Formatter = (v: SemVer) => s"v${v.major.value}.${v.minor.value}.${v.patch.value}"
+    assertEquals(vPrefix.format(V(3, 2, 1)), "v3.2.1")
   }
 
 end VersionShowSuite

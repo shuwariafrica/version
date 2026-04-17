@@ -17,12 +17,12 @@ package version.cli
 
 import scopt.*
 
-import version.cli.core.ResolutionError
+import version.cli.CliError
 import version.internal.BuildInfo
 
 /** Top-level parsed CLI options (command + global flags). */
 final case class CliOptions(
-  repository: os.Path,
+  repository: java.nio.file.Path,
   basisCommit: String,
   prNumber: Option[Int],
   branchOverride: Option[String],
@@ -51,28 +51,27 @@ final case class ReleaseConfig(
 // --- Output model ---
 
 enum SinkKind derives CanEqual:
-  case Console, Raw, Json, Yaml
+  case Console, Raw, Json
 object SinkKind:
-  def parse(s: String): Either[ResolutionError, SinkKind] = s.toLowerCase match
+  def parse(s: String): Either[CliError, SinkKind] = s.toLowerCase match
     case "console" => Right(SinkKind.Console)
     case "raw"     => Right(SinkKind.Raw)
     case "json"    => Right(SinkKind.Json)
-    case "yaml"    => Right(SinkKind.Yaml)
-    case other     => Left(ResolutionError.InvalidSink(other))
+    case other     => Left(CliError.InvalidSink(other))
 
 enum ConsoleStyle derives CanEqual:
   case Pretty, Compact
 object ConsoleStyle:
-  def fromString(s: String): Either[ResolutionError, ConsoleStyle] = s.toLowerCase match
+  def fromString(s: String): Either[CliError, ConsoleStyle] = s.toLowerCase match
     case "pretty"  => Right(ConsoleStyle.Pretty)
     case "compact" => Right(ConsoleStyle.Compact)
-    case other     => Left(ResolutionError.InvalidConsoleStyle(other))
+    case other     => Left(CliError.InvalidConsoleStyle(other))
 
-final case class OutputSink(kind: SinkKind, destination: Option[os.Path]) derives CanEqual
+final case class OutputSink(kind: SinkKind, destination: Option[java.nio.file.Path]) derives CanEqual
 
 object CliOptions:
 
-  given Read[os.Path] = Read.reads(os.Path(_))
+  given Read[java.nio.file.Path] = Read.reads(s => java.nio.file.Path.of(s))
 
   private val defaultResolve = ResolveConfig(
     sinks = Nil, // inject default later if empty
@@ -81,7 +80,7 @@ object CliOptions:
   )
 
   val default: CliOptions = CliOptions(
-    repository = os.pwd,
+    repository = java.nio.file.Path.of(System.getProperty("user.dir")),
     basisCommit = "HEAD",
     prNumber = None,
     branchOverride = None,
@@ -102,7 +101,7 @@ object CliOptions:
         case _                 => c
 
     // Global options
-    private val optRepository = opt[os.Path]('r', "repository")
+    private val optRepository = opt[java.nio.file.Path]('r', "repository")
       .valueName("<path>")
       .action((p, c) => c.copy(repository = p))
       .text("Repository directory (default: current directory).")
@@ -147,7 +146,7 @@ object CliOptions:
           case Right(snk) => updateResolve(c)(rc => rc.copy(sinks = rc.sinks :+ snk))
           case Left(_)    => c
       }
-      .text("Add an output sink: console|raw|json|yaml optionally =<file>. Repeatable.")
+      .text("Add an output sink: console|raw|json optionally =<file>. Repeatable.")
 
     private val optConsoleStyle = opt[String]("console-style")
       .valueName("pretty|compact")
@@ -236,17 +235,17 @@ object CliOptions:
     val p = new CliParser(b)
     p.parser
 
-  private def parseEmit(spec: String): Either[ResolutionError, OutputSink] =
+  private def parseEmit(spec: String): Either[CliError, OutputSink] =
     val split = spec.split("=", 2)
-    val (left, rightOptOrErr): (String, Either[ResolutionError, Option[String]]) = split match
+    val (left, rightOptOrErr): (String, Either[CliError, Option[String]]) = split match
       case Array(l, r) if r.nonEmpty => (l, Right(Some(r)))
-      case Array(l, r) if r.isEmpty  => (l, Left(ResolutionError.EmptyEmitPath(spec)))
+      case Array(l, r) if r.isEmpty  => (l, Left(CliError.EmptyEmitPath(spec)))
       case Array(l)                  => (l, Right(None))
     rightOptOrErr match
       case Left(err)       => Left(err)
       case Right(rightOpt) =>
         for
           kind <- SinkKind.parse(left)
-          sink <- Right(OutputSink(kind, rightOpt.map(os.Path(_))))
+          sink <- Right(OutputSink(kind, rightOpt.map(s => java.nio.file.Path.of(s))))
         yield sink
 end CliOptions
