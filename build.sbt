@@ -1,95 +1,87 @@
-inThisBuild(
-  List(
-    scalaVersion := crossScalaVersions.value.head,
-    crossScalaVersions := List("3.8.3"),
-    organization := "africa.shuwari",
-    description := "Simple utilities and data structures for the management of application versioning.",
-    homepage := Some(url("https://github.com/shuwarifrica/version")),
-    startYear := Some(2023),
-    semanticdbEnabled := true,
-    scmInfo := ScmInfo(
-      url("https://github.com/shuwariafrica/version"),
-      "scm:git:https://github.com/shuwariafrica/version.git",
-      Some("scm:git:git@github.com:shuwariafrica/version.git")
-    ).some
-  ) ++ formattingSettings
-)
-
-val libraries = new {
-  val boilerplate = Def.setting("io.github.arashi01" %%% "boilerplate" % "0.7.0")
-  val jgit = "org.eclipse.jgit" % "org.eclipse.jgit" % "7.6.0.202603022253-r"
-  val `os-lib` = Def.setting("com.lihaoyi" %%% "os-lib" % "0.11.7")
-  val munit = Def.setting("org.scalameta" %%% "munit" % "1.2.1")
-  val scopt = Def.setting("com.github.scopt" %%% "scopt" % "4.1.1-M3")
-}
+scalaVersion := Libraries.scala3.revision
+organization := "africa.shuwari"
+description := "Simple utilities and data structures for the management of application versioning."
+homepage := Some(url("https://github.com/shuwarifrica/version"))
+startYear := Some(2023)
+semanticdbEnabled := true
+scmInfo := ScmInfo(
+  url("https://github.com/shuwariafrica/version"),
+  "scm:git:https://github.com/shuwariafrica/version.git",
+  Some("scm:git:git@github.com:shuwariafrica/version.git")
+).some
+formattingSettings
+apacheLicensed
+Shuwari.organisationSettings
 
 val version =
-  crossProject(JVMPlatform, JSPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
+  projectMatrix
     .in(file("modules/core"))
-    .settings(fatalWarningsSetting)
     .settings(unitTestSettings)
     .settings(publishSettings)
-    .settings(libraryDependency(libraries.boilerplate))
-    .nativeSettings(nativeSettings)
+    .settings(libraryDependencies += Libraries.boilerplate)
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
+// FIXME: Re-enable JS axis when scala-js supports sbt 2.x. See scala-js/scala-js#5238.
+//    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
 
 val `version-testkit` =
-  crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
+  projectMatrix
     .in(file("modules/testkit"))
-    .settings(fatalWarningsSetting)
-    .settings(libraryDependency(libraries.`os-lib`))
+    .settings(libraryDependencies += Libraries.`os-lib`)
     .settings(publish / skip := true)
-    .nativeSettings(nativeSettings)
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
 
 val resolution =
-  crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Full)
-    .withoutSuffixFor(JVMPlatform)
+  projectMatrix
     .in(file("modules/resolution"))
     .dependsOn(version)
     .dependsOn(`version-testkit` % Test)
-    .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
-    .nativeSettings(nativeSettings)
-    .settings(libraryDependencies += libraries.`os-lib`.value % Test)
-    .jvmSettings(libraryDependencies += libraries.jgit)
-    .nativeConfigure(_.enablePlugins(Libgit2Build))
     .settings(noticeMappingSettings)
+    .settings(libraryDependencies += Libraries.`os-lib` % Test)
+    .jvmPlatform(
+      scalaVersions = Seq(Libraries.scala3.revision),
+      settings = Seq(libraryDependencies += Libraries.jgit)
+    )
+    .nativePlatform(
+      scalaVersions = Seq(Libraries.scala3.revision),
+      axisValues = Nil,
+      configure = (p: Project) => p.settings(nativeSettings *).enablePlugins(Libgit2Build)
+    )
 
 val `version-cli` =
-  crossProject(JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .withoutSuffixFor(JVMPlatform)
+  projectMatrix
     .in(file("modules/cli"))
     .dependsOn(resolution)
     .dependsOn(`version-testkit` % Test)
-    .settings(fatalWarningsSetting)
+    .enablePlugins(BuildInfoPlugin)
     .settings(unitTestSettings)
     .settings(publishSettings)
-    .settings(libraryDependency(libraries.scopt))
-    .settings(libraryDependencies += libraries.`os-lib`.value % Test)
+    .settings(libraryDependencies += Libraries.scopt)
+    .settings(libraryDependencies += Libraries.`os-lib` % Test)
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(publish / skip := true)
-    .jvmSettings(run / fork := true)
-    .enablePlugins(BuildInfoPlugin)
     .settings(buildInfoSettings)
-    .nativeSettings(nativeSettings)
-    .nativeConfigure(_.enablePlugins(Libgit2Build))
+    .jvmPlatform(
+      scalaVersions = Seq(Libraries.scala3.revision),
+      settings = Seq(run / fork := true)
+    )
+    .nativePlatform(
+      scalaVersions = Seq(Libraries.scala3.revision),
+      axisValues = Nil,
+      configure = (p: Project) => p.settings(nativeSettings *).enablePlugins(Libgit2Build)
+    )
 
 val `sbt-version` =
   project
     .in(file("modules/sbt-version"))
-    .dependsOn(resolution.jvm)
-    .dependsOn(`version-testkit`.jvm % Test)
+    .dependsOn(resolution.jvm(Libraries.scala3.revision))
+    .dependsOn(`version-testkit`.jvm(Libraries.scala3.revision) % Test)
     .enablePlugins(SbtPlugin)
-    .settings(fatalWarningsSetting)
     .settings(publishSettings)
     .settings(unitTestSettings)
-    .settings(sbtVersion := "2.0.0-RC12")
     .settings(Compile / scalacOptions -= "-deprecation")
     .settings(
       scriptedBufferLog := true,
@@ -104,10 +96,10 @@ val `version-jvm` =
     .in(file(".jvm"))
     .notPublished
     .aggregate(
-      version.jvm,
-      `version-testkit`.jvm,
-      resolution.jvm,
-      `version-cli`.jvm,
+      version.jvm(Libraries.scala3.revision),
+      `version-testkit`.jvm(Libraries.scala3.revision),
+      resolution.jvm(Libraries.scala3.revision),
+      `version-cli`.jvm(Libraries.scala3.revision),
       `sbt-version`
     )
 
@@ -116,45 +108,52 @@ val `version-native` =
     .in(file(".native"))
     .notPublished
     .aggregate(
-      version.native,
-      `version-testkit`.native,
-      resolution.native,
-      `version-cli`.native
+      version.native(Libraries.scala3.revision),
+      `version-testkit`.native(Libraries.scala3.revision),
+      resolution.native(Libraries.scala3.revision),
+      `version-cli`.native(Libraries.scala3.revision)
     )
 
-val `version-js` =
-  project
-    .in(file(".js"))
-    .notPublished
-    .aggregate(
-      version.js
-    )
+// FIXME: version-js disabled pending scala-js sbt 2.x support (scala-js/scala-js#5238).
+//val `version-js` =
+//  project
+//    .in(file(".js"))
+//    .notPublished
+//    .aggregate(version.js.get*)
 
 val `version-root` =
   project
     .in(file("."))
-    .shuwariProject
     .notPublished
-    .apacheLicensed
-    .aggregate(`version-jvm`, `version-js`, `version-native`)
+    .aggregate(`version-jvm`, `version-native`)
     .enablePlugins(VersionUnidocPlugin)
     .settings(
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
-        version.jvm,
-        resolution.jvm,
+        version.jvm(Libraries.scala3.revision),
+        resolution.jvm(Libraries.scala3.revision),
         `sbt-version`
       )
     )
 
-def nativeSettings = List(
-  Test / parallelExecution := true
+def nativeSettings: List[Setting[?]] = List(
+  Test / parallelExecution := true,
+  Compile / unmanagedResourceDirectories +=
+    projectMatrixBaseDirectory.value / "src" / "main" / "resources-native",
+  Test / unmanagedResourceDirectories +=
+    projectMatrixBaseDirectory.value / "src" / "test" / "resources-native",
+  libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always"
 )
 
 def noticeMappingSettings: Seq[Setting[?]] = List(
-  Compile / packageBin / mappings += ((ThisBuild / baseDirectory).value / "NOTICE" -> "META-INF/NOTICE"))
+  Compile / packageBin / mappings += {
+    val converter = fileConverter.value
+    val notice = (ThisBuild / baseDirectory).value / "NOTICE"
+    converter.toVirtualFile(notice.toPath) -> "META-INF/NOTICE"
+  }
+)
 
 def unitTestSettings: List[Setting[?]] = List(
-  libraryDependencies += libraries.munit.value % Test,
+  libraryDependencies += Libraries.munit % Test,
   testFrameworks += new TestFramework("munit.Framework")
 )
 
@@ -164,17 +163,6 @@ def formattingSettings =
     scalafmtPrintDiff := true
   )
 
-// Workaround: Scala 3.8+ deprecated -Xfatal-warnings in favour of -Werror
-// Must be applied at project level AFTER sbt-shuwari's projectSettings add their options
-def fatalWarningsSetting: List[Setting[?]] = List(
-  ScalaCompiler.compilerOptions ~= { opts =>
-    opts.filterNot(_.option == "-Xfatal-warnings")
-  },
-  Compile / compile / scalacOptions += "-Werror"
-)
-
-def libraryDependency(library: Def.Initialize[ModuleID]) = libraryDependencies += library.value
-
 def publishSettings = pgpSettings ++: List(
   packageOptions += Package.ManifestAttributes(
     "Created-By" -> "Simple Build Tool",
@@ -182,11 +170,7 @@ def publishSettings = pgpSettings ++: List(
     "Build-Jdk" -> System.getProperty("java.version"),
     "Specification-Title" -> name.value,
     "Specification-Version" -> Keys.version.value,
-    "Specification-Vendor" -> organizationName.value,
-    "Implementation-Title" -> name.value,
-    "Implementation-Version" -> fullVersion.value,
-    "Implementation-Vendor-Id" -> organization.value,
-    "Implementation-Vendor" -> organizationName.value
+    "Specification-Vendor" -> organizationName.value
   ),
   publishTo := {
     if (Keys.version.value.toLowerCase.contains("snapshot"))
@@ -195,7 +179,7 @@ def publishSettings = pgpSettings ++: List(
   },
   pomIncludeRepository := (_ => false),
   publishMavenStyle := true,
-  headerLicense := Some(HeaderLicense.ALv2("2023", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
+  headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 )
 
 def pgpSettings = List(

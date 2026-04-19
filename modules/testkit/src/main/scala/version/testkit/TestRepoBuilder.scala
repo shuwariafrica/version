@@ -1,5 +1,5 @@
 /****************************************************************
- * Copyright © Shuwari Africa Ltd.                              *
+ * Copyright © 2023, 2026 Shuwari Africa Ltd.                   *
  *                                                              *
  * This file is licensed to you under the terms of the Apache   *
  * License Version 2.0 (the "License"); you may not use this    *
@@ -24,9 +24,6 @@ package version.testkit
   *
   * **Important**: Only annotated tags are recognised as valid version tags per the specification. Lightweight tags are
   * created in this test repository specifically to verify they are correctly ignored by the version resolution logic.
-  *
-  * This replaces the shell script `scripts/create-test-repo.sh` with a pure Scala implementation that works on all
-  * platforms without shell dependencies.
   */
 object TestRepoBuilder:
 

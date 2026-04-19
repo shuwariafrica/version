@@ -9,6 +9,7 @@ target/
 *.iml
 *.ipr
 *.md
+*.semanticdb
 null/
 metals.sbt
 

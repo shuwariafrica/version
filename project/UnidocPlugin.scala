@@ -1,19 +1,3 @@
-/*
- * Copyright (c) 2023 Shuwari Africa Ltd.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import sbt.*
 import sbt.Keys.*
 import sbtunidoc.ScalaUnidocPlugin.autoImport.*
@@ -29,12 +13,12 @@ import sbtunidoc.ScalaUnidocPlugin
   * This plugin requires MdocPlugin because it uses mdoc to preprocess documentation
   * files before Scaladoc generation, enabling dynamic variable substitution.
   */
-object VersionUnidocPlugin extends AutoPlugin {
+object VersionUnidocPlugin extends AutoPlugin:
 
   override def requires: Plugins = JvmPlugin && MdocPlugin && ScalaUnidocPlugin
   override def trigger: PluginTrigger = noTrigger // Manual activation required
 
-  object autoImport {
+  object autoImport:
     // Custom keys for documentation
     val documentationSourceLinks = settingKey[String]("Source link configuration for Scaladoc")
     val documentationFooter = settingKey[String]("Footer text for documentation")
@@ -44,7 +28,6 @@ object VersionUnidocPlugin extends AutoPlugin {
     // Version keys for injection into documentation via mdoc
     val scalaJsVersion = settingKey[String]("Scala.js version used in the project")
     val scalaNativeVersion = settingKey[String]("Scala Native version used in the project")
-  }
 
   import autoImport.*
 
@@ -74,7 +57,7 @@ object VersionUnidocPlugin extends AutoPlugin {
     mdocExtraArguments := Seq("--no-link-hygiene"),
 
     // Task to run mdoc and copy non-markdown assets
-    preprocessDocs := {
+    preprocessDocs := Def.uncached {
       val log = streams.value.log
 
       // First run mdoc to process markdown files (mdoc is an InputTask)
@@ -96,18 +79,16 @@ object VersionUnidocPlugin extends AutoPlugin {
 
       // Copy files
       filesToCopy.foreach { case (src, dest) =>
-        if (src.exists()) {
+        if src.exists() then
           IO.copyFile(src, dest)
           log.info(s"Copied ${src.getName} to mdoc output")
-        }
       }
 
       // Copy directories
       dirsToCopy.foreach { case (src, dest) =>
-        if (src.exists()) {
+        if src.exists() then
           IO.copyDirectory(src, dest)
           log.info(s"Copied ${src.getName}/ to mdoc output")
-        }
       }
 
       mdocOutputRoot
@@ -146,13 +127,13 @@ object VersionUnidocPlugin extends AutoPlugin {
         "-Ygenerate-inkuire"
       )
 
-      val rootContentOption = if (rootContent.exists()) {
-        Seq("-doc-root-content", rootContent.getAbsolutePath)
-      } else Seq.empty
+      val rootContentOption =
+        if rootContent.exists() then Seq("-doc-root-content", rootContent.getAbsolutePath)
+        else Seq.empty
 
-      val logoOption = if (logo.exists()) {
-        Seq("-project-logo", logo.getAbsolutePath)
-      } else Seq.empty
+      val logoOption =
+        if logo.exists() then Seq("-project-logo", logo.getAbsolutePath)
+        else Seq.empty
 
       val footerOption = Seq("-project-footer", footer)
 
@@ -167,7 +148,7 @@ object VersionUnidocPlugin extends AutoPlugin {
     },
 
     // Generate unified documentation task
-    generateUnidoc := {
+    generateUnidoc := Def.uncached {
       val log = streams.value.log
       log.info("Generating unified API documentation with static site...")
 
@@ -177,7 +158,7 @@ object VersionUnidocPlugin extends AutoPlugin {
 
       // Copy to a stable (scala-version agnostic) site directory for publishing
       val siteDir = target.value / "site"
-      if (siteDir.exists()) IO.delete(siteDir)
+      if siteDir.exists() then IO.delete(siteDir)
       IO.copyDirectory(mainDocDir, siteDir)
       log.info(s"Copied unified documentation to: ${siteDir.getAbsolutePath}")
       siteDir
@@ -207,4 +188,4 @@ object VersionUnidocPlugin extends AutoPlugin {
       scalaNative = findVersion(scalaNativeRegex, "sbt-scala-native")
     )
   }
-}
+end VersionUnidocPlugin
