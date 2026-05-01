@@ -34,7 +34,7 @@ object Libgit2Build extends AutoPlugin:
     val platformFlags = hostOs match
       case Os.Linux   => Seq("-lpthread", "-ldl", "-lm")
       case Os.MacOs   => Seq("-framework", "Security", "-framework", "CoreFoundation")
-      case Os.Windows => Seq("-lws2_32", "-lcrypt32", "-lrpcrt4", "-lole32", "-lsecur32", "-lbcrypt", "-lucrt", "-lvcruntime", "-loldnames")
+      case Os.Windows => Seq("-lws2_32", "-lcrypt32", "-lrpcrt4", "-lole32", "-lsecur32", "-lbcrypt")
     val includeFlag = s"-I${(libgit2Vendor / "include").getAbsolutePath}"
     config
       .withLinkingOptions(config.linkingOptions ++ (staticLib.getAbsolutePath +: platformFlags))
@@ -96,7 +96,10 @@ object Libgit2Build extends AutoPlugin:
     "-DUSE_BUNDLED_ZLIB=ON",
     "-DCMAKE_BUILD_TYPE=Release",
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-    "-DSTATIC_CRT=OFF"
+    // scala-native's clang/lld toolchain links libucrt/libvcruntime (static CRT) by default
+    // on Windows. libgit2 must match (/MT) or the linker reports LNK2005 multiply-defined
+    // symbols between libucrt.lib and ucrt.lib.
+    "-DSTATIC_CRT=ON"
   )
 
   private def libNameMatches(fname: String): Boolean =
