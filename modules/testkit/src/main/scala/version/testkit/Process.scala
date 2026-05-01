@@ -17,7 +17,7 @@
  ****************************************************************/
 package version.testkit
 
-import java.io.IOException
+import java.io.FileInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -33,7 +33,12 @@ object Process:
     val stdoutFile = Files.createTempFile("version-testkit-stdout-", ".log")
     val stderrFile = Files.createTempFile("version-testkit-stderr-", ".log")
     try
-      val process = startWithRetry(command, cwd, stdoutFile, stderrFile)
+      val process =
+        new ProcessBuilder(command.asJava)
+          .directory(cwd.toFile)
+          .redirectOutput(stdoutFile.toFile)
+          .redirectError(stderrFile.toFile)
+          .start()
       val exitCode = process.waitFor()
       Result(exitCode, readUtf8(stdoutFile), readUtf8(stderrFile))
     finally
@@ -47,36 +52,13 @@ object Process:
     else throw Failure(command, result)
   // scalafix:on
 
-  private val MaxStartAttempts = 5
-
-  private def startWithRetry(
-    command: Seq[String],
-    cwd: Path,
-    stdoutFile: Path,
-    stderrFile: Path
-  ): java.lang.Process =
-    val pb = new ProcessBuilder(command.asJava)
-      .directory(cwd.toFile)
-      .redirectOutput(stdoutFile.toFile)
-      .redirectError(stderrFile.toFile)
-    attemptStart(pb, 1)
-
-  // scalafix:off DisableSyntax.throw
-  @scala.annotation.tailrec
-  private def attemptStart(pb: ProcessBuilder, attempt: Int): java.lang.Process =
-    val outcome: Either[IOException, java.lang.Process] =
-      try Right(pb.start())
-      catch case e: IOException => Left(e)
-    outcome match
-      case Right(process)                             => process
-      case Left(error) if attempt >= MaxStartAttempts => throw error
-      case Left(_)                                    =>
-        Thread.sleep((10L << attempt).min(500L))
-        attemptStart(pb, attempt + 1)
-  // scalafix:on
-
+  // FileInputStream opens with FILE_SHARE_READ | FILE_SHARE_WRITE, which
+  // tolerates a leaked write handle from scala-native's WindowsProcessFactory.
+  // Files.readAllBytes opens with FILE_SHARE_READ only, which does not.
   private def readUtf8(path: Path): String =
-    new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+    val fis = new FileInputStream(path.toFile)
+    try new String(fis.readAllBytes(), StandardCharsets.UTF_8)
+    finally fis.close()
 
   final class Failure(val command: Seq[String], val result: Result)
       extends RuntimeException(
