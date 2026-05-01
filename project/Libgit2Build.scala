@@ -34,7 +34,7 @@ object Libgit2Build extends AutoPlugin:
     val platformFlags = hostOs match
       case Os.Linux   => Seq("-lpthread", "-ldl", "-lm")
       case Os.MacOs   => Seq("-framework", "Security", "-framework", "CoreFoundation")
-      case Os.Windows => Seq("-lws2_32", "-lcrypt32", "-lrpcrt4", "-lole32", "-lsecur32", "-lbcrypt")
+      case Os.Windows => Seq("-lws2_32", "-lcrypt32", "-lrpcrt4", "-lole32", "-lsecur32", "-lbcrypt", "-lucrt", "-lvcruntime", "-loldnames")
     val includeFlag = s"-I${(libgit2Vendor / "include").getAbsolutePath}"
     config
       .withLinkingOptions(config.linkingOptions ++ (staticLib.getAbsolutePath +: platformFlags))
