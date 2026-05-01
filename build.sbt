@@ -71,14 +71,15 @@ val `version-cli` =
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(nativeSettings *).enablePlugins(Libgit2Build)
+      configure = (p: Project) => p.settings(nativeSettings *).settings(cliNativeSettings *).enablePlugins(Libgit2Build, ActionsPublish)
     )
 
 val `sbt-version` =
-  project
+  projectMatrix
     .in(file("modules/sbt-version"))
-    .dependsOn(resolution.jvm(Libraries.scala3.revision))
-    .dependsOn(`version-testkit`.jvm(Libraries.scala3.revision) % Test)
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .dependsOn(resolution)
+    .dependsOn(`version-testkit` % Test)
     .enablePlugins(SbtPlugin)
     .settings(publishSettings)
     .settings(unitTestSettings)
@@ -92,26 +93,29 @@ val `sbt-version` =
     )
 
 val `version-jvm` =
-  project
+  projectMatrix
     .in(file(".jvm"))
-    .notPublished
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .settings(publish / skip := true)
     .aggregate(
-      version.jvm(Libraries.scala3.revision),
-      `version-testkit`.jvm(Libraries.scala3.revision),
-      resolution.jvm(Libraries.scala3.revision),
-      `version-cli`.jvm(Libraries.scala3.revision),
+      version,
+      `version-testkit`,
+      resolution,
+      `version-cli`,
       `sbt-version`
     )
 
 val `version-native` =
-  project
+  projectMatrix
     .in(file(".native"))
-    .notPublished
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .defaultAxes(VirtualAxis.native, VirtualAxis.scalaABIVersion(Libraries.scala3.revision))
+    .settings(publish / skip := true)
     .aggregate(
-      version.native(Libraries.scala3.revision),
-      `version-testkit`.native(Libraries.scala3.revision),
-      resolution.native(Libraries.scala3.revision),
-      `version-cli`.native(Libraries.scala3.revision)
+      version,
+      `version-testkit`,
+      resolution,
+      `version-cli`
     )
 
 // FIXME: version-js disabled pending scala-js sbt 2.x support (scala-js/scala-js#5238).
@@ -122,27 +126,44 @@ val `version-native` =
 //    .aggregate(version.js.get*)
 
 val `version-root` =
-  project
+  projectMatrix
     .in(file("."))
-    .notPublished
+    .settings(publish / skip := true)
     .aggregate(`version-jvm`, `version-native`)
     .enablePlugins(VersionUnidocPlugin)
     .settings(
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
         version.jvm(Libraries.scala3.revision),
         resolution.jvm(Libraries.scala3.revision),
-        `sbt-version`
+        `sbt-version`.jvm(Libraries.scala3.revision)
       )
     )
 
 def nativeSettings: List[Setting[?]] = List(
   Test / parallelExecution := true,
   Compile / unmanagedResourceDirectories +=
-    projectMatrixBaseDirectory.value / "src" / "main" / "resources-native",
+    (Compile / sourceDirectory).value / "resources-native",
   Test / unmanagedResourceDirectories +=
-    projectMatrixBaseDirectory.value / "src" / "test" / "resources-native",
+    (Test / sourceDirectory).value / "resources-native",
   libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always"
 )
+
+def cliNativeSettings: List[Setting[?]] = {
+  import scala.scalanative.build.{LTO, Mode}
+  val isReleaseBinary = sys.props.get("release.binary").contains("true")
+  val isStaticLink = sys.props.get("release.binary.static").contains("true")
+  List(
+    nativeConfig := Def.uncached {
+      val base = nativeConfig.value.withBaseName("version")
+      if (!isReleaseBinary) base
+      else {
+        val optimised = base.withMode(Mode.releaseFull).withLTO(LTO.thin)
+        if (isStaticLink) optimised.withLinkingOptions(optimised.linkingOptions :+ "-static")
+        else optimised
+      }
+    }
+  )
+}
 
 def noticeMappingSettings: Seq[Setting[?]] = List(
   Compile / packageBin / mappings += {
@@ -190,11 +211,11 @@ def pgpSettings = List(
   usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
 )
 
-addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")
-
-addCommandAlias("check", "scalafixAll --check; scalafmtCheckAll; scalafmtSbtCheck; headerCheckAll")
-
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),
   buildInfoPackage := "version.internal"
 )
+
+addCommandAlias("format", "scalafixAll; scalafmtAll; scalafmtSbt; headerCreateAll")
+
+addCommandAlias("check", "scalafixAll --check; scalafmtCheckAll; scalafmtSbtCheck; headerCheckAll")

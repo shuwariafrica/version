@@ -117,7 +117,7 @@ final class StandardLogger(
     case LogLevel.Verbose => AnsiColours.Gray
 
   override protected def formatEntry(entry: LogEntry): String =
-    val timestamp = if logConfig.isVerbose then s"${java.time.LocalTime.now} " else ""
+    val timestamp = if logConfig.isVerbose then s"${StandardLogger.utcTimeOfDay()} " else ""
     val contextStr = entry.context.fold("")(ctx => s"[$ctx] ")
     val prefix = levelPrefix(entry.level)
     val fullMessage = s"$timestamp$contextStr${entry.message}"
@@ -128,6 +128,18 @@ object StandardLogger:
   /** Create a standard logger with the given configurations. */
   def apply(logConfig: LogConfig, colourConfig: ColourConfig): StandardLogger =
     new StandardLogger(logConfig, colourConfig)
+
+  // Portable HH:mm:ss.SSS UTC time-of-day: java.time.LocalTime is not available
+  // in Scala Native's javalib, and java.util.Calendar/TimeZone are absent too.
+  // UTC is deliberate for reproducibility across hosts in verbose diagnostic logs.
+  private[logging] def utcTimeOfDay(): String =
+    val millis = System.currentTimeMillis()
+    val secs = millis / 1000L
+    val hour = ((secs / 3600L) % 24L).toInt
+    val min = ((secs / 60L) % 60L).toInt
+    val sec = (secs % 60L).toInt
+    val ms = (millis % 1000L).toInt
+    f"$hour%02d:$min%02d:$sec%02d.$ms%03d"
 
   /** Create a standard logger with default colour detection. */
   def apply(logConfig: LogConfig): StandardLogger =

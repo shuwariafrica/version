@@ -211,7 +211,7 @@ object CliOptions:
     }
 
     val parser: OParser[Unit, CliOptions] = OParser.sequence(
-      programName("version-cli"),
+      programName("version"),
       head("version", BuildInfo.version),
       optRepository,
       optBasisCommit,

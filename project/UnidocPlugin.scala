@@ -9,9 +9,9 @@ import sbtunidoc.ScalaUnidocPlugin
 
 /** Plugin for managing Scaladoc/Unidoc settings for the `version` project.
   *
-  * Must be manually enabled on the root project to keep documentation settings organised.
-  * This plugin requires MdocPlugin because it uses mdoc to preprocess documentation
-  * files before Scaladoc generation, enabling dynamic variable substitution.
+  * Must be manually enabled on the root project to keep documentation settings organised. This plugin requires
+  * MdocPlugin because it uses mdoc to preprocess documentation files before Scaladoc generation, enabling dynamic
+  * variable substitution.
   */
 object VersionUnidocPlugin extends AutoPlugin:
 

@@ -11,7 +11,6 @@ Contributions are welcome. This guide covers project conventions and workflow.
 ### Prerequisites
 
 - **JDK**: @JDK_VERSION@ or later
-- **Git**: For version resolution tests
 - **NodeJS**: For Scala.js tests
 - **Clang / LLVM**: For Scala Native tests
 - **cmake**: For building the vendored libgit2 (Native backend)
