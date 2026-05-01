@@ -268,7 +268,9 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     Right(fromCString(buf).toLowerCase)
 
   def close(): Unit =
-    try git_repository_free(repo)
+    try
+      git_repository_free(repo)
+      git_libgit2_shutdown(): Unit
     catch case _: Throwable => ()
 
 end NativeGitRepository
@@ -278,10 +280,11 @@ object NativeGitRepository:
   import LibGit2.*
   import LibGit2Constants.*
 
-  /** Opens a Git repository at the given path. Initialises libgit2 on first call. */
+  // libgit2 init/shutdown are reference-counted; every successful init must be paired with
+  // a shutdown so libgit2's thread-local destructors run cleanly when the last user is gone.
   def open(path: String): Either[GitError, NativeGitRepository] =
     git_libgit2_init(): Unit
-    Zone:
+    val result = Zone:
       val repoOut = stackalloc[Ptr[Byte]](1)
       val rc = git_repository_open_ext(repoOut, toCString(path), 0.toUInt, null.asInstanceOf[CString])
       if rc == GIT_ENOTFOUND then Left(GitError.RepositoryNotFound(path))
@@ -293,4 +296,6 @@ object NativeGitRepository:
         else "unknown error"
         Left(GitError.BackendFailure(msg))
       else Right(new NativeGitRepository(!repoOut))
+    if result.isLeft then git_libgit2_shutdown(): Unit
+    result
 // scalafix:on

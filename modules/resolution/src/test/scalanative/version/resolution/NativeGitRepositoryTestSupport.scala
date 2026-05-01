@@ -15,12 +15,14 @@
  ****************************************************************************/
 package version.resolution
 
+import java.nio.file.Path
+
 import version.resolution.native.NativeGitRepository
 
 // scalafix:off DisableSyntax.throw
 /** Native-specific [[GitRepositoryTestSupport]] using libgit2. */
 trait NativeGitRepositoryTestSupport extends GitRepositoryTestSupport:
 
-  def openTestRepository(path: os.Path): GitRepository =
-    NativeGitRepository.open(path.toString).fold(e => throw e, identity)
+  def openTestRepository(path: Path): GitRepository =
+    NativeGitRepository.open(path.toAbsolutePath.toString).fold(e => throw e, identity)
 // scalafix:on

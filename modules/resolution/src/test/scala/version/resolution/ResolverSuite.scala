@@ -17,12 +17,16 @@ package version.resolution
 
 import munit.FunSuite
 
+import java.nio.file.Files
+import java.nio.file.Paths
+
 import scala.concurrent.duration.*
 
 import version.resolution.logging.Logger
 import version.resolution.logging.NullLogger
 import version.resolution.logging.Verbose
 import version.semver.*
+import version.testkit.Filesystem
 
 /** Shared resolver tests exercising the full resolution pipeline via [[GitRepository]]. */
 abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
@@ -54,7 +58,7 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
   test("Mode 2: dirty worktree forces snapshot with dirty metadata"):
     withFreshRepo("mode2-dirty"): repo =>
       checkout(repo, "v1.0.0")
-      os.write(repo / "dirty.txt", "dirty")
+      Files.writeString(repo.resolve("dirty.txt"), "dirty"): Unit
       val res = VersionCliCore.resolve(cfg(repo.toString), path => openEither(path))
       assert(res.isRight, clues(res))
       val v = res.toOption.get
@@ -65,7 +69,7 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
   test("No tags anywhere: default target is 0.1.0"):
     withFreshRepo("no-tags"): _ =>
       // Use the initMinimalRepo which has no tags
-      val tmp = os.temp.dir(prefix = "version-no-tags-")
+      val tmp = Files.createTempDirectory("version-no-tags-")
       try
         initMinimalRepo(tmp)
         val res = VersionCliCore.resolve(cfg(tmp.toString), path => openEither(path))
@@ -73,7 +77,7 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
         val v = res.toOption.get
         assert(v.show.startsWith("0.1.0-SNAPSHOT"), s"Expected 0.1.0-SNAPSHOT, got ${v.show}")
       finally
-        try os.remove.all(tmp)
+        try Filesystem.removeRecursive(tmp)
         catch case _: Throwable => ()
 
   test("Lightweight tags are ignored during version resolution"):
@@ -86,6 +90,6 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
 
   /** Helper to open a GitRepository, wrapping in Either. */
   private def openEither(path: String): Either[GitError, GitRepository] =
-    try Right(openTestRepository(os.Path(path)))
+    try Right(openTestRepository(Paths.get(path)))
     catch case e: Throwable => Left(GitError.BackendFailure(e.getMessage))
 end ResolverSuite

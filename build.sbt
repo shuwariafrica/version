@@ -27,7 +27,6 @@ val version =
 val `version-testkit` =
   projectMatrix
     .in(file("modules/testkit"))
-    .settings(libraryDependencies += Libraries.`os-lib`)
     .settings(publish / skip := true)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
@@ -40,7 +39,6 @@ val resolution =
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(noticeMappingSettings)
-    .settings(libraryDependencies += Libraries.`os-lib` % Test)
     .jvmPlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       settings = Seq(libraryDependencies += Libraries.jgit)
@@ -60,7 +58,6 @@ val `version-cli` =
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependencies += Libraries.scopt)
-    .settings(libraryDependencies += Libraries.`os-lib` % Test)
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(publish / skip := true)
     .settings(buildInfoSettings)
@@ -150,7 +147,10 @@ def nativeSettings: List[Setting[?]] = List(
     (Compile / sourceDirectory).value / "resources-native",
   Test / unmanagedResourceDirectories +=
     (Test / sourceDirectory).value / "resources-native",
-  libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always"
+  libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
+  // Our code, tests, and the libgit2 binding are entirely sequential. Forcing multithreading
+  // off keeps the MT runtime out of every native binary.
+  nativeConfig := Def.uncached(nativeConfig.value.withMultithreading(false))
 )
 
 def cliNativeSettings: List[Setting[?]] = {

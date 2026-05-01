@@ -18,10 +18,13 @@ package version.sbt
 import munit.FunSuite
 import sbt.util.Logger
 
+import java.nio.file.Files
+
 import version.resolution.ResolutionConfig
 import version.resolution.domain.CiProvider
 import version.sbt.VersionPlugin.internal
 import version.semver.SemVer
+import version.testkit.Filesystem
 
 class VersionPluginSpec extends FunSuite:
 
@@ -61,17 +64,17 @@ class VersionPluginSpec extends FunSuite:
   }
 
   test("resolveVersion returns fallback version when not in a Git repository") {
-    val repo = os.temp.dir(prefix = "version-plugin-resolve-")
+    val repo = Files.createTempDirectory("version-plugin-resolve-")
     try
       val cfg = ResolutionConfig.default[SemVer](repo.toString)
       val result = internal.resolveVersion(cfg, testLogger)
       assertEquals(result, internal.fallbackVersion)
       assertEquals(result.show, "0.1.0-SNAPSHOT")
-    finally os.remove.all(repo)
+    finally Filesystem.removeRecursive(repo)
   }
 
   test("resolveVersion wraps other resolution failures in MessageOnlyException") {
-    val nonExistentRepo = os.temp.dir(prefix = "version-plugin-") / "does-not-exist"
+    val nonExistentRepo = Files.createTempDirectory("version-plugin-").resolve("does-not-exist")
     val cfg = ResolutionConfig.default[SemVer](nonExistentRepo.toString)
     // RepositoryNotFound for non-existent path is still handled gracefully
     val result = internal.resolveVersion(cfg, testLogger)

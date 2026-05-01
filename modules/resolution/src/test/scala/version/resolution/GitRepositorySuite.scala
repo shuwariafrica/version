@@ -17,10 +17,15 @@ package version.resolution
 
 import munit.FunSuite
 
+import java.nio.file.Files
+import java.nio.file.Path
+
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
 import version.resolution.domain.*
+import version.testkit.Filesystem
+import version.testkit.Process
 
 /** Shared tests for [[GitRepository]] trait, run against each platform's backend. */
 abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
@@ -28,13 +33,13 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
   override val munitTimeout: Duration = 120.seconds
 
   /** Creates a minimal test repo and runs the test with it. */
-  private def withMinimalRepo[A](name: String)(f: os.Path => A): A =
-    val tmp = os.temp.dir(prefix = s"version-gr-$name-")
+  private def withMinimalRepo[A](name: String)(f: Path => A): A =
+    val tmp = Files.createTempDirectory(s"version-gr-$name-")
     try
       initMinimalRepo(tmp)
       f(tmp)
     finally
-      try os.remove.all(tmp)
+      try Filesystem.removeRecursive(tmp)
       catch case NonFatal(_) => ()
 
   test("head returns Some(sha) for repository with commits"):
@@ -106,7 +111,7 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
 
   test("clean returns false when untracked file exists"):
     withMinimalRepo("clean-untracked"): repo =>
-      os.write(repo / "untracked.txt", "hello")
+      Files.writeString(repo.resolve("untracked.txt"), "hello"): Unit
       val gr = openTestRepository(repo)
       try
         val result = gr.clean
@@ -117,7 +122,7 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
   test("tags returns annotated and lightweight tags with correct kind"):
     withMinimalRepo("tags-kinds"): repo =>
       tag(repo, "v1.0.0", "Release 1.0.0")
-      os.proc("git", "tag", "lightweight-tag").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "tag", "lightweight-tag"), repo): Unit
       val gr = openTestRepository(repo)
       try
         val result = gr.tags
@@ -155,7 +160,7 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
     withMinimalRepo("ancestor-false"): repo =>
       commit(repo, "second commit"): Unit
       val sha2 = git(repo, "rev-parse", "HEAD").trim.toLowerCase
-      os.proc("git", "checkout", "-q", "-b", "other", "HEAD~1").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "checkout", "-q", "-b", "other", "HEAD~1"), repo): Unit
       val branchSha = commit(repo, "branch commit")
       val gr = openTestRepository(repo)
       try
@@ -195,10 +200,10 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
   test("walkAll includes merge parents"):
     withMinimalRepo("walkAll-merges"): repo =>
       val initSha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
-      os.proc("git", "checkout", "-q", "-b", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "checkout", "-q", "-b", "feat"), repo): Unit
       val featureSha = commit(repo, "feature work")
       checkoutMain(repo)
-      os.proc("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat"), repo): Unit
       val mergeSha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
       val gr = openTestRepository(repo)
       try
@@ -213,10 +218,10 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
   test("walkFirstParent follows only first-parent links"):
     withMinimalRepo("walkFirstParent"): repo =>
       val initSha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
-      os.proc("git", "checkout", "-q", "-b", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "checkout", "-q", "-b", "feat"), repo): Unit
       val featureSha = commit(repo, "feature work")
       checkoutMain(repo)
-      os.proc("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat"), repo): Unit
       val mergeSha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
       val gr = openTestRepository(repo)
       try
@@ -241,10 +246,10 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
 
   test("RawCommit.isMerge returns true for merge commits"):
     withMinimalRepo("rawcommit-merge"): repo =>
-      os.proc("git", "checkout", "-q", "-b", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "checkout", "-q", "-b", "feat"), repo): Unit
       commit(repo, "feature work"): Unit
       checkoutMain(repo)
-      os.proc("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat").call(cwd = repo, check = true): Unit
+      Process.runChecked(Seq("git", "merge", "--no-ff", "--no-gpg-sign", "-m", "Merge feat", "feat"), repo): Unit
       val mergeSha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
       val gr = openTestRepository(repo)
       try

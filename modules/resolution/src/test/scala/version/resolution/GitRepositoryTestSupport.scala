@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.resolution
 
+import java.nio.file.Path
+
 import version.testkit.TestRepoSupport
 
 /** Shared test infrastructure for [[GitRepository]] tests.
@@ -24,4 +26,4 @@ import version.testkit.TestRepoSupport
 trait GitRepositoryTestSupport extends TestRepoSupport:
 
   /** Opens a [[GitRepository]] at the given path using the platform's backend. */
-  def openTestRepository(path: os.Path): GitRepository
+  def openTestRepository(path: Path): GitRepository

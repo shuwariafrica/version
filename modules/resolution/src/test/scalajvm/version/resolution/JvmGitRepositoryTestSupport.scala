@@ -15,12 +15,14 @@
  ****************************************************************************/
 package version.resolution
 
+import java.nio.file.Path
+
 import version.resolution.jvm.JvmGitRepository
 
 // scalafix:off DisableSyntax.throw
 /** JVM-specific [[GitRepositoryTestSupport]] using JGit. */
 trait JvmGitRepositoryTestSupport extends GitRepositoryTestSupport:
 
-  def openTestRepository(path: os.Path): GitRepository =
-    JvmGitRepository.open(path.toIO.getAbsolutePath).fold(e => throw e, identity)
+  def openTestRepository(path: Path): GitRepository =
+    JvmGitRepository.open(path.toAbsolutePath.toString).fold(e => throw e, identity)
 // scalafix:on

@@ -17,6 +17,9 @@ package version.cli
 
 import munit.FunSuite
 
+import java.nio.file.Files
+import java.nio.file.Path
+
 import version.resolution.ResolutionConfig
 import version.resolution.VersionCliCore
 import version.resolution.openRepository
@@ -61,8 +64,8 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assertEquals(rc.consoleStyle, ConsoleStyle.Pretty)
 
   test("Multiple emit sinks with file targets"):
-    val tmp = os.temp.dir(prefix = "version-cli-emits-")
-    val jsonPath = tmp / "ver.json"
+    val tmp = Files.createTempDirectory("version-cli-emits-")
+    val jsonPath = tmp.resolve("ver.json")
     val opts = parse(
       Seq(
         "--emit",
@@ -75,7 +78,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     val rc = asResolve(opts)
     assert(rc.sinks.exists(_.kind == SinkKind.Console))
     assert(rc.sinks.exists(_.kind == SinkKind.Raw))
-    assert(rc.sinks.contains(OutputSink(SinkKind.Json, Some(jsonPath.toNIO))))
+    assert(rc.sinks.contains(OutputSink(SinkKind.Json, Some(jsonPath))))
 
   test("Invalid sink spec fails parse"):
     val parsed = parse(Seq("--emit", "bogus"))
@@ -114,27 +117,27 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assertEquals(rc.consoleStyle, ConsoleStyle.Compact)
 
   test("Only json emit does not inject console sink"):
-    val tmp = os.temp.dir(prefix = "version-cli-json-only-")
-    val jsonPath = tmp / "ver.json"
+    val tmp = Files.createTempDirectory("version-cli-json-only-")
+    val jsonPath = tmp.resolve("ver.json")
     val parsed = parse(Seq("--emit", s"json=$jsonPath")).getOrElse(fail("parse failed"))
     val rc = asResolve(parsed)
     assertEquals(rc.sinks.map(_.kind), List(SinkKind.Json))
 
   test("Duplicate raw sinks with different file destinations are preserved"):
-    val tmp = os.temp.dir(prefix = "version-cli-raw-dupe-")
-    val p1 = tmp / "a.txt"
-    val p2 = tmp / "b.txt"
+    val tmp = Files.createTempDirectory("version-cli-raw-dupe-")
+    val p1 = tmp.resolve("a.txt")
+    val p2 = tmp.resolve("b.txt")
     val parsed = parse(Seq("--emit", s"raw=$p1", "--emit", s"raw=$p2")).getOrElse(fail("parse failed"))
     val rc = asResolve(parsed)
     val raws = rc.sinks.filter(_.kind == SinkKind.Raw)
     assertEquals(raws.size, 2)
-    assert(raws.exists(_.destination.contains(p1.toNIO)))
-    assert(raws.exists(_.destination.contains(p2.toNIO)))
+    assert(raws.exists(_.destination.contains(p1)))
+    assert(raws.exists(_.destination.contains(p2)))
 
   test("Repository option sets repository path"):
-    val tmp = os.temp.dir(prefix = "version-cli-repo-")
+    val tmp = Files.createTempDirectory("version-cli-repo-")
     val parsed = parse(Seq("--repository", tmp.toString)).getOrElse(fail("parse failed"))
-    assertEquals(parsed.repository, tmp.toNIO)
+    assertEquals(parsed.repository, tmp)
 
   test("Parse release command placeholder with flags"):
     val parsed = scopt.OParser
@@ -159,8 +162,8 @@ final class CLISuite extends FunSuite with TestRepoSupport:
 
   test("End-to-end: resolve version and emit console/raw/json"):
     withFreshRepo("cli-e2e"): repo =>
-      val tmpOut = os.temp.dir(prefix = "version-cli-out-")
-      val jsonPath = tmpOut / "ver.json"
+      val tmpOut = Files.createTempDirectory("version-cli-out-")
+      val jsonPath = tmpOut.resolve("ver.json")
       val args = Seq(
         "--repository",
         repo.toString,
@@ -196,10 +199,10 @@ final class CLISuite extends FunSuite with TestRepoSupport:
           java.nio.file.Files.writeString(p, rendered(s))
         }
       }
-      assert(os.isFile(jsonPath))
+      assert(Files.isRegularFile(jsonPath))
       val rawStrs = rc.sinks.filter(_.kind == SinkKind.Raw).map(rendered)
       assert(rawStrs.forall(_ == v.show))
-      val jsonStr = os.read(jsonPath)
+      val jsonStr = Files.readString(jsonPath)
       assert(jsonStr.contains("\"major\""))
 
   private def consolePretty(v: SemVer): String =
