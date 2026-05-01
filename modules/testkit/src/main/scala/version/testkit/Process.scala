@@ -18,6 +18,7 @@
 package version.testkit
 
 import java.io.FileInputStream
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -52,23 +53,26 @@ object Process:
     else throw Failure(command, result)
   // scalafix:on
 
-  // FileInputStream uses FILE_SHARE_READ | FILE_SHARE_WRITE, tolerating a
-  // leaked write handle in scala-native's WindowsProcessFactory.
-  // Files.readAllBytes uses FILE_SHARE_READ only, which does not.
+  // Files.readAllBytes uses FILE_SHARE_READ only on Windows, which conflicts
+  // with a leaked write handle in scala-native's WindowsProcessFactory. When
+  // that fails, fall back to FileInputStream which opens with
+  // FILE_SHARE_READ | FILE_SHARE_WRITE.
   private def readUtf8(path: Path): String =
-    val size = Files.size(path).toInt
-    if size == 0 then ""
-    else
-      val fis = new FileInputStream(path.toFile)
-      try
-        val buf = new Array[Byte](size)
-        var off = 0
-        while off < size do
-          val n = fis.read(buf, off, size - off)
-          if n < 0 then return new String(buf, 0, off, StandardCharsets.UTF_8)
-          off += n
-        new String(buf, 0, off, StandardCharsets.UTF_8)
-      finally fis.close()
+    try new String(Files.readAllBytes(path), StandardCharsets.UTF_8)
+    catch
+      case _: IOException =>
+        val fis = new FileInputStream(path.toFile)
+        try
+          val buf = new Array[Byte](Files.size(path).toInt)
+          // scalafix:off
+          var off = 0
+          while off < buf.length do
+            val n = fis.read(buf, off, buf.length - off)
+            if n < 0 then off = buf.length
+            else off += n
+          // scalafix:on
+          new String(buf, 0, off, StandardCharsets.UTF_8)
+        finally fis.close()
 
   final class Failure(val command: Seq[String], val result: Result)
       extends RuntimeException(
