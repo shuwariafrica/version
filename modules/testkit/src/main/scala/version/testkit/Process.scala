@@ -17,6 +17,7 @@
  ****************************************************************/
 package version.testkit
 
+import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -28,21 +29,11 @@ object Process:
   final case class Result(exitCode: Int, stdout: String, stderr: String):
     def successful: Boolean = exitCode == 0
 
-  // Standard subprocess wrappers (os-lib, scala.sys.process) drain stdout/stderr through
-  // background pumper threads. That is the one thing forcing Scala Native to link the
-  // multithreading runtime, which deadlocks the GC on Alpine/musl when a pumper exits
-  // before MutatorThread_delete runs. We instead redirect both streams to temp files and
-  // read them after the child exits — appropriate for short-lived commands with bounded
-  // output (test fixtures, git plumbing).
   def run(command: Seq[String], cwd: Path): Result =
     val stdoutFile = Files.createTempFile("version-testkit-stdout-", ".log")
     val stderrFile = Files.createTempFile("version-testkit-stderr-", ".log")
     try
-      val process = new ProcessBuilder(command.asJava)
-        .directory(cwd.toFile)
-        .redirectOutput(stdoutFile.toFile)
-        .redirectError(stderrFile.toFile)
-        .start()
+      val process = startWithRetry(command, cwd, stdoutFile, stderrFile)
       val exitCode = process.waitFor()
       Result(exitCode, readUtf8(stdoutFile), readUtf8(stderrFile))
     finally
@@ -54,6 +45,34 @@ object Process:
     val result = run(command, cwd)
     if result.successful then result.stdout
     else throw Failure(command, result)
+  // scalafix:on
+
+  private val MaxStartAttempts = 5
+
+  private def startWithRetry(
+    command: Seq[String],
+    cwd: Path,
+    stdoutFile: Path,
+    stderrFile: Path
+  ): java.lang.Process =
+    val pb = new ProcessBuilder(command.asJava)
+      .directory(cwd.toFile)
+      .redirectOutput(stdoutFile.toFile)
+      .redirectError(stderrFile.toFile)
+    attemptStart(pb, 1)
+
+  // scalafix:off DisableSyntax.throw
+  @scala.annotation.tailrec
+  private def attemptStart(pb: ProcessBuilder, attempt: Int): java.lang.Process =
+    val outcome: Either[IOException, java.lang.Process] =
+      try Right(pb.start())
+      catch case e: IOException => Left(e)
+    outcome match
+      case Right(process)                             => process
+      case Left(error) if attempt >= MaxStartAttempts => throw error
+      case Left(_)                                    =>
+        Thread.sleep((10L << attempt).min(500L))
+        attemptStart(pb, attempt + 1)
   // scalafix:on
 
   private def readUtf8(path: Path): String =
