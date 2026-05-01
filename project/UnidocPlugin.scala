@@ -40,7 +40,7 @@ object VersionUnidocPlugin extends AutoPlugin:
     documentationFooter := s"`version` - v${version.value}",
 
     // Configure mdoc to preprocess documentation with version variables
-    mdocIn := file("docs") / "_docs",
+    mdocIn := (ThisProject / baseDirectory).value / "_docs",
     mdocOut := target.value / "mdoc-processed" / "_docs",
     mdocVariables := Map(
       "SCALA3_VERSION" -> scalaVersion.value,
@@ -63,7 +63,7 @@ object VersionUnidocPlugin extends AutoPlugin:
       // First run mdoc to process markdown files (mdoc is an InputTask)
       val _ = (Compile / mdoc).toTask("").value
 
-      val docsRoot = file("docs")
+      val docsRoot = (ThisProject / baseDirectory).value
       val mdocOutputRoot = mdocOut.value.getParentFile // target/mdoc-processed
 
       // Copy sidebar.yml, rootdoc.md, _assets, _layouts if they exist
@@ -156,8 +156,7 @@ object VersionUnidocPlugin extends AutoPlugin:
       val docDirs = (Compile / unidoc).value
       val mainDocDir = docDirs.headOption.getOrElse(target.value / "unidoc")
 
-      // Copy to a stable (scala-version agnostic) site directory for publishing
-      val siteDir = target.value / "site"
+      val siteDir = (LocalRootProject / baseDirectory).value / "target" / "site"
       if siteDir.exists() then IO.delete(siteDir)
       IO.copyDirectory(mainDocDir, siteDir)
       log.info(s"Copied unified documentation to: ${siteDir.getAbsolutePath}")

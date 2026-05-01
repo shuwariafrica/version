@@ -194,7 +194,7 @@ jobs:
       - name: Build Documentation Site
         id: build-site
         run: |
-          sbt -Dsbt.ci=true generateUnidoc
+          sbt -Dsbt.ci=true docs/generateUnidoc
           site_dir="$(pwd)/target/site"
           test -s "$site_dir/index.html" \
             || { echo "::error::Documentation site build produced no index.html"; exit 1; }

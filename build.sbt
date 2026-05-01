@@ -125,11 +125,10 @@ val `version-native` =
 //    .notPublished
 //    .aggregate(version.js.get*)
 
-val `version-root` =
-  projectMatrix
-    .in(file("."))
+val docs =
+  project
+    .in(file("docs"))
     .settings(publish / skip := true)
-    .aggregate(`version-jvm`, `version-native`)
     .enablePlugins(VersionUnidocPlugin)
     .settings(
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
@@ -138,6 +137,12 @@ val `version-root` =
         `sbt-version`.jvm(Libraries.scala3.revision)
       )
     )
+
+val `version-root` =
+  projectMatrix
+    .in(file("."))
+    .settings(publish / skip := true)
+    .aggregate(`version-jvm`, `version-native`)
 
 def nativeSettings: List[Setting[?]] = List(
   Test / parallelExecution := true,
