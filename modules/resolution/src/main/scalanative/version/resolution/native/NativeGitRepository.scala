@@ -102,20 +102,9 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
   def isBare: Boolean = git_repository_is_bare(repo) != 0
 
   def clean: Either[GitError, Boolean] =
-    if isBare then Right(true)
-    else
-      val opts = git_status_options_new()
-      if opts == null then Left(GitError.BackendFailure("Failed to allocate status options"))
-      else
-        val listOut = stackalloc[Ptr[Byte]](1)
-        val rc = git_status_list_new(listOut, repo, opts)
-        git_status_options_free(opts)
-        if rc < 0 then Left(GitError.BackendFailure(lastError))
-        else
-          val list = !listOut
-          val count = git_status_list_entrycount(list)
-          git_status_list_free(list)
-          Right(count == 0.toUSize)
+    val rc = git_workdir_dirty_count(repo)
+    if rc < 0 then Left(GitError.BackendFailure(lastError))
+    else Right(rc == 0)
 
   def tags: Either[GitError, IArray[RawTag]] =
     Zone:
@@ -268,9 +257,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     Right(fromCString(buf).toLowerCase)
 
   def close(): Unit =
-    try
-      git_repository_free(repo)
-      git_libgit2_shutdown(): Unit
+    try git_repository_free(repo)
     catch case _: Throwable => ()
 
 end NativeGitRepository

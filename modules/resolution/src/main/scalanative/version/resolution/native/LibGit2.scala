@@ -96,17 +96,9 @@ private[native] object LibGit2:
   // Graph
   def git_graph_descendant_of(repo: Ptr[Byte], commit: Ptr[Byte], ancestor: Ptr[Byte]): CInt = extern
 
-  // Status (via C shims)
-  def git_status_list_new(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], opts: Ptr[Byte]): CInt = extern
-  def git_status_list_entrycount(list: Ptr[Byte]): CSize = extern
-  def git_status_list_free(list: Ptr[Byte]): Unit = extern
-
   // Shim functions
-  @name("version_resolution_git_status_options_new")
-  def git_status_options_new(): Ptr[Byte] = extern
-
-  @name("version_resolution_git_status_options_free")
-  def git_status_options_free(opts: Ptr[Byte]): Unit = extern
+  @name("version_resolution_git_workdir_dirty_count")
+  def git_workdir_dirty_count(repo: Ptr[Byte]): CInt = extern
 
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
