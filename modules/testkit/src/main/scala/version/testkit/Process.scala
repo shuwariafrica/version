@@ -52,13 +52,23 @@ object Process:
     else throw Failure(command, result)
   // scalafix:on
 
-  // FileInputStream opens with FILE_SHARE_READ | FILE_SHARE_WRITE, which
-  // tolerates a leaked write handle from scala-native's WindowsProcessFactory.
-  // Files.readAllBytes opens with FILE_SHARE_READ only, which does not.
+  // FileInputStream uses FILE_SHARE_READ | FILE_SHARE_WRITE, tolerating a
+  // leaked write handle in scala-native's WindowsProcessFactory.
+  // Files.readAllBytes uses FILE_SHARE_READ only, which does not.
   private def readUtf8(path: Path): String =
-    val fis = new FileInputStream(path.toFile)
-    try new String(fis.readAllBytes(), StandardCharsets.UTF_8)
-    finally fis.close()
+    val size = Files.size(path).toInt
+    if size == 0 then ""
+    else
+      val fis = new FileInputStream(path.toFile)
+      try
+        val buf = new Array[Byte](size)
+        var off = 0
+        while off < size do
+          val n = fis.read(buf, off, size - off)
+          if n < 0 then return new String(buf, 0, off, StandardCharsets.UTF_8)
+          off += n
+        new String(buf, 0, off, StandardCharsets.UTF_8)
+      finally fis.close()
 
   final class Failure(val command: Seq[String], val result: Result)
       extends RuntimeException(
