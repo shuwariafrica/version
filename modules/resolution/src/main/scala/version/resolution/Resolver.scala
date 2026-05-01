@@ -23,8 +23,8 @@ import version.resolution.parsing.KeywordParser
 
 /** Version resolution engine.
   *
-  * Implements the algorithm from the version resolution specification.
-  * Scheme-generic: parameterised by `[V: ResolvableScheme]`.
+  * Implements the algorithm from the version resolution specification. Scheme-generic: parameterised by
+  * `[V: ResolvableScheme]`.
   */
 object Resolver:
 

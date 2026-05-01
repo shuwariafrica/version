@@ -20,12 +20,11 @@ import scala.scalanative.unsigned.*
 
 /** Low-level libgit2 FFI bindings.
   *
-  * Direct C function bindings for use by [[NativeGitRepository]] only.
-  * Pointer types are `Ptr[Byte]`; nominal discrimination via opaque types
-  * is applied at the call site.
+  * Direct C function bindings for use by [[NativeGitRepository]] only. Pointer types are `Ptr[Byte]`; nominal
+  * discrimination via opaque types is applied at the call site.
   */
-/** libgit2 constants. Separated from the `@extern` object because `inline val`
-  * in `@extern` objects requires literal constant types.
+/** libgit2 constants. Separated from the `@extern` object because `inline val` in `@extern` objects requires literal
+  * constant types.
   */
 private[native] object LibGit2Constants:
   inline val GIT_OK = 0

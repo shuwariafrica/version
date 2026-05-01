@@ -39,8 +39,8 @@ trait VersionArithmetic[V] extends VersionScheme[V]:
 
   /** Set the component at the given index to a specific value.
     *
-    * Reset semantics for lower-precedence components are scheme-specific, matching [[incrementComponent]].
-    * For SemVer: setting major resets minor and patch; setting minor resets patch.
+    * Reset semantics for lower-precedence components are scheme-specific, matching [[incrementComponent]]. For SemVer:
+    * setting major resets minor and patch; setting minor resets patch.
     *
     * @param index
     *   Zero-based component position in scheme order.

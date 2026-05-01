@@ -17,8 +17,8 @@ package version
 
 /** Describes the semantic role of a version component position within a scheme.
   *
-  * Drives predictable keyword behaviour across schemes. For example, `version: breaking` in a commit message resolves to
-  * the component(s) with [[Breaking]] role, regardless of which scheme is in use.
+  * Drives predictable keyword behaviour across schemes. For example, `version: breaking` in a commit message resolves
+  * to the component(s) with [[Breaking]] role, regardless of which scheme is in use.
   *
   * Each scheme declares a `layout: IArray[ComponentRole]` mapping positions to roles. For multiple same-role positions
   * (e.g., PVP has two [[Breaking]]), role-based keywords resolve to the last position with that role. Users who need a

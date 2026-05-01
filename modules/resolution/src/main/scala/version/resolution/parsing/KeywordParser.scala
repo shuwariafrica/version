@@ -26,9 +26,8 @@ import version.resolution.domain.Keyword.*
 
 /** Commit message keyword parser for version resolution.
   *
-  * Extracts version control keywords from commit messages following the specification.
-  * Keyword-to-component-index mapping is derived from the scheme's
-  * [[version.ResolvableScheme.keywordAliases keywordAliases]].
+  * Extracts version control keywords from commit messages following the specification. Keyword-to-component-index
+  * mapping is derived from the scheme's [[version.ResolvableScheme.keywordAliases keywordAliases]].
   */
 object KeywordParser:
 
@@ -271,8 +270,7 @@ object KeywordParser:
 
   /** Try matching a standalone shorthand at position i.
     *
-    * Returns `None` if no alias matches at this position.
-    * Returns `Some((keyword, nextPosition))` if an alias matches.
+    * Returns `None` if no alias matches at this position. Returns `Some((keyword, nextPosition))` if an alias matches.
     * The keyword is `None` for fix-role no-ops (recognised but no keyword emitted).
     */
   private def tryStandaloneShorthand(line: String, i: Int, ctx: KeywordContext): Option[(Option[Keyword], Int)] =

@@ -18,8 +18,8 @@ package version
 /** Resolution context describing the state of the repository for development version construction.
   *
   * This is a pure data aggregate carrying information from the resolution engine to a scheme's
-  * [[ResolvableScheme.developmentVersion]] implementation. The scheme uses this to construct a development version in its
-  * own format (e.g., SemVer uses `-SNAPSHOT+metadata`).
+  * [[ResolvableScheme.developmentVersion]] implementation. The scheme uses this to construct a development version in
+  * its own format (e.g., SemVer uses `-SNAPSHOT+metadata`).
   */
 final case class DevelopmentMetadata(
   branch: Option[String],
@@ -34,9 +34,9 @@ object DevelopmentMetadata:
 
 /** Full Git-based version resolution contract for schemes that support the complete resolution workflow.
   *
-  * Extends [[VersionArithmetic]] because resolution requires component manipulation (incrementing after keyword parsing).
-  * A single `given ResolvableScheme[V]` in a scheme's companion satisfies `VersionScheme[V]`, `VersionArithmetic[V]`,
-  * and `ResolvableScheme[V]` via subtyping.
+  * Extends [[VersionArithmetic]] because resolution requires component manipulation (incrementing after keyword
+  * parsing). A single `given ResolvableScheme[V]` in a scheme's companion satisfies `VersionScheme[V]`,
+  * `VersionArithmetic[V]`, and `ResolvableScheme[V]` via subtyping.
   *
   * @tparam V
   *   The version type.

@@ -20,15 +20,15 @@ import version.DevelopmentMetadata
 // scalafix:off
 /** Assembles [[DevelopmentMetadata]] from pre-gathered resolution values.
   *
-  * Pure function - no Git dependency. The resolver gathers the values via [[GitRepository]],
-  * then passes them here for assembly.
+  * Pure function - no Git dependency. The resolver gathers the values via [[GitRepository]], then passes them here for
+  * assembly.
   */
 object MetadataBuilder:
 
   /** Assemble development metadata from pre-gathered values.
     *
-    * Branch normalisation: lowercase, replace non-`[0-9a-z-]` with `-`, collapse consecutive `-`,
-    * trim leading/trailing `-`, empty becomes `"detached"`.
+    * Branch normalisation: lowercase, replace non-`[0-9a-z-]` with `-`, collapse consecutive `-`, trim leading/trailing
+    * `-`, empty becomes `"detached"`.
     */
   def assemble(
     branchOverride: Option[String],

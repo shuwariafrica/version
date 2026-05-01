@@ -19,11 +19,11 @@ import version.resolution.domain.*
 
 /** Abstraction over Git repository operations.
   *
-  * Implementations are platform-specific: JGit on JVM, libgit2 on Scala Native.
-  * Instances are not thread-safe - consumers must not share across threads.
+  * Implementations are platform-specific: JGit on JVM, libgit2 on Scala Native. Instances are not thread-safe -
+  * consumers must not share across threads.
   *
-  * Construction is platform-specific via companion `open` factories on the implementations.
-  * The resolver receives an `open: String => Either[GitError, GitRepository]` parameter.
+  * Construction is platform-specific via companion `open` factories on the implementations. The resolver receives an
+  * `open: String => Either[GitError, GitRepository]` parameter.
   */
 trait GitRepository extends AutoCloseable:
 

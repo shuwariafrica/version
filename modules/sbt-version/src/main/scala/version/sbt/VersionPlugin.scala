@@ -42,7 +42,8 @@ import version.semver.*
   *   - `versionFormatter`: Optional [[version.semver.SemVer.Formatter SemVer.Formatter]] for rendering
   *   - `versionBranchOverride`: Optional branch name override for CI environments
   *
-  * @see [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
+  * @see
+  *   [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
   */
 object VersionPlugin extends AutoPlugin:
 

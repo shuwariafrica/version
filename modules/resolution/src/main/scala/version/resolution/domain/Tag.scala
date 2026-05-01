@@ -17,8 +17,8 @@ package version.resolution.domain
 
 /** A parsed version tag - the result of applying `config.tagParser` to a [[RawTag]].
   *
-  * Parameterised by `V` (the scheme's version type). Produced by the resolver after parsing
-  * raw tag names. Ordered by the version component.
+  * Parameterised by `V` (the scheme's version type). Produced by the resolver after parsing raw tag names. Ordered by
+  * the version component.
   */
 final case class Tag[V](name: String, commit: CommitSha, version: V)
 

@@ -19,8 +19,8 @@ import scala.util.control.NoStackTrace
 
 /** Errors produced by Git backend operations.
   *
-  * Each case maps to a specific failure mode in the JGit or libgit2 backends.
-  * Module-scoped sealed ADT - does not extend [[version.errors.VersionError]].
+  * Each case maps to a specific failure mode in the JGit or libgit2 backends. Module-scoped sealed ADT - does not
+  * extend [[version.errors.VersionError]].
   */
 sealed trait GitError extends RuntimeException with NoStackTrace with Product with Serializable:
   def message: String

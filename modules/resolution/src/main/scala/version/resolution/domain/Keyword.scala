@@ -17,8 +17,8 @@ package version.resolution.domain
 
 /** ADT of recognised keywords extracted from commit messages.
   *
-  * Generic over version schemes: `ComponentBump` and `ComponentSet` use positional indices
-  * into the scheme's component layout rather than SemVer-specific types.
+  * Generic over version schemes: `ComponentBump` and `ComponentSet` use positional indices into the scheme's component
+  * layout rather than SemVer-specific types.
   *
   * Instances may be constructed via [[Keyword$ Keyword]].
   */

@@ -23,8 +23,9 @@ import version.semver.SemVer
 
 /** Tests for [[IsoString]] serialisation round-tripping.
   *
-  * Verifies that the [[IsoString]] instance for [[SemVer]] is correctly wired to [[SemVer.Formatter$.full Formatter.full]]
-  * and [[SemVer.parseUnsafe]], enabling lossless round-trip fidelity for sbt 2.x task caching.
+  * Verifies that the [[IsoString]] instance for [[SemVer]] is correctly wired to
+  * [[SemVer.Formatter$.full Formatter.full]] and [[SemVer.parseUnsafe]], enabling lossless round-trip fidelity for sbt
+  * 2.x task caching.
   */
 final class IsoStringSuite extends FunSuite:
 

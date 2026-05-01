@@ -363,12 +363,6 @@ jobs:
           echo "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build Release Archive
-        # `release.binary.static=true` is set only on Alpine musl lanes - `-static`
-        # only succeeds against musl (MIT-licensed, ships static archives) and avoids
-        # the LGPL static-linking complication on glibc. The ActionsPublish plugin
-        # (project/ActionsPublish.scala) handles all staging, completions selection,
-        # archive format, and writes `archive=<path>` and `binary=<path>` to
-        # $GITHUB_OUTPUT for the upload step.
         id: archive
         shell: bash
         env:

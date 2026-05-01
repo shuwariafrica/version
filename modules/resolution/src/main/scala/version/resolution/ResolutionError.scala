@@ -19,9 +19,9 @@ import scala.util.control.NoStackTrace
 
 /** Errors produced during version resolution.
   *
-  * Every public method in the resolution module returns `Either[ResolutionError, ...]`.
-  * Git backend errors are wrapped in [[ResolutionError.GitFailure]] at the boundary.
-  * Module-scoped sealed ADT - does not extend [[version.errors.VersionError]].
+  * Every public method in the resolution module returns `Either[ResolutionError, ...]`. Git backend errors are wrapped
+  * in [[ResolutionError.GitFailure]] at the boundary. Module-scoped sealed ADT - does not extend
+  * [[version.errors.VersionError]].
   */
 sealed trait ResolutionError extends RuntimeException with NoStackTrace with Product with Serializable:
   def message: String

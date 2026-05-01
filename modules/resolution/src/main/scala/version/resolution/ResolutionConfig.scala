@@ -22,8 +22,8 @@ import version.resolution.domain.CiMetadata
 
 /** Pure configuration for a version resolution run.
   *
-  * `repoPath` is a platform-neutral string; each backend's `open` factory performs platform-appropriate
-  * path resolution. `tagParser` converts raw Git tag names to version values.
+  * `repoPath` is a platform-neutral string; each backend's `open` factory performs platform-appropriate path
+  * resolution. `tagParser` converts raw Git tag names to version values.
   *
   * @tparam V
   *   The version type for the scheme in use.
