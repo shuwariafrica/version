@@ -50,7 +50,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: linux-musl
+          - target: linux-musl-x86_64
             runner: ubuntu-24.04
             container: shuwariafrica/alpine-jdk:25
           - target: windows-x86_64
@@ -68,7 +68,7 @@ jobs:
           submodules: recursive
 
       - name: Setup Java (non-container hosts)
-        if: matrix.target != 'linux-musl'
+        if: matrix.container == ''
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -76,7 +76,7 @@ jobs:
           check-latest: true
 
       - name: Set up sbt (non-container hosts)
-        if: matrix.target != 'linux-musl'
+        if: matrix.container == ''
         uses: sbt/setup-sbt@v1
 
       - name: Set up Coursier cache
@@ -311,12 +311,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: linux-x86_64-musl
+          - target: linux-x86_64
             runner: ubuntu-24.04
             container: shuwariafrica/alpine-jdk:17
-          - target: linux-aarch64-musl
+            static: true
+          - target: linux-aarch64
             runner: ubuntu-24.04-arm
             container: shuwariafrica/alpine-jdk:17
+            static: true
           - target: macos-x86_64
             runner: macos-13
           - target: macos-aarch64
@@ -336,7 +338,7 @@ jobs:
           submodules: recursive
 
       - name: Setup Java (non-container hosts)
-        if: '!endsWith(matrix.target, ''-musl'')'
+        if: matrix.container == ''
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -344,7 +346,7 @@ jobs:
           check-latest: true
 
       - name: Set up sbt (non-container hosts)
-        if: '!endsWith(matrix.target, ''-musl'')'
+        if: matrix.container == ''
         uses: sbt/setup-sbt@v1
 
       - name: Install LLVM toolchain (macOS)
@@ -366,15 +368,15 @@ jobs:
         id: archive
         shell: bash
         env:
-          STATIC_FLAG: ${{ endsWith(matrix.target, '-musl') && '-Drelease.binary.static=true' || '' }}
+          STATIC_FLAG: ${{ matrix.static && '-Drelease.binary.static=true' || '' }}
         run: |
           sbt --no-colors --supershell=false \
             -Dactions.publish.target=${{ matrix.target }} \
             -Drelease.binary=true $STATIC_FLAG \
             "version-cliNative/releaseArchive"
 
-      - name: Verify static linkage (Linux musl)
-        if: endsWith(matrix.target, '-musl')
+      - name: Verify static linkage
+        if: matrix.static
         shell: sh
         run: |
           bin="${{ steps.archive.outputs.binary }}"

@@ -23,7 +23,7 @@ import scala.sys.process.Process
 object ActionsPublish extends AutoPlugin:
 
   val releaseArchiveTarget = settingKey[String](
-    "Platform identifier embedded in the release archive name (e.g. linux-x86_64-musl, " +
+    "Platform identifier embedded in the release archive name (e.g. linux-x86_64, " +
       "macos-aarch64, windows-x86_64). Read from `-Dactions.publish.target=<id>`."
   )
 
