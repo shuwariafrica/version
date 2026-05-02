@@ -98,7 +98,7 @@ object VersionUnidocPlugin extends AutoPlugin:
     Compile / unidoc := (Compile / unidoc).dependsOn(preprocessDocs).value,
 
     // Enhanced Scaladoc options - these will be picked up by ScalaUnidoc
-    Compile / doc / scalacOptions ++= {
+    Compile / doc / scalacOptions ++= Def.uncached {
       // CRITICAL: Run mdoc (with asset copying) BEFORE generating Scaladoc
       val processedDocsDir = preprocessDocs.value
 
