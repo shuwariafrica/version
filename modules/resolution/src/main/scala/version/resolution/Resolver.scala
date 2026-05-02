@@ -15,6 +15,9 @@
  ****************************************************************************/
 package version.resolution
 
+import scala.util.boundary
+import scala.util.boundary.break
+
 import version.ResolvableScheme
 import version.resolution.domain.*
 import version.resolution.logging.Logger
@@ -49,6 +52,7 @@ object Resolver:
       finally
         repo.close()
 
+  // scalafix:off
   private def doResolve[V](
     config: ResolutionConfig[V],
     repo: GitRepository
@@ -58,63 +62,66 @@ object Resolver:
     verbose: Verbose,
     ord: Ordering[V]
   ): Either[ResolutionError, V] =
-    lift(repo.head).flatMap:
-      case None =>
-        if config.basisCommit != "HEAD" then Left(ResolutionError.GitFailure(GitError.RevisionNotFound(config.basisCommit)))
-        else
+    boundary:
+      def ok[A](e: Either[ResolutionError, A]): A = e match
+        case Right(v)    => v
+        case Left(error) => break(Left(error))
+
+      ok(lift(repo.head)) match
+        case None =>
+          if config.basisCommit != "HEAD" then break(Left(ResolutionError.GitFailure(GitError.RevisionNotFound(config.basisCommit))))
           logger.verbose("Empty repository - returning initial version", "Resolver")
           Right(scheme.initialVersion)
 
-      case Some(headSha) =>
-        val basisResult =
-          if config.basisCommit == "HEAD" then Right(headSha)
-          else lift(repo.resolve(config.basisCommit))
+        case Some(headSha) =>
+          val basis =
+            if config.basisCommit == "HEAD" then headSha
+            else ok(lift(repo.resolve(config.basisCommit)))
 
-        basisResult.flatMap: basis =>
-          (for
-            branchName <- lift(repo.branch)
-            isClean <- lift(repo.clean)
-            rawTags <- lift(repo.tags)
-          yield (branchName, isClean, rawTags)).flatMap: (branchName, isClean, rawTags) =>
-            val versionTags: IArray[Tag[V]] = rawTags
-              .filter(_.kind == TagKind.Annotated)
-              .flatMap(rt => config.tagParser(rt.name).map(v => Tag(rt.name, rt.commit, v)))
+          val branchName = ok(lift(repo.branch))
+          val isClean = ok(lift(repo.clean))
+          val rawTags = ok(lift(repo.tags))
 
-            logger.verbose(s"Parsed ${versionTags.length} version tag(s)", "Resolver")
+          val versionTags: IArray[Tag[V]] = rawTags
+            .filter(_.kind == TagKind.Annotated)
+            .flatMap(rt => config.tagParser(rt.name).map(v => Tag(rt.name, rt.commit, v)))
 
-            lift(repo.reachableTags(basis, versionTags.map(_.commit).toSet)).flatMap: reachableCommits =>
-              val reachableTags = versionTags.filter(t => reachableCommits.contains(t.commit))
+          logger.verbose(s"Parsed ${versionTags.length} version tag(s)", "Resolver")
 
-              val tagsOnBasis = reachableTags.filter(_.commit == basis)
-              val highestOnBasis = tagsOnBasis.sorted.lastOption
-              if highestOnBasis.isDefined && isClean then
-                logger.verbose(s"Mode 1: HEAD tagged with ${highestOnBasis.get.version.show} and clean", "Resolver")
-                Right(highestOnBasis.get.version)
-              else
-                val isDirty = !isClean
-                val baseTag = reachableTags.sorted.lastOption
-                logger.verbose(s"Mode 2: development version (dirty=$isDirty, base=${baseTag.map(_.name)})", "Resolver")
+          val reachableCommits = ok(lift(repo.reachableTags(basis, versionTags.map(_.commit).toSet)))
+          val reachableTags = versionTags.filter(t => reachableCommits.contains(t.commit))
 
-                lift(repo.walkAll(basis, baseTag.map(_.commit))).flatMap: scanRange =>
-                  computeMergeExclusions(scanRange, repo).flatMap: mergeExclusions =>
-                    val keywords = extractKeywords(scanRange, mergeExclusions)
-                    val targetCore = calculateTarget(keywords, baseTag, versionTags)
+          val tagsOnBasis = reachableTags.filter(_.commit == basis)
+          val highestOnBasis = tagsOnBasis.sorted.lastOption
+          if highestOnBasis.isDefined && isClean then
+            logger.verbose(s"Mode 1: HEAD tagged with ${highestOnBasis.get.version.show} and clean", "Resolver")
+            Right(highestOnBasis.get.version)
+          else
+            val isDirty = !isClean
+            val baseTag = reachableTags.sorted.lastOption
+            logger.verbose(s"Mode 2: development version (dirty=$isDirty, base=${baseTag.map(_.name)})", "Resolver")
 
-                    lift(repo.walkFirstParent(basis, baseTag.map(_.commit))).flatMap: fpCommits =>
-                      val commitCount = fpCommits.count(!_.isMerge)
-
-                      lift(repo.abbreviate(basis, config.shaLength)).map: abbreviatedSha =>
-                        val devMeta = MetadataBuilder.assemble(
-                          branchOverride = config.branchOverride,
-                          branchDetected = branchName,
-                          abbreviatedSha = abbreviatedSha,
-                          commitCount = commitCount,
-                          prNumber = config.prNumber,
-                          isDirty = isDirty
-                        )
-                        logger.verbose(s"Metadata assembled: $devMeta", "Resolver")
-                        scheme.developmentVersion(targetCore, devMeta)
-              end if
+            val scanRange = ok(lift(repo.walkAll(basis, baseTag.map(_.commit))))
+            val mergeExclusions = ok(computeMergeExclusions(scanRange, repo))
+            val keywords = extractKeywords(scanRange, mergeExclusions)
+            val targetCore = calculateTarget(keywords, baseTag, versionTags)
+            val fpCommits = ok(lift(repo.walkFirstParent(basis, baseTag.map(_.commit))))
+            val commitCount = fpCommits.count(!_.isMerge)
+            val abbreviatedSha = ok(lift(repo.abbreviate(basis, config.shaLength)))
+            val devMeta = MetadataBuilder.assemble(
+              branchOverride = config.branchOverride,
+              branchDetected = branchName,
+              abbreviatedSha = abbreviatedSha,
+              commitCount = commitCount,
+              prNumber = config.prNumber,
+              isDirty = isDirty
+            )
+            logger.verbose(s"Metadata assembled: $devMeta", "Resolver")
+            Right(scheme.developmentVersion(targetCore, devMeta))
+          end if
+      end match
+  end doResolve
+  // scalafix:on
 
   private def extractKeywords[V](
     commits: IArray[RawCommit],
@@ -167,10 +174,12 @@ object Resolver:
           case (acc, _) => acc
   end buildDirectExclusions
 
+  // scalafix:off
   private def computeMergeExclusions[V](
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
+    import scala.util.boundary, boundary.break
     val mergeCommitsWithIgnore = commits.filter: c =>
       c.isMerge && KeywordParser
         .parse[V](c.message)
@@ -178,14 +187,22 @@ object Resolver:
           case Keyword.IgnoreMerged => true
           case _                    => false
 
-    mergeCommitsWithIgnore.foldLeft(Right(Set.empty[CommitSha]): Either[ResolutionError, Set[CommitSha]]): (acc, mc) =>
-      acc.flatMap: exclusions =>
-        mc.parentIds
-          .drop(1)
-          .foldLeft(Right(exclusions): Either[ResolutionError, Set[CommitSha]]): (innerAcc, parentId) =>
-            innerAcc.flatMap: current =>
-              lift(repo.walkAll(parentId, Some(mc.parentIds(0)))).map: walked =>
-                current ++ walked.map(_.id).toSet
+    boundary:
+      var exclusions = Set.empty[CommitSha]
+      val iter = mergeCommitsWithIgnore.iterator
+      while iter.hasNext do
+        val mc = iter.next()
+        val parents = mc.parentIds.drop(1)
+        val pIter = parents.iterator
+        while pIter.hasNext do
+          val parentId = pIter.next()
+          lift(repo.walkAll(parentId, Some(mc.parentIds(0)))) match
+            case Left(err)     => break(Left(err))
+            case Right(walked) =>
+              exclusions = exclusions ++ walked.map(_.id).toSet
+      Right(exclusions)
+  end computeMergeExclusions
+  // scalafix:on
 
   private def calculateTarget[V](
     keywords: List[Keyword],
