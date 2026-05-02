@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -15,18 +15,20 @@
  ****************************************************************************/
 package version.cli
 
-import com.github.plokhotnyuk.jsoniter_scala.core.writeToString
 import munit.FunSuite
-import org.virtuslab.yaml.*
 
-import version.Version
-import version.cli.core.VersionCliCore
-import version.cli.core.domain.CliConfig
-import version.codecs.jsoniter.given
-import version.codecs.yaml.given
-import version.{*, given}
+import java.nio.file.Files
+import java.nio.file.Path
+
+import version.resolution.ResolutionConfig
+import version.resolution.VersionCliCore
+import version.resolution.openRepository
+import version.semver.*
 
 final class CLISuite extends FunSuite with TestRepoSupport:
+
+  override val munitTimeout: scala.concurrent.duration.Duration =
+    scala.concurrent.duration.Duration(120, "s")
 
   private def normalize(o: CliOptions): CliOptions = o.command match
     case rc: ResolveConfig =>
@@ -45,29 +47,25 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     case r: ResolveConfig => r
     case other            => fail(s"Expected ResolveConfig got $other")
 
-  test("Default parse: console sink pretty style") {
+  test("Default parse: console sink pretty style"):
     val opts = parse(Nil).getOrElse(fail("parse failed"))
     val rc = asResolve(opts)
     assertEquals(rc.sinks, List(OutputSink(SinkKind.Console, None)))
     assertEquals(rc.consoleStyle, ConsoleStyle.Pretty)
-  }
 
-  test("CI default switches to compact style") {
+  test("CI default switches to compact style"):
     val opts = parse(Seq("--ci")).getOrElse(fail("parse failed"))
     val rc = asResolve(opts)
     assertEquals(rc.consoleStyle, ConsoleStyle.Compact)
-  }
 
-  test("Explicit console-style overrides CI override") {
+  test("Explicit console-style overrides CI override"):
     val opts = parse(Seq("--ci", "--console-style", "pretty")).getOrElse(fail("parse failed"))
     val rc = asResolve(opts)
     assertEquals(rc.consoleStyle, ConsoleStyle.Pretty)
-  }
 
-  test("Multiple emit sinks with file targets") {
-    val tmp = os.temp.dir(prefix = "version-cli-emits-")
-    val jsonPath = tmp / "ver.json"
-    val yamlPath = tmp / "ver.yaml"
+  test("Multiple emit sinks with file targets"):
+    val tmp = Files.createTempDirectory("version-cli-emits-")
+    val jsonPath = tmp.resolve("ver.json")
     val opts = parse(
       Seq(
         "--emit",
@@ -75,88 +73,73 @@ final class CLISuite extends FunSuite with TestRepoSupport:
         "--emit",
         "raw",
         "--emit",
-        s"json=$jsonPath",
-        "--emit",
-        s"yaml=$yamlPath"
+        s"json=$jsonPath"
       )).getOrElse(fail("parse failed"))
     val rc = asResolve(opts)
     assert(rc.sinks.exists(_.kind == SinkKind.Console))
     assert(rc.sinks.exists(_.kind == SinkKind.Raw))
     assert(rc.sinks.contains(OutputSink(SinkKind.Json, Some(jsonPath))))
-    assert(rc.sinks.contains(OutputSink(SinkKind.Yaml, Some(yamlPath))))
-  }
 
-  test("Invalid sink spec fails parse") {
+  test("Invalid sink spec fails parse"):
     val parsed = parse(Seq("--emit", "bogus"))
     assert(parsed.isEmpty)
-  }
 
-  test("Invalid console style fails parse") {
+  test("Invalid console style fails parse"):
     val parsed = parse(Seq("--console-style", "fancy"))
     assert(parsed.isEmpty)
-  }
 
-  test("Empty emit path fails parse") {
+  test("Empty emit path fails parse"):
     val parsed = parse(Seq("--emit", "json="))
     assert(parsed.isEmpty)
-  }
 
-  test("sha-length lower bound accepted (7)") {
+  test("sha-length lower bound accepted (7)"):
     val parsed = parse(Seq("--sha-length", "7"))
     assert(parsed.nonEmpty)
     assertEquals(parsed.get.shaLength, 7)
-  }
 
-  test("sha-length upper bound accepted (40)") {
+  test("sha-length upper bound accepted (40)"):
     val parsed = parse(Seq("--sha-length", "40"))
     assert(parsed.nonEmpty)
     assertEquals(parsed.get.shaLength, 40)
-  }
 
-  test("sha-length below minimum fails parse") {
+  test("sha-length below minimum fails parse"):
     val parsed = parse(Seq("--sha-length", "6"))
     assert(parsed.isEmpty)
-  }
 
-  test("sha-length above maximum fails parse") {
+  test("sha-length above maximum fails parse"):
     val parsed = parse(Seq("--sha-length", "41"))
     assert(parsed.isEmpty)
-  }
 
-  test("Explicit console-style marks explicit flag") {
+  test("Explicit console-style marks explicit flag"):
     val parsed = parse(Seq("--console-style", "compact")).getOrElse(fail("parse failed"))
     val rc = asResolve(parsed)
     assert(rc.consoleStyleExplicit)
     assertEquals(rc.consoleStyle, ConsoleStyle.Compact)
-  }
 
-  test("Only json emit does not inject console sink") {
-    val tmp = os.temp.dir(prefix = "version-cli-json-only-")
-    val jsonPath = tmp / "ver.json"
+  test("Only json emit does not inject console sink"):
+    val tmp = Files.createTempDirectory("version-cli-json-only-")
+    val jsonPath = tmp.resolve("ver.json")
     val parsed = parse(Seq("--emit", s"json=$jsonPath")).getOrElse(fail("parse failed"))
     val rc = asResolve(parsed)
     assertEquals(rc.sinks.map(_.kind), List(SinkKind.Json))
-  }
 
-  test("Duplicate raw sinks with different file destinations are preserved") {
-    val tmp = os.temp.dir(prefix = "version-cli-raw-dupe-")
-    val p1 = tmp / "a.txt"
-    val p2 = tmp / "b.txt"
+  test("Duplicate raw sinks with different file destinations are preserved"):
+    val tmp = Files.createTempDirectory("version-cli-raw-dupe-")
+    val p1 = tmp.resolve("a.txt")
+    val p2 = tmp.resolve("b.txt")
     val parsed = parse(Seq("--emit", s"raw=$p1", "--emit", s"raw=$p2")).getOrElse(fail("parse failed"))
     val rc = asResolve(parsed)
     val raws = rc.sinks.filter(_.kind == SinkKind.Raw)
     assertEquals(raws.size, 2)
     assert(raws.exists(_.destination.contains(p1)))
     assert(raws.exists(_.destination.contains(p2)))
-  }
 
-  test("Repository option sets repository path") {
-    val tmp = os.temp.dir(prefix = "version-cli-repo-")
+  test("Repository option sets repository path"):
+    val tmp = Files.createTempDirectory("version-cli-repo-")
     val parsed = parse(Seq("--repository", tmp.toString)).getOrElse(fail("parse failed"))
     assertEquals(parsed.repository, tmp)
-  }
 
-  test("Parse release command placeholder with flags") {
+  test("Parse release command placeholder with flags"):
     val parsed = scopt.OParser
       .parse(
         CliOptions.parser,
@@ -170,20 +153,17 @@ final class CLISuite extends FunSuite with TestRepoSupport:
         assert(r.push)
         assert(r.annotate)
       case other => fail(s"Expected ReleaseConfig got $other")
-  }
 
-  test("Dedupe identical console sinks without destinations") {
+  test("Dedupe identical console sinks without destinations"):
     val opts = parse(Seq("--emit", "console", "--emit", "console")).getOrElse(fail("parse failed"))
     val rc = asResolve(opts)
     val consoles = rc.sinks.filter(_.kind == SinkKind.Console)
     assertEquals(consoles.size, 1)
-  }
 
-  test("End-to-end: resolve version and emit console/raw/json/yaml") {
-    withFreshRepo("cli-e2e") { repo =>
-      val tmpOut = os.temp.dir(prefix = "version-cli-out-")
-      val jsonPath = tmpOut / "ver.json"
-      val yamlPath = tmpOut / "ver.yaml"
+  test("End-to-end: resolve version and emit console/raw/json"):
+    withFreshRepo("cli-e2e"): repo =>
+      val tmpOut = Files.createTempDirectory("version-cli-out-")
+      val jsonPath = tmpOut.resolve("ver.json")
       val args = Seq(
         "--repository",
         repo.toString,
@@ -192,52 +172,44 @@ final class CLISuite extends FunSuite with TestRepoSupport:
         "--emit",
         "raw",
         "--emit",
-        s"json=$jsonPath",
-        "--emit",
-        s"yaml=$yamlPath"
+        s"json=$jsonPath"
       )
       val opts = parse(args).getOrElse(fail("parse failed"))
       val rc = asResolve(opts)
-      val cfg = CliConfig(
-        repo = opts.repository,
-        basisCommit = opts.basisCommit,
-        prNumber = opts.prNumber,
-        branchOverride = opts.branchOverride,
-        shaLength = opts.shaLength,
-        verbose = opts.verbose
-      )
-      val v = VersionCliCore.resolve(cfg).toOption.getOrElse(fail("resolution failed"))
-      given Version.Show = Version.Show.Extended
+      val cfg = ResolutionConfig
+        .default[SemVer](opts.repository.toString)
+        .copy(
+          basisCommit = opts.basisCommit,
+          prNumber = opts.prNumber,
+          branchOverride = opts.branchOverride,
+          shaLength = opts.shaLength,
+          verbose = opts.verbose
+        )
+      val v = VersionCliCore.resolve(cfg, openRepository).toOption.getOrElse(fail("resolution failed"))
       val rendered: Map[OutputSink, String] = rc.sinks.map { s =>
         val content = s.kind match
           case SinkKind.Console => if rc.consoleStyle == ConsoleStyle.Pretty then consolePretty(v) else v.show
           case SinkKind.Raw     => v.show
-          case SinkKind.Json    => writeToString(v)
-          case SinkKind.Yaml    => v.asYaml
+          case SinkKind.Json    => SemVerJson.toJson(v)
         s -> content
       }.toMap
       rc.sinks.foreach { s =>
         s.destination.foreach { p =>
-          os.makeDir.all(p / os.up)
-          os.write.over(p, rendered(s))
+          java.nio.file.Files.createDirectories(p.getParent)
+          java.nio.file.Files.writeString(p, rendered(s))
         }
       }
-      assert(os.isFile(jsonPath))
-      assert(os.isFile(yamlPath))
+      assert(Files.isRegularFile(jsonPath))
       val rawStrs = rc.sinks.filter(_.kind == SinkKind.Raw).map(rendered)
       assert(rawStrs.forall(_ == v.show))
-      val jsonStr = os.read(jsonPath)
+      val jsonStr = Files.readString(jsonPath)
       assert(jsonStr.contains("\"major\""))
-      val yamlStr = os.read(yamlPath)
-      assert(yamlStr.toLowerCase.contains("major:"))
-    }
-  }
 
-  private def consolePretty(v: Version)(using Version.Show): String =
+  private def consolePretty(v: SemVer): String =
     val b = new StringBuilder
     b.append("Version:\n")
-    b.append(s"  full      : ${v.show}\n")
-    b.append(s"  core      : ${v.major.value}.${v.minor.value}.${v.patch.value}\n")
+    b.append(s"  version   : ${v.show}\n")
+    b.append(s"  extended  : ${SemVer.Formatter.extended.format(v)}\n")
     val pre = v.preRelease.map(_.show).getOrElse("none")
     val meta = v.metadata.map(_.show).getOrElse("none")
     b.append(s"  preRelease: ${pre}\n")

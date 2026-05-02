@@ -2,38 +2,29 @@
 title: Contributing
 ---
 
-## Contributing
-
-Contributions to `version` are welcome. This guide covers the project conventions and workflow.
+Contributions are welcome. This guide covers project conventions and workflow.
 
 ---
 
-### Development Environment
+## Development Environment
 
-#### Prerequisites
+### Prerequisites
 
 - **JDK**: @JDK_VERSION@ or later
-- **Scala**: @SCALA3_VERSION@
-- **Git**: For version resolution tests
-- **NodeJS**: For JS Platform tests
-- **Clang / LLVM**: For Native Platform tests
+- **NodeJS**: For Scala.js tests
+- **Clang / LLVM**: For Scala Native tests
+- **cmake**: For building the vendored libgit2 (Native backend)
 
-#### Running Tests
+### Running Tests
 
 ```bash
 sbt test                    # All tests
-sbt version-jvm/test        # All JVM Platform Modules
-sbt version-native/test     # All Native Platform Modules
-sbt version-js/test         # All JS Platform Modules
+sbt version-jvm/test        # JVM modules
+sbt version-native/test     # Native modules
+sbt version-js/test         # JS modules
 ```
 
-Tests run on JVM, Scala.js, and Scala Native platforms.
-
----
-
-### Code Style
-
-#### Formatting and Linting
+### Formatting
 
 ```bash
 sbt format      # Apply scalafmt + scalafix + license headers
@@ -42,51 +33,52 @@ sbt check       # Verify formatting compliance
 
 ---
 
-### Architecture
+## Architecture
 
-#### Module Structure
+### Module Structure
 
-| Module                | Scope             | Dependencies            |
-|-----------------------|-------------------|-------------------------|
-| `version`             | Core SemVer model | boilerplate             |
-| `version-cli-core`    | Resolution engine | version, os-lib         |
-| `version-cli`         | CLI application   | version-cli-core, scopt |
-| `sbt-version`         | sbt plugin        | version-cli-core        |
-| `version-codecs-*`    | Serialisation     | version, codec library  |
-| `version-zio-prelude` | Type classes      | version, zio-prelude    |
-| `version-testkit`     | Test utilities    | version, munit          |
+| Module | Scope | Dependencies |
+|--------|-------|-------------|
+| `version` | Version model | boilerplate |
+| `version-resolution` | Version derivation | version, JGit (JVM), libgit2 (Native) |
+| `version-cli` | CLI application | version-resolution, scopt |
+| `sbt-version` | sbt plugin | version-resolution |
+| `version-testkit` | Test utilities | os-lib |
 
-#### Version Resolution
+### Version Resolution
 
-The resolution engine in `version-cli-core` follows the [Technical Specification](specification.md). Key components:
+The resolution engine in `version-resolution` follows the [Specification](versioning/specification.md). Key components:
 
-- [[version.cli.core.parsing.KeywordParser]] — extracts version directives from commit messages
-- [[version.cli.core.TargetVersionCalculator]] — computes target version from keywords and validates targets
-- [[version.cli.core.Resolver]] — orchestrates the full resolution workflow
+- [[version.resolution.parsing.KeywordParser KeywordParser]] - extracts directives from commit messages
+- [[version.resolution.TargetVersionCalculator TargetVersionCalculator]] - computes target version from keywords
+- [[version.resolution.Resolver Resolver]] - orchestrates the full resolution workflow
+
+Per-platform Git backends:
+
+- **JVM**: `JvmGitRepository` wrapping JGit
+- **Native**: `NativeGitRepository` wrapping libgit2 (statically linked, built via cmake)
 
 ---
 
-### Pull Request Guidelines
+## Pull Request Guidelines
 
-1. **One concern per PR** — focused changes are easier to review
-2. **Include tests** — coverage for new functionality and regressions
-3. **Follow existing patterns** — consistency aids maintenance
-4. **Update documentation** — keep README and docs in sync with changes
-5. **Run static checks** — `sbt check` must pass
+1. **One concern per PR** - focused changes are easier to review
+2. **Include tests** - coverage for new functionality and regressions
+3. **Follow existing patterns** - consistency aids maintenance
+4. **Update documentation** - keep docs in sync with changes
+5. **Run static checks** - `sbt check` must pass
 
-### Specification Changes
+## Specification Changes
 
-The [Technical Specification](specification.md) is normative. If code contradicts the specification, the specification
-wins. Changes to version resolution behaviour require:
+The [Specification](versioning/specification.md) is normative. If code contradicts the specification, the specification wins. Changes to version resolution behaviour require:
 
 1. Specification update with rationale
 2. Implementation changes
-3. Comprehensive test coverage
+3. Test coverage
 4. Documentation updates
 
 ---
 
-### Licence
+## Licence
 
-By contributing, you agree that your contributions will be licensed under
-the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+By contributing, you agree that your contributions will be licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).

@@ -1,36 +1,31 @@
-# Basic version resolution tests
-# Tests Mode 1 (concrete) and Mode 2 (snapshot) scenarios
+# Core resolution: fallback, concrete, dirty, snapshot, pre-release
 
-# Plugin loads with fallback version (0.1.0-SNAPSHOT) as no git repo exists yet
+# No git repo - fallback to 0.1.0-SNAPSHOT
 > checkFallback
 
-# Initialise git repository
+# Initialise repo
 > gitInit
 > reload
 
-# This should now have metadata since we have a git repo
-> checkSnapshotMetadata
+# Snapshot with metadata (no tags yet)
+> checkMetadata
 
-# Regression tests for sbt 2.x caching (HashWriter/IsoString)
-> checkExtendedShowDirect
-> checkNestedVersionAccess
-
-# Mode 1: Tagged commit (clean) returns concrete version
+# Mode 1: clean tag = concrete version
 > gitTag
 > reload
-> checkOnTag
+> checkConcreteTag
 
-# Mode 2: Tagged commit (dirty) returns snapshot with dirty marker
+# Mode 2: dirty worktree at tag = snapshot with dirty marker
 > dirty
 > reload
-> checkOnTagDirty
+> checkDirtyTag
 
-# Mode 2: After commit, returns snapshot with patch bump
+# Mode 2: after commit = snapshot with commit count and SHA
 > gitCommit
 > reload
-> checkOnTagAndCommit
+> checkAfterCommit
 
-# Mode 1: Pre-release tag returns concrete pre-release version
+# Mode 1: pre-release tag = concrete pre-release
 > gitTagPreRelease
 > reload
-> checkPreReleaseTag
+> checkPreRelease

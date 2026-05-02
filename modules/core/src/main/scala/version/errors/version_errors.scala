@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -17,88 +17,70 @@ package version.errors
 
 import scala.util.control.NoStackTrace
 
-import version.PreReleaseClassifier
-import version.PreReleaseNumber
-
-/** Base trait for all errors produced by the version library. Modelled as an ADT and extending [[RuntimeException]]
-  * with [[NoStackTrace]] for compatibility with both functional error handling (`Either`) and exception throwing in
-  * critical validation paths.
+/** Base trait for all errors produced by the version library.
+  *
+  * Extends [[RuntimeException]] with [[NoStackTrace]] for compatibility with both functional error handling (`Either`)
+  * and exception-based validation paths.
   */
-sealed trait VersionError extends RuntimeException with NoStackTrace derives CanEqual:
+trait VersionError extends RuntimeException with NoStackTrace:
   def message: String
   final override def getMessage: String = message
 
-// --- Validation Errors (for programmatic creation) ---
+object VersionError:
+  given CanEqual[VersionError, VersionError] = CanEqual.derived
 
-/** Base trait for errors related to invalid numeric values during component creation. Uses `transparent` to avoid
-  * unnecessary type widening in signatures where specific errors are expected.
+// --- Component Validation ---
+
+/** A version component value is outside the valid range for that component.
+  *
+  * Common across all versioning schemes. The [[componentName]] identifies which component failed.
   */
-sealed transparent trait InvalidComponent extends VersionError:
-  def value: Int
-  def componentName: String
-  def requirement: String
+final case class InvalidComponent(value: Int, componentName: String, requirement: String) extends VersionError:
   override def message: String = s"$componentName must be $requirement. Found: $value"
 
-final case class InvalidMajorVersion(value: Int) extends InvalidComponent:
-  inline val componentName = "Major Version"
-  inline val requirement = "a non-negative number (>= 0)"
+// --- Qualifier/Pre-Release Combination ---
 
-final case class InvalidMinorVersion(value: Int) extends InvalidComponent:
-  inline val componentName = "Minor Version"
-  inline val requirement = "a non-negative number (>= 0)"
+/** Errors related to inconsistencies between a qualifier classifier and its associated number. */
+sealed trait InvalidQualifierCombination extends VersionError
 
-final case class InvalidPatchNumber(value: Int) extends InvalidComponent:
-  inline val componentName = "Patch Number"
-  inline val requirement = "a non-negative number (>= 0)"
-
-final case class InvalidPreReleaseNumber(value: Int) extends InvalidComponent:
-  inline val componentName = "Pre-Release Number"
-  inline val requirement = "a positive number (>= 1)"
-
-/** Errors related to inconsistencies between [[PreReleaseClassifier]] and [[PreReleaseNumber]]. */
-sealed transparent trait InvalidPreReleaseCombination extends VersionError
-
-/** Occurs when a classifier that requires a number (e.g., Alpha) is used without one. */
-final case class MissingPreReleaseNumber(classifier: PreReleaseClassifier) extends InvalidPreReleaseCombination:
+/** A classifier that requires a number was used without one. */
+final case class MissingQualifierNumber(classifier: String) extends InvalidQualifierCombination:
   override def message: String =
-    s"The classifier '$classifier' requires a pre-release number, but none was provided."
+    s"The classifier '$classifier' requires a qualifier number, but none was provided."
 
-/** Occurs when a classifier that forbids a number (e.g., Snapshot) is used with one. */
-final case class UnexpectedPreReleaseNumber(classifier: PreReleaseClassifier, number: PreReleaseNumber)
-    extends InvalidPreReleaseCombination:
+/** A classifier that forbids a number was used with one. */
+final case class UnexpectedQualifierNumber(classifier: String, number: Int) extends InvalidQualifierCombination:
   override def message: String =
-    s"The classifier '$classifier' cannot have a pre-release number. Found: $number"
+    s"The classifier '$classifier' cannot have a qualifier number. Found: $number"
 
-/** Occurs when build metadata identifiers contain invalid characters or are empty, violating SemVer 2.0.0. */
+// --- Metadata ---
+
+/** Build metadata identifiers contain invalid characters or are empty. */
 final case class InvalidMetadata(identifiers: List[String]) extends VersionError:
   override def message: String =
     s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"
 
-// --- Pre-Release Operation Errors (for typed pre-release operations) ---
+// --- Qualifier Operation ---
 
-/** Occurs when an operation requires a versioned classifier but a non-versioned one (e.g., Snapshot) is provided. */
-final case class ClassifierNotVersioned(classifier: PreReleaseClassifier) extends VersionError:
+/** An operation requires a versioned classifier but a non-versioned one was provided. */
+final case class ClassifierNotVersioned(classifier: String) extends VersionError:
   override def message: String = s"Classifier '$classifier' is not versioned and cannot be used in this operation."
 
-// --- Parsing Errors (for creation from strings) ---
+// --- Parsing ---
 
-/** Base trait for errors that occur during the parsing of version strings. */
-sealed transparent trait ParseError extends VersionError
+/** Base for errors that occur during the parsing of version strings. */
+sealed trait ParseError extends VersionError
 
-/** Occurs when the input string does not conform to the Semantic Versioning 2.0.0 format specification. */
+/** The input string does not conform to the expected version format. */
 final case class InvalidVersionFormat(input: String) extends ParseError:
-  override def message: String = s"The input string '$input' is not a valid Semantic Version 2.0.0 format."
+  override def message: String = s"The input string '$input' is not a valid version format."
 
-/** Occurs when a numeric component in the version string cannot be parsed as an integer or is out of range (e.g.
-  * exceeds Int.MaxValue).
-  */
+/** A numeric field in the version string cannot be parsed as an integer or is out of range. */
 final case class InvalidNumericField(field: String, value: String) extends ParseError:
   override def message: String =
     s"The value '$value' is invalid for the $field field. It must be a valid, non-negative integer within the standard integer range."
 
-/** Occurs when the pre-release identifier is structurally valid SemVer but is not recognized by the configured
-  * [[version.PreRelease.Resolver]].
-  */
-final case class UnrecognizedPreRelease(identifiers: List[String]) extends ParseError:
+/** A qualifier identifier is structurally valid but not recognised by the configured resolver. */
+final case class UnrecognisedIdentifier(identifiers: List[String]) extends ParseError:
   override def message: String =
-    s"The pre-release identifiers '${identifiers.mkString(".")}' are not recognized by the current mapping configuration."
+    s"The identifiers '${identifiers.mkString(".")}' are not recognised by the current mapping configuration."

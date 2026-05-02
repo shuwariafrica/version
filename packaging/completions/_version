@@ -1,0 +1,28 @@
+#compdef version
+# zsh completion for the `version` CLI
+#
+# Install:
+#   cp _version "${fpath[1]}/"      # system site-functions
+#   # or, for a single user, place in any dir on your $fpath and run
+#   autoload -Uz compinit && compinit
+
+_version() {
+    local -a args
+    args=(
+        '(-r --repository)'{-r,--repository}'[repository directory]:path:_files -/'
+        '(-b --basis-commit)'{-b,--basis-commit}'[commit-ish to resolve against]:rev:'
+        '--pr[pull request number]:number:'
+        '--branch-override[override branch name]:branch:'
+        '--sha-length[abbreviated SHA length (7..40)]:length:'
+        '(-v --verbose)'{-v,--verbose}'[enable verbose diagnostics]'
+        '--ci[CI mode (compact console, no colours)]'
+        '(--no-colour --no-color)'{--no-colour,--no-color}'[disable ANSI colours]'
+        '*'{-e,--emit}'[add output sink]:sink:(console raw json)'
+        '--console-style[console rendering style]:style:(pretty compact)'
+        '--help[print help]'
+        '--version[print version]'
+    )
+    _arguments -s $args
+}
+
+_version "$@"

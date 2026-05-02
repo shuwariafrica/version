@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -19,23 +19,19 @@ import sbt.SettingKey
 import sbt.settingKey
 import sjsonnew.IsoString
 
-import version.cli.core.domain.CliConfig
+import version.resolution.ResolutionConfig
 
 /** Auto-imported types and settings for the version sbt plugin.
   *
   * All members are automatically available in `build.sbt` when the plugin is enabled.
-  *
-  * Provides [[sjsonnew.IsoString IsoString]] instances for [[Version]] and related types to enable sbt 2.x task
-  * caching. These instances are automatically derived by sjsonnew's [[sjsonnew.BasicJsonProtocol BasicJsonProtocol]]
-  * into [[sjsonnew.JsonFormat JsonFormat]] and [[sjsonnew.HashWriter HashWriter]] instances.
   */
 object VersionPluginImports:
 
-  /** Alias for [[version.Version]] to enable unqualified use in build definitions. */
-  type Version = version.Version
+  /** Alias for [[version.semver.SemVer]] to enable unqualified use in build definitions. */
+  type SemVer = version.semver.SemVer
 
-  /** Companion object for [[Version]], providing factory methods and type class instances. */
-  val Version: version.Version.type = version.Version
+  /** Companion object for [[SemVer]], providing factory methods and type class instances. */
+  val SemVer: version.semver.SemVer.type = version.semver.SemVer
 
   /** Alias for [[version.VersionError]] to enable unqualified use in build definitions. */
   type VersionError = version.errors.VersionError
@@ -43,36 +39,31 @@ object VersionPluginImports:
   /** Companion object for [[VersionError]], providing error case classes. */
   val VersionError: version.errors.VersionError.type = version.errors.VersionError
 
-  /** Alias for [[version.cli.core.domain.CliConfig]] for advanced configuration. */
-  type VersionConfig = CliConfig
+  /** Alias for [[version.resolution.ResolutionConfig]] pinned to SemVer. */
+  type VersionConfig = ResolutionConfig[version.semver.SemVer]
 
-  /** Companion object for [[VersionConfig]]. */
-  val VersionConfig: CliConfig.type = CliConfig
+  /** Companion object for [[version.resolution.ResolutionConfig ResolutionConfig]]. */
+  val VersionConfig: ResolutionConfig.type = ResolutionConfig
 
-  /** Alias for [[version.PreRelease]] to enable unqualified use in build definitions. */
-  type PreRelease = version.PreRelease
+  /** Alias for [[version.semver.PreRelease]] to enable unqualified use in build definitions. */
+  type PreRelease = version.semver.PreRelease
 
   /** Companion object for [[PreRelease]], providing factory methods and the [[PreRelease.Resolver]] type. */
-  val PreRelease: version.PreRelease.type = version.PreRelease
+  val PreRelease: version.semver.PreRelease.type = version.semver.PreRelease
+
+  /** Type alias for tag parser functions. */
+  type TagParser = String => Option[version.semver.SemVer]
 
   // --- sjsonnew IsoString instances for sbt 2.x task caching ---
 
-  /** [[sjsonnew.IsoString IsoString]] instance for [[Version]] enabling sbt 2.x task caching.
+  /** [[sjsonnew.IsoString IsoString]] instance for [[SemVer]] enabling sbt 2.x task caching.
     *
-    * Uses [[Version.Show.Full]] for serialisation and [[Version.Read.ReadString]] with the default
-    * [[version.PreRelease.Resolver PreRelease.Resolver]] for deserialisation.
-    *
-    * This instance is used exclusively for sbt's internal cache serialisation, not for user-facing version strings.
-    * The [[versionShow]] and [[versionRead]] settings control external rendering and git tag parsing respectively,
-    * while this `IsoString` handles lossless round-trip serialisation for task caching.
-    *
-    * Custom `versionRead` resolvers (e.g., mapping `"nightly"` to [[version.PreReleaseClassifier.Snapshot Snapshot]])
-    * are applied when parsing git tags. Once parsed, the [[Version]] contains canonical classifiers that `Show.Full`
-    * renders in standard format, ensuring the default resolver can deserialise cached values.
+    * Uses [[SemVer.Formatter$.full Formatter.full]] for serialisation and [[SemVer.parseUnsafe]] for deserialisation.
+    * Used exclusively for sbt's internal cache serialisation, not for user-facing version strings.
     */
-  given IsoString[version.Version] = IsoString.iso(
-    version.Version.Show.Full.show,
-    version.Version.Read.ReadString.toVersionUnsafe
+  given IsoString[version.semver.SemVer] = IsoString.iso(
+    version.semver.SemVer.Formatter.full.format,
+    version.semver.SemVer.parseUnsafe
   )
 
   /** Optional branch name override for build metadata derivation.
@@ -82,51 +73,30 @@ object VersionPluginImports:
   val versionBranchOverride: SettingKey[Option[String]] =
     settingKey("Optional branch override used when deriving build metadata.")
 
-  /** The [[Version.Read]] instance for parsing version tags.
+  /** Tag parser function for converting Git tag names to [[SemVer]] values.
     *
-    * Override to support non-standard tag formats:
+    * The default strips `v`/`V` prefixes and parses via [[SemVer$.parse SemVer.parse]]. Override to support
+    * non-standard tag formats:
     * {{{
-    * versionRead := {
-    *   // Custom Read implementation
-    *   Version.Read.ReadString
-    * }
-    * }}}
-    *
-    * @see [[versionResolver]] for customising pre-release identifier mapping.
-    */
-  val versionRead: SettingKey[Version.Read[String]] =
-    settingKey(
-      "The Version.Read[String] instance used for parsing version tags. Defaults to Version.Read.ReadString."
-    )
-
-  /** The [[PreRelease.Resolver]] instance for mapping pre-release identifiers.
-    *
-    * Override to support non-standard pre-release formats:
-    * {{{
-    * versionResolver := new PreRelease.Resolver:
-    *   extension (ids: List[String])
-    *     def resolve: Option[PreRelease] = ids match
-    *       case List("nightly") => Some(PreRelease.snapshot)
-    *       case _               => PreRelease.Resolver.given_Resolver.resolve(ids)
+    * versionTagParser := name =>
+    *   SemVer.parse(name.stripPrefix("release-")).toOption
     * }}}
     */
-  val versionResolver: SettingKey[PreRelease.Resolver] =
-    settingKey(
-      "The PreRelease.Resolver instance used for mapping pre-release identifiers. Defaults to the standard resolver."
-    )
+  val versionTagParser: SettingKey[TagParser] =
+    settingKey("Tag parser for converting Git tag names to SemVer values. Defaults to v-prefix stripping.")
 
-  /** Optional [[Version.Show]] instance for customising the `version` setting output.
+  /** Optional [[SemVer.Formatter]] for customising the `version` setting output.
     *
-    * When `None`, uses [[Version.Show.Standard]] (excludes build metadata).
+    * When `None`, uses `v.show` (standard SemVer format, excludes build metadata).
     */
-  val versionShow: SettingKey[Option[Version.Show]] =
-    settingKey("Optional Version.Show instance for customising the version string. Defaults to Version.Show.Standard.")
+  val versionFormatter: SettingKey[Option[SemVer.Formatter]] =
+    settingKey("Optional SemVer.Formatter for customising the version string. Defaults to standard (v.show).")
 
-  /** The resolved [[Version]] for the current repository state.
+  /** The resolved [[SemVer]] for the current repository state.
     *
-    * Includes full 40-character SHA in build metadata for maximum flexibility. Use [[Version.Show]] instances for
+    * Includes full 40-character SHA in build metadata for maximum flexibility. Use [[SemVer.Formatter]] for custom
     * rendering.
     */
-  val resolvedVersion: SettingKey[Version] =
-    settingKey("Resolved semantic version for the current repository state. Use Version.Show instances for rendering.")
+  val resolvedVersion: SettingKey[SemVer] =
+    settingKey("Resolved semantic version for the current repository state.")
 end VersionPluginImports

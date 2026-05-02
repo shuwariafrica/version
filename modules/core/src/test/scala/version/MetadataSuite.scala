@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -16,6 +16,7 @@
 package version
 
 import version.errors.InvalidMetadata
+import version.semver.*
 
 class MetadataSuite extends munit.FunSuite:
 
@@ -72,9 +73,9 @@ class MetadataSuite extends munit.FunSuite:
     assertEquals(ex2.identifiers, List.empty)
   }
 
-  test("Metadata.show should format correctly with '+' prefix and dot separation") {
+  test("Metadata.show should format correctly with dot separation") {
     val metadata = Metadata(List("sha", "a9f8e6d"))
-    assertEquals(metadata.show, "+sha.a9f8e6d")
+    assertEquals(metadata.show, "sha.a9f8e6d")
   }
 
 end MetadataSuite

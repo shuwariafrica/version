@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -18,36 +18,34 @@ package version.sbt
 import munit.FunSuite
 import sjsonnew.IsoString
 
-import version.Version
-import version.given
 import version.sbt.VersionPluginImports.given
+import version.semver.SemVer
 
 /** Tests for [[IsoString]] serialisation round-tripping.
   *
-  * Verifies that the [[IsoString]] instance for [[Version]] is correctly wired to [[Version.Show.Full]] and
-  * [[Version.Read.ReadString]], enabling lossless round-trip fidelity for sbt 2.x task caching.
-  *
-  * Note: Parsing and rendering logic is tested in the core module. These tests verify the sbt-version wiring only.
+  * Verifies that the [[IsoString]] instance for [[SemVer]] is correctly wired to
+  * [[SemVer.Formatter$.full Formatter.full]] and [[SemVer.parseUnsafe]], enabling lossless round-trip fidelity for sbt
+  * 2.x task caching.
   */
 final class IsoStringSuite extends FunSuite:
 
-  private val isoString = summon[IsoString[Version]]
+  private val isoString = summon[IsoString[SemVer]]
 
   test("IsoString round-trips compound version with pre-release and metadata") {
     // Comprehensive test covering core + pre-release + metadata
-    val version = "3.2.1-beta.5+branchrelease.commits99.sha0123456789abcdef.dirty".toVersionUnsafe
+    val version = SemVer.parseUnsafe("3.2.1-beta.5+branchrelease.commits99.sha0123456789abcdef.dirty")
     val serialised = isoString.to(version)
     val deserialised = isoString.from(serialised)
     assertEquals(deserialised, version)
-    // Verify Show.Full preserves complete metadata (not truncated)
+    // Verify Formatter.full preserves complete metadata (not truncated)
     assertEquals(serialised, "3.2.1-beta.5+branchrelease.commits99.sha0123456789abcdef.dirty")
   }
 
-  test("IsoString uses Show.Full (preserves full SHA metadata)") {
+  test("IsoString uses Formatter.full (preserves full SHA metadata)") {
     val sha = "abc1234567890def1234567890abc1234567890d"
-    val version = s"1.0.0+sha$sha".toVersionUnsafe
+    val version = SemVer.parseUnsafe(s"1.0.0+sha$sha")
     val serialised = isoString.to(version)
-    // Show.Full should preserve the full SHA, not truncate to 7 chars
+    // Formatter.full should preserve the full SHA, not truncate to 7 chars
     assert(serialised.contains(sha), clues(serialised))
   }
 

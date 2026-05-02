@@ -1,32 +1,36 @@
-# version Documentation Navigation
-
 index: getting-started.md
 
 subsection:
   - title: Getting Started
     page: getting-started.md
 
-  - title: Core Library
-    index: core/overview.md
-    directory: core
+  - title: Version Schemes
+    index: schemes/overview.md
+    directory: schemes
     subsection:
-      - title: Version Types
-        page: core/types.md
-      - title: Parsing
-        page: core/parsing.md
-      - title: Operations
-        page: core/operations.md
+      - title: SemVer
+        index: schemes/semver/overview.md
+        directory: semver
+        subsection:
+          - title: Types
+            page: schemes/semver/types.md
+          - title: Parsing
+            page: schemes/semver/parsing.md
+          - title: Operations
+            page: schemes/semver/operations.md
 
   - title: Automatic Versioning
-    index: resolution/overview.md
-    directory: resolution
+    index: versioning/overview.md
+    directory: versioning
     subsection:
-      - title: How It Works
-        page: resolution/how-it-works.md
       - title: Commit Directives
-        page: resolution/directives.md
-      - title: Validation Rules
-        page: resolution/validation.md
+        page: versioning/directives.md
+      - title: Target Validation
+        page: versioning/validation.md
+      - title: SemVer Behaviour
+        page: versioning/semver.md
+      - title: Specification
+        page: versioning/specification.md
 
   - title: sbt Plugin
     index: sbt/overview.md
@@ -34,23 +38,6 @@ subsection:
     subsection:
       - title: Settings
         page: sbt/settings.md
-
-  - title: Serialisation
-    index: codecs/overview.md
-    directory: codecs
-    subsection:
-      - title: jsoniter-scala
-        page: codecs/jsoniter.md
-      - title: ZIO JSON
-        page: codecs/zio-json.md
-      - title: scala-yaml
-        page: codecs/yaml.md
-
-  - title: ZIO Prelude
-    page: zio-prelude.md
-
-  - title: Specification
-    page: specification.md
 
   - title: Contributing
     page: contributing.md

@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -18,6 +18,7 @@ package version
 import scala.util.Random
 
 import version.errors.*
+import version.semver.*
 
 /** Tests the common behaviour of the VersionComponent implementations using a generic test structure. */
 class ComponentOpaqueTypeSuite extends munit.FunSuite:
@@ -25,36 +26,40 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
   // Define the expected behaviour for each component type using abstract type members
   trait ComponentTestSpec:
     type T
-    type E <: InvalidComponent
-    val comp: ResettableVersionComponent[T] { type Error = E }
+    val comp: ResettableVersionComponent[T]
     val expectedMin: Int
-    val expectedError: Int => E
+    val expectedComponentName: String
+    val expectedRequirement: String
 
   val specs: List[ComponentTestSpec] = List(
     new ComponentTestSpec:
-      type T = MajorVersion; type E = InvalidMajorVersion
-      val comp = MajorVersion
+      type T = Major
+      val comp = Major
       val expectedMin = 0
-      val expectedError = InvalidMajorVersion.apply
+      val expectedComponentName = "Major version"
+      val expectedRequirement = "a non-negative number (>= 0)"
     ,
     new ComponentTestSpec:
-      type T = MinorVersion; type E = InvalidMinorVersion
-      val comp = MinorVersion
+      type T = Minor
+      val comp = Minor
       val expectedMin = 0
-      val expectedError = InvalidMinorVersion.apply
+      val expectedComponentName = "Minor version"
+      val expectedRequirement = "a non-negative number (>= 0)"
     ,
     new ComponentTestSpec:
-      type T = PatchNumber; type E = InvalidPatchNumber
-      val comp = PatchNumber
+      type T = Patch
+      val comp = Patch
       val expectedMin = 0
-      val expectedError = InvalidPatchNumber.apply
+      val expectedComponentName = "Patch number"
+      val expectedRequirement = "a non-negative number (>= 0)"
     ,
     // PreReleaseNumber minimum is 1
     new ComponentTestSpec:
-      type T = PreReleaseNumber; type E = InvalidPreReleaseNumber
+      type T = PreReleaseNumber
       val comp = PreReleaseNumber
       val expectedMin = 1
-      val expectedError = InvalidPreReleaseNumber.apply
+      val expectedComponentName = "Pre-release number"
+      val expectedRequirement = "a positive number (>= 1)"
   )
 
   // --- Generic Tests applied to all components ---
@@ -81,7 +86,7 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
       val ex = intercept[Throwable] {
         s.comp.fromUnsafe(invalidValue)
       }
-      assertEquals(ex, s.expectedError(invalidValue))
+      assertEquals(ex, InvalidComponent(invalidValue, s.expectedComponentName, s.expectedRequirement))
     }
 
     test(s"$componentName - from(Int) should succeed for valid values") {
@@ -91,7 +96,7 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
 
     test(s"$componentName - from(Int) should return Left(E) for invalid values") {
       val invalidValue = s.expectedMin - 1
-      assertEquals(s.comp.from(invalidValue), Left(s.expectedError(invalidValue)))
+      assertEquals(s.comp.from(invalidValue), Left(InvalidComponent(invalidValue, s.expectedComponentName, s.expectedRequirement)))
     }
 
     test(s"$componentName - increment should increase the value by one") {
@@ -112,9 +117,9 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
 
   // --- Specific Tests ---
 
-  test("MajorVersion.isStable should be true for > 0 and false for 0") {
-    assert(MajorVersion.fromUnsafe(1).isStable)
-    assert(!MajorVersion.fromUnsafe(0).isStable)
+  test("Major.isStable should be true for > 0 and false for 0") {
+    assert(Major.fromUnsafe(1).isStable)
+    assert(!Major.fromUnsafe(0).isStable)
   }
 
 end ComponentOpaqueTypeSuite

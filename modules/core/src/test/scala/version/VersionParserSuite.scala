@@ -1,5 +1,5 @@
 /****************************************************************************
- * Copyright 2023 Shuwari Africa Ltd.                                       *
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
  *                                                                          *
  * Licensed under the Apache License, Version 2.0 (the "License");          *
  * you may not use this file except in compliance with the License.         *
@@ -15,24 +15,25 @@
  ****************************************************************************/
 package version
 
-import version.PreRelease.Resolver
 import version.errors.*
+import version.semver.*
+import version.semver.PreRelease.Resolver
 
 /** Tests the parsing logic, SemVer compliance, and the PreRelease.Resolver mechanism. */
 class VersionParserSuite extends munit.FunSuite:
 
   // Helpers for constructing expected versions
   private def V(major: Int, minor: Int, patch: Int) =
-    Version(MajorVersion.fromUnsafe(major), MinorVersion.fromUnsafe(minor), PatchNumber.fromUnsafe(patch))
+    SemVer(Major.fromUnsafe(major), Minor.fromUnsafe(minor), Patch.fromUnsafe(patch))
 
   private def PRN(i: Int) = PreReleaseNumber.fromUnsafe(i)
 
   // --- Basic Parsing (M.m.p) ---
 
   test("Parse valid basic versions") {
-    assertEquals("1.2.3".toVersion, Right(V(1, 2, 3)))
-    assertEquals("0.0.1".toVersion, Right(V(0, 0, 1)))
-    assertEquals("10.99.1000".toVersion, Right(V(10, 99, 1000)))
+    assertEquals(SemVer.parse("1.2.3"), Right(V(1, 2, 3)))
+    assertEquals(SemVer.parse("0.0.1"), Right(V(0, 0, 1)))
+    assertEquals(SemVer.parse("10.99.1000"), Right(V(10, 99, 1000)))
   }
 
   // --- Pre-Release Parsing (Default Resolver) ---
@@ -41,22 +42,22 @@ class VersionParserSuite extends munit.FunSuite:
     val expectedA1 = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
     val expectedRC10 = V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(PRN(10))))
 
-    assertEquals("1.0.0-alpha.1".toVersion, Right(expectedA1))
-    assertEquals("1.0.0-rc.10".toVersion, Right(expectedRC10))
+    assertEquals(SemVer.parse("1.0.0-alpha.1"), Right(expectedA1))
+    assertEquals(SemVer.parse("1.0.0-rc.10"), Right(expectedRC10))
   }
 
   test("Handle case-insensitivity and aliases in pre-release") {
     val expectedA1 = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
-    assertEquals("1.0.0-ALPHA.1".toVersion, Right(expectedA1))
-    assertEquals("1.0.0-a.1".toVersion, Right(expectedA1))
-    assertEquals("1.0.0-SNAPSHOT".toVersion, Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot))))
+    assertEquals(SemVer.parse("1.0.0-ALPHA.1"), Right(expectedA1))
+    assertEquals(SemVer.parse("1.0.0-a.1"), Right(expectedA1))
+    assertEquals(SemVer.parse("1.0.0-SNAPSHOT"), Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot))))
   }
 
   test("Parse reconciled (non-dot-separated) pre-release formats (e.g., RC1)") {
     // The parser reconciles "RC1" into List("RC", "1")
     val expectedRC10 = V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(PRN(10))))
-    assertEquals("1.0.0-RC10".toVersion, Right(expectedRC10))
-    assertEquals("1.0.0-m5".toVersion, Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.milestone(PRN(5))))))
+    assertEquals(SemVer.parse("1.0.0-RC10"), Right(expectedRC10))
+    assertEquals(SemVer.parse("1.0.0-m5"), Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.milestone(PRN(5))))))
   }
 
   // --- Build Metadata Parsing ---
@@ -65,8 +66,8 @@ class VersionParserSuite extends munit.FunSuite:
     val meta1 = Metadata(List("build123"))
     val meta2 = Metadata(List("20250825", "sha-abc"))
 
-    assertEquals("1.0.0+build123".toVersion, Right(V(1, 0, 0).copy(metadata = Some(meta1))))
-    assertEquals("1.0.0+20250825.sha-abc".toVersion, Right(V(1, 0, 0).copy(metadata = Some(meta2))))
+    assertEquals(SemVer.parse("1.0.0+build123"), Right(V(1, 0, 0).copy(metadata = Some(meta1))))
+    assertEquals(SemVer.parse("1.0.0+20250825.sha-abc"), Right(V(1, 0, 0).copy(metadata = Some(meta2))))
   }
 
   test("Parse full versions (Pre-Release and Metadata)") {
@@ -74,7 +75,7 @@ class VersionParserSuite extends munit.FunSuite:
       preRelease = Some(PreRelease.alpha(PRN(1))),
       metadata = Some(Metadata(List("meta")))
     )
-    assertEquals("1.2.3-alpha.1+meta".toVersion, Right(expected))
+    assertEquals(SemVer.parse("1.2.3-alpha.1+meta"), Right(expected))
   }
 
   // --- Invalid Formats (Structural/SemVer Rules) ---
@@ -82,7 +83,7 @@ class VersionParserSuite extends munit.FunSuite:
   test("Reject invalid structural formats") {
     val invalid = List("1", "1.2", "1.2.", "a.b.c", "1.2.3-", "1.2.3+", "1.2.3-+")
     invalid.foreach { input =>
-      assertEquals(input.toVersion, Left(InvalidVersionFormat(input)))
+      assertEquals(SemVer.parse(input), Left(InvalidVersionFormat(input)))
     }
   }
 
@@ -93,42 +94,42 @@ class VersionParserSuite extends munit.FunSuite:
       "1.0.0+meta.", // trailing dot in build
       "1.0.0+meta..build" // empty identifier in build
     )
-    invalid.foreach(in => assert(in.toVersion.isLeft, clues(in)))
+    invalid.foreach(in => assert(SemVer.parse(in).isLeft, clues(in)))
   }
 
   test("Reject numeric identifiers with leading zeros in pre-release") {
-    assertEquals("1.0.0-alpha.01".toVersion, Left(InvalidVersionFormat("1.0.0-alpha.01")))
+    assertEquals(SemVer.parse("1.0.0-alpha.01"), Left(InvalidVersionFormat("1.0.0-alpha.01")))
   }
 
   test("Accept combined classifier+number forms (case-insensitive) and reject leading zero after split") {
-    val ok = "1.0.0-RC10".toVersion
+    val ok = SemVer.parse("1.0.0-RC10")
     assert(ok.exists(_.preRelease.exists(_.classifier == PreReleaseClassifier.ReleaseCandidate)))
     // RC01 should split into RC + 01 then leading zero numeric invalid => unrecognized OR invalid format?
     // After split we get identifiers List("RC", "01") -> numeric identifier has leading zero => structural invalid
-    assertEquals("1.0.0-RC01".toVersion, Left(InvalidVersionFormat("1.0.0-RC01")))
+    assertEquals(SemVer.parse("1.0.0-RC01"), Left(InvalidVersionFormat("1.0.0-RC01")))
   }
 
   test("Build metadata multi identifiers accepted and rendered") {
-    val v = "1.2.3+build.abc-xyz.20250101".toVersion.toOption.get
+    val v = SemVer.parse("1.2.3+build.abc-xyz.20250101").toOption.get
     assertEquals(v.metadata.map(_.identifiers), Some(List("build", "abc-xyz", "20250101")))
   }
 
   test("Reject leading zeros in numeric components (SemVer violation)") {
-    assertEquals("01.2.3".toVersion, Left(InvalidVersionFormat("01.2.3")))
-    assertEquals("1.02.3".toVersion, Left(InvalidVersionFormat("1.02.3")))
-    assertEquals("1.2.03".toVersion, Left(InvalidVersionFormat("1.2.03")))
+    assertEquals(SemVer.parse("01.2.3"), Left(InvalidVersionFormat("01.2.3")))
+    assertEquals(SemVer.parse("1.02.3"), Left(InvalidVersionFormat("1.02.3")))
+    assertEquals(SemVer.parse("1.2.03"), Left(InvalidVersionFormat("1.2.03")))
     // Also applies to pre-release numeric identifiers (caught by the main regex)
-    assertEquals("1.0.0-alpha.01".toVersion, Left(InvalidVersionFormat("1.0.0-alpha.01")))
+    assertEquals(SemVer.parse("1.0.0-alpha.01"), Left(InvalidVersionFormat("1.0.0-alpha.01")))
   }
 
   test("Reject invalid build metadata formats") {
     // Invalid characters (e.g., '_')
     val inputInvalidChar = "1.0.0+build_123"
-    assert(inputInvalidChar.toVersion.isLeft)
+    assert(SemVer.parse(inputInvalidChar).isLeft)
 
     // Empty identifiers (caught by the main regex)
-    assertEquals("1.0.0+build.".toVersion, Left(InvalidVersionFormat("1.0.0+build.")))
-    assertEquals("1.0.0+build..sha".toVersion, Left(InvalidVersionFormat("1.0.0+build..sha")))
+    assertEquals(SemVer.parse("1.0.0+build."), Left(InvalidVersionFormat("1.0.0+build.")))
+    assertEquals(SemVer.parse("1.0.0+build..sha"), Left(InvalidVersionFormat("1.0.0+build..sha")))
   }
 
   // --- Invalid Content (Overflow/Resolver Constraints) ---
@@ -136,27 +137,27 @@ class VersionParserSuite extends munit.FunSuite:
   test("Reject integer overflows (InvalidNumericField)") {
     val overflow = (BigInt(Int.MaxValue) + 1).toString
     val inputM = s"$overflow.0.0"
-    assertEquals(inputM.toVersion, Left(InvalidNumericField("Major", overflow)))
+    assertEquals(SemVer.parse(inputM), Left(InvalidNumericField("Major", overflow)))
   }
 
-  test("Reject unrecognized Pre-Release identifiers (UnrecognizedPreRelease)") {
+  test("Reject unrecognized Pre-Release identifiers (UnrecognisedIdentifier)") {
     // Structurally valid SemVer, but unknown to the default resolver.
-    assertEquals("1.0.0-feature.xyz".toVersion, Left(UnrecognizedPreRelease(List("feature", "xyz"))))
+    assertEquals(SemVer.parse("1.0.0-feature.xyz"), Left(UnrecognisedIdentifier(List("feature", "xyz"))))
   }
 
   test("Reject Pre-Release identifiers violating constraints (Default Resolver)") {
     // 1. Versioned classifier missing a number
-    assertEquals("1.0.0-dev".toVersion, Left(UnrecognizedPreRelease(List("dev"))))
-    assertEquals("1.0.0-alpha".toVersion, Left(UnrecognizedPreRelease(List("alpha"))))
+    assertEquals(SemVer.parse("1.0.0-dev"), Left(UnrecognisedIdentifier(List("dev"))))
+    assertEquals(SemVer.parse("1.0.0-alpha"), Left(UnrecognisedIdentifier(List("alpha"))))
 
     // 2. Non-versioned classifier having a number
-    assertEquals("1.0.0-snapshot.1".toVersion, Left(UnrecognizedPreRelease(List("snapshot", "1"))))
+    assertEquals(SemVer.parse("1.0.0-snapshot.1"), Left(UnrecognisedIdentifier(List("snapshot", "1"))))
 
     // 3. Pre-release number is zero (PreReleaseNumber constraint >= 1)
-    assertEquals("1.0.0-alpha.0".toVersion, Left(UnrecognizedPreRelease(List("alpha", "0"))))
+    assertEquals(SemVer.parse("1.0.0-alpha.0"), Left(UnrecognisedIdentifier(List("alpha", "0"))))
 
     // 4. Too many segments for default resolver
-    assertEquals("1.0.0-alpha.1.5".toVersion, Left(UnrecognizedPreRelease(List("alpha", "1", "5"))))
+    assertEquals(SemVer.parse("1.0.0-alpha.1.5"), Left(UnrecognisedIdentifier(List("alpha", "1", "5"))))
   }
 
   // --- Custom Resolver Test ---
@@ -170,34 +171,34 @@ class VersionParserSuite extends munit.FunSuite:
           else None // Does not fallback to default in this test case
 
     // Should succeed using the custom resolver
-    assertEquals("1.0.0-dev".toVersion, Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot))))
+    assertEquals(SemVer.parse("1.0.0-dev"), Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot))))
 
     // Should fail because the custom resolver rejects "alpha.1"
-    assertEquals("1.0.0-alpha.1".toVersion, Left(UnrecognizedPreRelease(List("alpha", "1"))))
+    assertEquals(SemVer.parse("1.0.0-alpha.1"), Left(UnrecognisedIdentifier(List("alpha", "1"))))
   }
 
   // --- Leading v/V Prefix Tests (Spec Section 3.1) ---
 
   test("Parse version with leading lowercase 'v' prefix") {
-    assertEquals("v1.2.3".toVersion, Right(V(1, 2, 3)))
-    assertEquals("v0.0.1".toVersion, Right(V(0, 0, 1)))
+    assertEquals(SemVer.parse("v1.2.3"), Right(V(1, 2, 3)))
+    assertEquals(SemVer.parse("v0.0.1"), Right(V(0, 0, 1)))
   }
 
   test("Parse version with leading uppercase 'V' prefix") {
-    assertEquals("V1.2.3".toVersion, Right(V(1, 2, 3)))
-    assertEquals("V10.20.30".toVersion, Right(V(10, 20, 30)))
+    assertEquals(SemVer.parse("V1.2.3"), Right(V(1, 2, 3)))
+    assertEquals(SemVer.parse("V10.20.30"), Right(V(10, 20, 30)))
   }
 
   test("Parse version with v prefix and pre-release") {
     val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
-    assertEquals("v1.0.0-alpha.1".toVersion, Right(expected))
-    assertEquals("V1.0.0-alpha.1".toVersion, Right(expected))
+    assertEquals(SemVer.parse("v1.0.0-alpha.1"), Right(expected))
+    assertEquals(SemVer.parse("V1.0.0-alpha.1"), Right(expected))
   }
 
   test("Parse version with v prefix and build metadata") {
     val meta = Metadata(List("build", "123"))
     val expected = V(2, 0, 0).copy(metadata = Some(meta))
-    assertEquals("v2.0.0+build.123".toVersion, Right(expected))
+    assertEquals(SemVer.parse("v2.0.0+build.123"), Right(expected))
   }
 
   test("Parse full version with v prefix") {
@@ -205,35 +206,35 @@ class VersionParserSuite extends munit.FunSuite:
       preRelease = Some(PreRelease.releaseCandidate(PRN(5))),
       metadata = Some(Metadata(List("sha1234567")))
     )
-    assertEquals("v1.2.3-rc.5+sha1234567".toVersion, Right(expected))
+    assertEquals(SemVer.parse("v1.2.3-rc.5+sha1234567"), Right(expected))
   }
 
   test("Reject bare 'v' or 'V' without version") {
-    assertEquals("v".toVersion, Left(InvalidVersionFormat("v")))
-    assertEquals("V".toVersion, Left(InvalidVersionFormat("V")))
+    assertEquals(SemVer.parse("v"), Left(InvalidVersionFormat("v")))
+    assertEquals(SemVer.parse("V"), Left(InvalidVersionFormat("V")))
   }
 
   test("Reject 'v' prefix followed by invalid version") {
-    assertEquals("v1.2".toVersion, Left(InvalidVersionFormat("v1.2")))
-    assertEquals("Va.b.c".toVersion, Left(InvalidVersionFormat("Va.b.c")))
+    assertEquals(SemVer.parse("v1.2"), Left(InvalidVersionFormat("v1.2")))
+    assertEquals(SemVer.parse("Va.b.c"), Left(InvalidVersionFormat("Va.b.c")))
   }
 
   // --- Dev Classifier Tests ---
 
   test("Parse Dev pre-release classifier") {
     val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(1))))
-    assertEquals("1.0.0-dev.1".toVersion, Right(expected))
+    assertEquals(SemVer.parse("1.0.0-dev.1"), Right(expected))
   }
 
   test("Parse Dev with higher number") {
     val expected = V(2, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(99))))
-    assertEquals("2.0.0-dev.99".toVersion, Right(expected))
+    assertEquals(SemVer.parse("2.0.0-dev.99"), Right(expected))
   }
 
   test("Dev classifier is case-insensitive") {
     val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(5))))
-    assertEquals("1.0.0-DEV.5".toVersion, Right(expected))
-    assertEquals("1.0.0-Dev.5".toVersion, Right(expected))
+    assertEquals(SemVer.parse("1.0.0-DEV.5"), Right(expected))
+    assertEquals(SemVer.parse("1.0.0-Dev.5"), Right(expected))
   }
 
   // --- All Classifier Aliases (Comprehensive) ---
@@ -249,7 +250,7 @@ class VersionParserSuite extends munit.FunSuite:
     )
 
     versions.foreach { case (input, expectedPr) =>
-      val result = input.toVersion
+      val result = SemVer.parse(input)
       assert(result.isRight, s"Failed to parse: $input")
       assertEquals(result.toOption.get.preRelease, Some(expectedPr))
     }
@@ -273,7 +274,7 @@ class VersionParserSuite extends munit.FunSuite:
     )
 
     aliasTests.foreach { case (input, expectedPr) =>
-      val result = input.toVersion
+      val result = SemVer.parse(input)
       assert(result.isRight, s"Failed to parse: $input")
       assertEquals(result.toOption.get.preRelease, Some(expectedPr), s"Wrong pre-release for: $input")
     }
@@ -290,7 +291,7 @@ class VersionParserSuite extends munit.FunSuite:
     )
 
     combinedTests.foreach { case (input, expectedPr) =>
-      val result = input.toVersion
+      val result = SemVer.parse(input)
       assert(result.isRight, s"Failed to parse combined form: $input")
       assertEquals(result.toOption.get.preRelease, Some(expectedPr), s"Wrong pre-release for: $input")
     }
@@ -300,7 +301,7 @@ class VersionParserSuite extends munit.FunSuite:
 
   test("Parse maximum integer values") {
     val max = Int.MaxValue.toString
-    val result = s"$max.$max.$max".toVersion
+    val result = SemVer.parse(s"$max.$max.$max")
     assert(result.isRight)
     assertEquals(result.toOption.get.major.value, Int.MaxValue)
     assertEquals(result.toOption.get.minor.value, Int.MaxValue)
@@ -309,17 +310,17 @@ class VersionParserSuite extends munit.FunSuite:
 
   test("Reject negative-like (structurally invalid) versions") {
     // Negative sign is not a valid character
-    assert("-1.0.0".toVersion.isLeft)
+    assert(SemVer.parse("-1.0.0").isLeft)
   }
 
   test("Reject whitespace in version strings") {
-    assert(" 1.0.0".toVersion.isLeft)
-    assert("1.0.0 ".toVersion.isLeft)
-    assert("1. 0.0".toVersion.isLeft)
+    assert(SemVer.parse(" 1.0.0").isLeft)
+    assert(SemVer.parse("1.0.0 ").isLeft)
+    assert(SemVer.parse("1. 0.0").isLeft)
   }
 
   test("Reject empty string") {
-    assertEquals("".toVersion, Left(InvalidVersionFormat("")))
+    assertEquals(SemVer.parse(""), Left(InvalidVersionFormat("")))
   }
 
 end VersionParserSuite
