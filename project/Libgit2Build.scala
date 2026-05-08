@@ -51,8 +51,9 @@ object Libgit2Build extends AutoPlugin:
       sys.error("vendor/libgit2 submodule not initialised. Run: git submodule update --init --recursive")
 
     val stamp = build / ".built-stamp"
-    val srcHash = (src / "include").allPaths.get().map(_.lastModified).max
-    if !stamp.exists || stamp.lastModified < srcHash then
+    val expected = stampContent(src)
+    val current = if stamp.isFile then IO.read(stamp).trim else ""
+    if current != expected then
       log.info(s"Building vendored libgit2 (${hostTag}) ...")
       IO.createDirectory(build)
       val configureCmd = Seq("cmake", "-S", src.getAbsolutePath, "-B", build.getAbsolutePath) ++ cmakeFlags
@@ -64,11 +65,25 @@ object Libgit2Build extends AutoPlugin:
       ).!(log)
       if buildRc != 0 then sys.error(s"cmake build failed: $buildRc")
 
-      IO.touch(stamp)
+      IO.write(stamp, expected)
     else log.debug(s"vendored libgit2 (${hostTag}) is up-to-date")
     end if
     build
   }
+
+  // Stamp covers committed submodule HEAD, a tracked-tree diff fingerprint
+  // (so vendor patches force a rebuild) and our cmakeFlags. `git diff HEAD`
+  // ignores untracked files, avoiding flapping when cmake build outputs land
+  // inside the submodule worktree. Toolchain drift is not detected; clear
+  // the build dir or `sbt clean` if cmake/clang changes on the host.
+  private def stampContent(src: File): String =
+    val srcPath = src.getAbsolutePath
+    val sha = Process(Seq("git", "-C", srcPath, "rev-parse", "HEAD")).!!.trim
+    val dirtyDigest =
+      val raw = Process(Seq("git", "-C", srcPath, "diff", "HEAD")).!!
+      scala.util.hashing.MurmurHash3.stringHash(raw).toHexString
+    val flagsHash = scala.util.hashing.MurmurHash3.stringHash(cmakeFlags.mkString("|")).toHexString
+    s"sha=$sha;dirty=$dirtyDigest;flags=$flagsHash"
 
   private def resolveStaticLib: Def.Initialize[Task[File]] = Def.task[File] {
     val build = (ThisBuild / buildLibgit2).value
@@ -78,29 +93,55 @@ object Libgit2Build extends AutoPlugin:
         .toSeq
         .filter(_.isFile)
         .filter(f => libNameMatches(f.getName))
-    candidates.headOption.getOrElse(
-      sys.error(s"Expected a libgit2 static archive (libgit2.a or git2.lib) under ${build.getAbsolutePath}; none found. " +
-        s"Contents: ${build.allPaths.get().map(_.getName).mkString(", ")}"))
+    candidates match
+      case Seq(only) => only
+      case Seq()     =>
+        sys.error(
+          s"Expected a libgit2 static archive (libgit2.a or git2.lib) under ${build.getAbsolutePath}; none found. " +
+            s"Contents: ${build.allPaths.get().map(_.getName).mkString(", ")}"
+        )
+      case multiple =>
+        sys.error(
+          s"Expected exactly one libgit2 static archive under ${build.getAbsolutePath}; found ${multiple.size}: " +
+            multiple.map(_.getAbsolutePath).mkString(", ")
+        )
   }
 
-  private def cmakeFlags: Seq[String] = Seq(
-    "-DBUILD_SHARED_LIBS=OFF",
-    "-DBUILD_TESTS=OFF",
-    "-DBUILD_CLI=OFF",
-    "-DUSE_HTTPS=OFF",
-    "-DUSE_SSH=OFF",
-    "-DUSE_NTLMCLIENT=OFF",
-    "-DUSE_GSSAPI=OFF",
-    "-DUSE_ICONV=OFF",
-    "-DREGEX_BACKEND=builtin",
-    "-DUSE_BUNDLED_ZLIB=ON",
-    "-DCMAKE_BUILD_TYPE=Release",
-    "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-    // scala-native's clang/lld toolchain links libucrt/libvcruntime (static CRT) by default
-    // on Windows. libgit2 must match (/MT) or the linker reports LNK2005 multiply-defined
-    // symbols between libucrt.lib and ucrt.lib.
-    "-DSTATIC_CRT=ON"
-  )
+  // Flag names are libgit2 v1.9.3's cmake surface. Each -D is scoped to the
+  // platforms where v1.9.3 actually declares/reads it, so cmake does not warn
+  // about unused -D entries.
+  private def cmakeFlags: Seq[String] =
+    val common = Seq(
+      "-DBUILD_SHARED_LIBS=OFF",
+      "-DBUILD_TESTS=OFF",
+      "-DBUILD_CLI=OFF",
+      "-DBUILD_EXAMPLES=OFF",
+      "-DBUILD_FUZZERS=OFF",
+      "-DUSE_HTTPS=OFF",
+      "-DUSE_SSH=OFF",
+      "-DUSE_GSSAPI=OFF",
+      "-DREGEX_BACKEND=builtin",
+      "-DUSE_BUNDLED_ZLIB=ON",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+    )
+    val platform = hostOs match
+      case Os.Linux =>
+        Seq("-DUSE_NTLMCLIENT=OFF", "-DENABLE_REPRODUCIBLE_BUILDS=ON")
+      case Os.MacOs =>
+        Seq("-DUSE_NTLMCLIENT=OFF", "-DUSE_ICONV=OFF", "-DENABLE_REPRODUCIBLE_BUILDS=ON")
+      case Os.Windows =>
+        // Force the static MSVC runtime via the modern policy-driven path so
+        // libgit2 picks the same CRT scala-native links into the binary;
+        // without this the linker reports LNK2005 between libucrt.lib and
+        // ucrt.lib.
+        Seq(
+          "-DSTATIC_CRT=ON",
+          "-DCMAKE_POLICY_DEFAULT_CMP0091=NEW",
+          "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+        )
+    common ++ platform
+  end cmakeFlags
 
   private def libNameMatches(fname: String): Boolean =
     val lower = fname.toLowerCase
@@ -111,7 +152,7 @@ object Libgit2Build extends AutoPlugin:
 
   private def hostTag: String =
     val os = hostOs match
-      case Os.Linux   => "linux"
+      case Os.Linux   => s"linux-${linuxLibc}"
       case Os.MacOs   => "macos"
       case Os.Windows => "windows"
     val arch = sys.props.getOrElse("os.arch", "unknown").toLowerCase.replace("_", "-") match
@@ -119,6 +160,17 @@ object Libgit2Build extends AutoPlugin:
       case a if a == "aarch64" || a == "arm64" => "aarch64"
       case a                                   => a
     s"$os-$arch"
+
+  // musl-built libgit2 is ABI-incompatible with glibc-linked binaries (and vice
+  // versa), so the build subtree is keyed on libc. Detect via the dynamic
+  // loader path; presence of /lib/ld-musl-<arch>.so.1 means musl, otherwise
+  // glibc.
+  private lazy val linuxLibc: String =
+    val arch = sys.props.getOrElse("os.arch", "").toLowerCase match
+      case a if a == "x86_64" || a == "amd64"  => "x86_64"
+      case a if a == "aarch64" || a == "arm64" => "aarch64"
+      case a                                   => a
+    if new File(s"/lib/ld-musl-$arch.so.1").exists() then "musl" else "glibc"
 
   private enum Os:
     case Linux, MacOs, Windows

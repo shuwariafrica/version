@@ -155,17 +155,28 @@ def nativeSettings: List[Setting[?]] = List(
 
 def cliNativeSettings: List[Setting[?]] = {
   import scala.scalanative.build.{LTO, Mode}
-  val isReleaseBinary = sys.props.get("release.binary").contains("true")
   val isStaticLink = sys.props.get("release.binary.static").contains("true")
+  // releaseFull is what we ship; releaseFast keeps local iteration tractable
+  // while still exercising optimised codegen end-to-end. The shipping CI lanes
+  // pass `-Dsbt.ci=true` so the binary tested matches the binary shipped.
+  val isCi = sys.props.get("sbt.ci").contains("true")
+  val mode = if (isCi) Mode.releaseFull else Mode.releaseFast
+  val isLinux = sys.props.get("os.name").exists(_.toLowerCase.contains("linux"))
+  // Stack protection and source fortification apply to C compilation
+  // (resources-native shims). Linux-only because clang on macOS Apple
+  // toolchain rejects -D_FORTIFY_SOURCE without a sysroot setting and
+  // clang-cl on Windows uses /GS, which is enabled by default for /MT builds.
+  val hardening = if (isLinux) Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
   List(
     nativeConfig := Def.uncached {
-      val base = nativeConfig.value.withBaseName("version")
-      if (!isReleaseBinary) base
-      else {
-        val optimised = base.withMode(Mode.releaseFull).withLTO(LTO.thin)
-        if (isStaticLink) optimised.withLinkingOptions(optimised.linkingOptions :+ "-static")
-        else optimised
-      }
+      val prev = nativeConfig.value
+      val base = prev
+        .withBaseName("version")
+        .withMode(mode)
+        .withLTO(LTO.thin)
+        .withCompileOptions(prev.compileOptions ++ hardening)
+      if (isStaticLink) base.withLinkingOptions(base.linkingOptions :+ "-static")
+      else base
     }
   )
 }

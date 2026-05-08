@@ -13,11 +13,11 @@ import scala.sys.process.Process
   * Usage in CI:
   * {{{
   *   sbt -Dactions.publish.target=<id> \
-  *       -Drelease.binary=true [-Drelease.binary.static=true] \
+  *       [-Drelease.binary.static=true] \
   *       version-cliNative/releaseArchive
   * }}}
   *
-  * Single source of truth for "what gets shipped, in what shape" lives here in Scala so the release pipeline does not
+  * Single source of truth for "what gets shipped, in what shape" lives here so the release pipeline does not
   * duplicate the staging logic across YAML branches.
   */
 object ActionsPublish extends AutoPlugin:
@@ -77,7 +77,7 @@ object ActionsPublish extends AutoPlugin:
     IO.copyFile(rootBase / "LICENSE", staging / s"LICENSE$licenseExt")
     IO.copyFile(rootBase / "NOTICE", staging / s"NOTICE$licenseExt")
 
-    val completionsSrc = rootBase / "packaging" / "completions"
+    val completionsSrc = rootBase / "project" / "completions"
     val completionFiles =
       if isWindows then Seq("version.ps1")
       else Seq("version.bash", "_version", "version.fish")
@@ -89,9 +89,13 @@ object ActionsPublish extends AutoPlugin:
     else writeTarGz(staging, archive, log)
 
     sys.env.get("GITHUB_OUTPUT").foreach { ghOutput =>
+      // Emit forward-slash form so downstream `shell: bash` steps on Windows
+      // runners receive paths bash quotes losslessly; native Windows tools
+      // accept either separator.
+      def normalise(f: File): String = f.getAbsolutePath.replace('\\', '/')
       val outputs = Seq(
-        s"archive=${archive.getAbsolutePath}",
-        s"binary=${binary.getAbsolutePath}",
+        s"archive=${normalise(archive)}",
+        s"binary=${normalise(binary)}",
         ""
       ).mkString("\n")
       IO.append(new File(ghOutput), outputs)
@@ -101,8 +105,8 @@ object ActionsPublish extends AutoPlugin:
     archive
   }
 
-  /** Pure-JVM zip via sbt.io.IO.zip. Entries are pathed relative to the staging directory's parent so the archive
-    * contains `<archiveBase>/...`, matching the tar.gz layout convention.
+  /** Entries are pathed relative to the staging directory's parent so the archive contains `<archiveBase>/...`,
+    * matching the tar.gz layout convention.
     */
   private def writeZip(staging: File, archive: File): Unit =
     val parent = staging.getParentFile.toPath
@@ -116,9 +120,6 @@ object ActionsPublish extends AutoPlugin:
         }
     IO.zip(entries, archive, None)
 
-  /** Tarball + gzip via the host `tar`. Linux/macOS runners ship tar natively; Windows runners get it via Git Bash.
-    * Single-call invocation for portability.
-    */
   private def writeTarGz(staging: File, archive: File, log: Logger): Unit =
     val parent = staging.getParentFile
     val baseName = staging.getName

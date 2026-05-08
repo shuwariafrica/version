@@ -11,7 +11,6 @@ Contributions are welcome. This guide covers project conventions and workflow.
 ### Prerequisites
 
 - **JDK**: @JDK_VERSION@ or later
-- **NodeJS**: For Scala.js tests
 - **Clang / LLVM**: For Scala Native tests
 - **cmake**: For building the vendored libgit2 (Native backend)
 
@@ -21,7 +20,6 @@ Contributions are welcome. This guide covers project conventions and workflow.
 sbt test                    # All tests
 sbt version-jvm/test        # JVM modules
 sbt version-native/test     # Native modules
-sbt version-js/test         # JS modules
 ```
 
 ### Formatting
@@ -43,7 +41,7 @@ sbt check       # Verify formatting compliance
 | `version-resolution` | Version derivation | version, JGit (JVM), libgit2 (Native) |
 | `version-cli` | CLI application | version-resolution, scopt |
 | `sbt-version` | sbt plugin | version-resolution |
-| `version-testkit` | Test utilities | os-lib |
+| `version-testkit` | Test utilities | (no external dependencies) |
 
 ### Version Resolution
 

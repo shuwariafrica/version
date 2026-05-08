@@ -25,16 +25,16 @@ A target directive is **ignored** if any of these conditions hold:
 If a reachable final tag exists with core `F`:
 
 ```
-target <= F  →  ignored
+target <= F  ->  ignored
 ```
 
 Example:
 
 ```
 Reachable final: 2.2.5
-target: 2.2.4  →  ignored (regression)
-target: 2.2.5  →  ignored (equality with final)
-target: 2.2.6  →  accepted
+target: 2.2.4  ->  ignored (regression)
+target: 2.2.5  ->  ignored (equality with final)
+target: 2.2.6  ->  accepted
 ```
 
 #### B. Regression vs Reachable Pre-release
@@ -42,16 +42,16 @@ target: 2.2.6  →  accepted
 If the highest reachable tag is a pre-release with core `P`:
 
 ```
-target < P   →  ignored
-target == P  →  accepted (equality allowed with pre-release)
+target < P   ->  ignored
+target == P  ->  accepted (equality allowed with pre-release)
 ```
 
 Example:
 
 ```
 Reachable highest: 3.1.0-rc.2
-target: 3.0.0  →  ignored
-target: 3.1.0  →  accepted
+target: 3.0.0  ->  ignored
+target: 3.1.0  ->  accepted
 ```
 
 #### C. No Reachable Base
@@ -60,15 +60,15 @@ When no tags are reachable from HEAD, validation uses repository-wide highest:
 
 ```
 Repository highest final: 4.3.0
-target: 4.3.0  →  ignored (regression)
-target: 5.0.0  →  accepted
+target: 4.3.0  ->  ignored (regression)
+target: 5.0.0  ->  accepted
 ```
 
 If only pre-releases exist:
 
 ```
 Repository highest: 2.0.0-rc.1
-target: 2.0.0  →  accepted (equality with pre-release)
+target: 2.0.0  ->  accepted (equality with pre-release)
 ```
 
 #### D. At a Final Tag
@@ -76,7 +76,7 @@ target: 2.0.0  →  accepted (equality with pre-release)
 If HEAD carries a final tag with core `T`:
 
 ```
-target <= T  →  ignored
+target <= T  ->  ignored
 ```
 
 #### E. Malformed

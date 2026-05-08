@@ -26,7 +26,6 @@ object VersionUnidocPlugin extends AutoPlugin:
     val preprocessDocs = taskKey[File]("Preprocess documentation with mdoc and copy assets")
 
     // Version keys for injection into documentation via mdoc
-    val scalaJsVersion = settingKey[String]("Scala.js version used in the project")
     val scalaNativeVersion = settingKey[String]("Scala Native version used in the project")
 
   import autoImport.*
@@ -44,7 +43,6 @@ object VersionUnidocPlugin extends AutoPlugin:
     mdocOut := target.value / "mdoc-processed" / "_docs",
     mdocVariables := Map(
       "SCALA3_VERSION" -> scalaVersion.value,
-      "SCALAJS_VERSION" -> pluginVersions.value.scalaJS,
       "SCALANATIVE_VERSION" -> pluginVersions.value.scalaNative,
       "JDK_VERSION" -> {
         val version = java.lang.Runtime.version()
@@ -164,7 +162,7 @@ object VersionUnidocPlugin extends AutoPlugin:
     }
   )
 
-  final private case class PluginVersions(scalaJS: String, scalaNative: String)
+  final private case class PluginVersions(scalaNative: String)
 
   private lazy val pluginVersions = Def.setting[PluginVersions] {
     val sourceFile = (LocalRootProject / baseDirectory).value / "project" / "plugins.sbt"
@@ -173,18 +171,11 @@ object VersionUnidocPlugin extends AutoPlugin:
     def findVersion(regex: scala.util.matching.Regex, pluginName: String): String =
       regex
         .findFirstMatchIn(lines)
-        .map(_.group(1)) // Extract the first captured group (the version string)
+        .map(_.group(1))
         .getOrElse(sys.error(s"Could not find version for $pluginName in $sourceFile"))
 
-    // Regex to find: addSbtPlugin("org.scala-js" % "sbt-scalajs" % "VERSION")
-    val scalaJsRegex = """addSbtPlugin\("org\.scala-js"\s*%\s*"sbt-scalajs"\s*%\s*"([^"]+)"\)""".r
-
-    // Regex to find: addSbtPlugin("org.scala-native" % "sbt-scala-native" % "VERSION")
     val scalaNativeRegex = """addSbtPlugin\("org\.scala-native"\s*%\s*"sbt-scala-native"\s*%\s*"([^"]+)"\)""".r
 
-    PluginVersions(
-      scalaJS = findVersion(scalaJsRegex, "sbt-scalajs"),
-      scalaNative = findVersion(scalaNativeRegex, "sbt-scala-native")
-    )
+    PluginVersions(scalaNative = findVersion(scalaNativeRegex, "sbt-scala-native"))
   }
 end VersionUnidocPlugin
