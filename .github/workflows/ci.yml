@@ -17,7 +17,7 @@ concurrency:
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   JDK_CURRENT: 25
-  LLVM_VERSION: 19
+  LLVM_VERSION: 22
   SBT_OPTS: >- # Use all available resources
     -Xmx10G
     -Xms6G
@@ -125,7 +125,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: vendor/libgit2/build
-          key: libgit2-v2-${{ matrix.target }}-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala') }}
+          key: libgit2-v2-${{ matrix.target }}-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
 
       - name: "[macOS] Install LLVM"
         if: startsWith(matrix.target, 'macos-')

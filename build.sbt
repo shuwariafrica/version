@@ -170,7 +170,14 @@ def cliNativeSettings: List[Setting[?]] = {
   // pass `-Dsbt.ci=true` so the binary tested matches the binary shipped.
   val isCi = sys.props.get("sbt.ci").contains("true")
   val mode = if (isCi) Mode.releaseFull else Mode.releaseFast
-  val isLinux = sys.props.get("os.name").exists(_.toLowerCase.contains("linux"))
+  val osName = sys.props.getOrElse("os.name", "").toLowerCase
+  val isMacOS = osName.contains("mac") || osName.contains("darwin")
+  val isLinux = osName.contains("linux")
+  // scala-native's own Validator warns LTO.thin is unstable on macOS: thin LTO
+  // drops the platform/posix/libunwind/__unw_* symbols the system linker still
+  // references, breaking the link. LTO.full performs whole-program optimisation
+  // and keeps those symbols reachable.
+  val lto = if (isMacOS) LTO.full else LTO.thin
   // Stack protection and source fortification apply to C compilation
   // (resources-native shims). Linux-only because clang on macOS Apple
   // toolchain rejects -D_FORTIFY_SOURCE without a sysroot setting and
@@ -182,7 +189,7 @@ def cliNativeSettings: List[Setting[?]] = {
       val base = prev
         .withBaseName("version")
         .withMode(mode)
-        .withLTO(LTO.thin)
+        .withLTO(lto)
         .withCompileOptions(prev.compileOptions ++ hardening)
       if (isStaticLink) base.withLinkingOptions(base.linkingOptions :+ "-static")
       else base
