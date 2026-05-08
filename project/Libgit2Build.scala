@@ -51,12 +51,12 @@ object Libgit2Build extends AutoPlugin:
       sys.error("vendor/libgit2 submodule not initialised. Run: git submodule update --init --recursive")
 
     val stamp = build / ".built-stamp"
-    val expected = stampContent(src)
+    val expected = stampContent(src, root)
     val current = if stamp.isFile then IO.read(stamp).trim else ""
     if current != expected then
       log.info(s"Building vendored libgit2 (${hostTag}) ...")
       IO.createDirectory(build)
-      val configureCmd = Seq("cmake", "-S", src.getAbsolutePath, "-B", build.getAbsolutePath) ++ cmakeFlags
+      val configureCmd = Seq("cmake", "-S", src.getAbsolutePath, "-B", build.getAbsolutePath) ++ cmakeFlags(root)
       val rc = Process(configureCmd).!(log)
       if rc != 0 then sys.error(s"cmake configure failed: $rc")
 
@@ -76,13 +76,13 @@ object Libgit2Build extends AutoPlugin:
   // ignores untracked files, avoiding flapping when cmake build outputs land
   // inside the submodule worktree. Toolchain drift is not detected; clear
   // the build dir or `sbt clean` if cmake/clang changes on the host.
-  private def stampContent(src: File): String =
+  private def stampContent(src: File, root: File): String =
     val srcPath = src.getAbsolutePath
     val sha = Process(Seq("git", "-C", srcPath, "rev-parse", "HEAD")).!!.trim
     val dirtyDigest =
       val raw = Process(Seq("git", "-C", srcPath, "diff", "HEAD")).!!
       scala.util.hashing.MurmurHash3.stringHash(raw).toHexString
-    val flagsHash = scala.util.hashing.MurmurHash3.stringHash(cmakeFlags.mkString("|")).toHexString
+    val flagsHash = scala.util.hashing.MurmurHash3.stringHash(cmakeFlags(root).mkString("|")).toHexString
     s"sha=$sha;dirty=$dirtyDigest;flags=$flagsHash"
 
   private def resolveStaticLib: Def.Initialize[Task[File]] = Def.task[File] {
@@ -110,7 +110,7 @@ object Libgit2Build extends AutoPlugin:
   // Flag names are libgit2 v1.9.3's cmake surface. Each -D is scoped to the
   // platforms where v1.9.3 actually declares/reads it, so cmake does not warn
   // about unused -D entries.
-  private def cmakeFlags: Seq[String] =
+  private def cmakeFlags(root: File): Seq[String] =
     val common = Seq(
       "-DBUILD_SHARED_LIBS=OFF",
       "-DBUILD_TESTS=OFF",
@@ -129,16 +129,23 @@ object Libgit2Build extends AutoPlugin:
       case Os.Linux =>
         Seq("-DUSE_NTLMCLIENT=OFF", "-DENABLE_REPRODUCIBLE_BUILDS=ON")
       case Os.MacOs =>
-        Seq("-DUSE_NTLMCLIENT=OFF", "-DUSE_ICONV=OFF", "-DENABLE_REPRODUCIBLE_BUILDS=ON")
+        // ENABLE_REPRODUCIBLE_BUILDS injects `ar Dqc`, but Apple's BSD ar in
+        // XcodeDefault.xctoolchain rejects the D flag.
+        Seq("-DUSE_NTLMCLIENT=OFF", "-DUSE_ICONV=OFF")
       case Os.Windows =>
         // Force the static MSVC runtime via the modern policy-driven path so
         // libgit2 picks the same CRT scala-native links into the binary;
         // without this the linker reports LNK2005 between libucrt.lib and
-        // ucrt.lib.
+        // ucrt.lib. Module-path override redirects libgit2's
+        // `include(DefaultCFlags)` to project/cmake-overrides/, which strips
+        // /GL after delegating to the upstream module — clang-cl would
+        // otherwise emit LLVM bitcode that lld-link rejects without LTO.
+        val overrides = (root / "project" / "cmake-overrides").getAbsolutePath.replace('\\', '/')
         Seq(
           "-DSTATIC_CRT=ON",
           "-DCMAKE_POLICY_DEFAULT_CMP0091=NEW",
-          "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+          "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+          s"-DCMAKE_MODULE_PATH=$overrides"
         )
     common ++ platform
   end cmakeFlags

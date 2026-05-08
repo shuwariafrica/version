@@ -17,14 +17,26 @@ if ([string]::IsNullOrEmpty($env:DOCKER_IMAGE)) {
 }
 
 $coursierCache = Join-Path $HOME '.cache/coursier'
+$sbtCache = Join-Path $HOME '.cache/sbt'
 New-Item -ItemType Directory -Force -Path $coursierCache | Out-Null
+New-Item -ItemType Directory -Force -Path $sbtCache | Out-Null
 
 $dockerArgs = @(
     '--rm',
     '-v', "${PWD}:${PWD}",
     '-v', "${coursierCache}:${coursierCache}",
+    '-v', "${sbtCache}:${sbtCache}",
     '-w', "$PWD"
 )
+# On Linux Docker, pin container UID/GID to the host user so files written
+# back via the bind mount inherit caller ownership rather than root. On
+# Windows hosts (Docker Desktop), --user is unnecessary — Docker maps
+# Windows ACLs differently and forcing a numeric UID would mismatch.
+if ($IsLinux -or $IsMacOS) {
+    $uid = & id -u
+    $gid = & id -g
+    $dockerArgs += @('--user', "${uid}:${gid}")
+}
 
 foreach ($name in 'GITHUB_OUTPUT', 'GITHUB_PATH', 'GITHUB_ENV', 'GITHUB_STEP_SUMMARY') {
     $val = [Environment]::GetEnvironmentVariable($name)

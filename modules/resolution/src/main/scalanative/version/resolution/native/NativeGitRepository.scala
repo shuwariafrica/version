@@ -108,28 +108,29 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   def tags: Either[GitError, IArray[RawTag]] =
     Zone:
+      // Single allocation site for every Ptr[Byte] slot we reuse across the
+      // ref iteration. stackalloc inside the loop body is not always promoted
+      // to the function entry by LLVM and would grow stack per iteration.
       val iterOut = stackalloc[Ptr[Byte]](1)
+      val refOut = stackalloc[Ptr[Byte]](1)
+      val tagObjOut = stackalloc[Ptr[Byte]](1)
+      val commitObjOut = stackalloc[Ptr[Byte]](1)
       val rc = git_reference_iterator_glob_new(iterOut, repo, toCString("refs/tags/*"))
       if rc < 0 then Left(GitError.BackendFailure(lastError))
       else
         val iter = !iterOut
         val builder = IArray.newBuilder[RawTag]
-        val refOut = stackalloc[Ptr[Byte]](1)
         var iterRc = git_reference_next(refOut, iter)
         while iterRc == GIT_OK do
           val ref = !refOut
           val name = fromCString(git_reference_shorthand(ref))
 
-          // Try peeling to tag object first to detect annotated tags
-          val tagObjOut = stackalloc[Ptr[Byte]](1)
           val tagPeelRc = git_reference_peel(tagObjOut, ref, GIT_OBJECT_TAG)
           val kind = if tagPeelRc == GIT_OK then
             git_object_free(!tagObjOut)
             TagKind.Annotated
           else TagKind.Lightweight
 
-          // Peel to commit to get the target
-          val commitObjOut = stackalloc[Ptr[Byte]](1)
           val commitPeelRc = git_reference_peel(commitObjOut, ref, GIT_OBJECT_COMMIT)
           if commitPeelRc == GIT_OK then
             val commitObj = !commitObjOut

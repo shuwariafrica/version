@@ -178,7 +178,7 @@ jobs:
           fixture=$(mktemp -d)
           git -c init.defaultBranch=main init -q "$fixture"
           git -C "$fixture" -c user.email=ci@example.com -c user.name=ci commit -q --allow-empty -m initial
-          git -C "$fixture" tag v1.2.3
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci tag -am "v1.2.3" v1.2.3
           unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
           out=$("$BIN_PATH" --repository "$fixture" --emit raw)
           echo "Resolved: $out"
@@ -236,7 +236,7 @@ jobs:
           fixture=$(mktemp -d)
           git -c init.defaultBranch=main init -q "$fixture"
           git -C "$fixture" -c user.email=ci@example.com -c user.name=ci commit -q --allow-empty -m initial
-          git -C "$fixture" tag v1.2.3
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci tag -am "v1.2.3" v1.2.3
           unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
           out=$("$bin_path" --repository "$fixture" --emit raw)
           echo "Resolved on glibc: $out"

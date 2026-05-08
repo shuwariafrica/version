@@ -52,7 +52,6 @@ object Resolver:
       finally
         repo.close()
 
-  // scalafix:off
   private def doResolve[V](
     config: ResolutionConfig[V],
     repo: GitRepository

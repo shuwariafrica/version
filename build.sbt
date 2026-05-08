@@ -141,17 +141,26 @@ val `version-root` =
     .settings(publish / skip := true)
     .aggregate(`version-jvm`, `version-native`)
 
-def nativeSettings: List[Setting[?]] = List(
-  Test / parallelExecution := true,
-  Compile / unmanagedResourceDirectories +=
-    (Compile / sourceDirectory).value / "resources-native",
-  Test / unmanagedResourceDirectories +=
-    (Test / sourceDirectory).value / "resources-native",
-  libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
-  // Our code, tests, and the libgit2 binding are entirely sequential. Forcing multithreading
-  // off keeps the MT runtime out of every native binary.
-  nativeConfig := Def.uncached(nativeConfig.value.withMultithreading(false))
-)
+def nativeSettings: List[Setting[?]] = {
+  import scala.scalanative.build.Mode
+  List(
+    Test / parallelExecution := true,
+    Compile / unmanagedResourceDirectories +=
+      (Compile / sourceDirectory).value / "resources-native",
+    Test / unmanagedResourceDirectories +=
+      (Test / sourceDirectory).value / "resources-native",
+    libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
+    // Force optimised codegen for every native artefact, including test binaries.
+    // Mode.debug keeps every Scala call as a real frame; the resolver path then
+    // exceeds musl's default 8MB main-thread stack on Alpine. releaseFast inlines
+    // sufficiently to keep stack usage. releaseFull is used for the shipped binary.
+    nativeConfig := Def.uncached(
+      nativeConfig.value
+        .withMultithreading(false)
+        .withMode(Mode.releaseFast)
+    )
+  )
+}
 
 def cliNativeSettings: List[Setting[?]] = {
   import scala.scalanative.build.{LTO, Mode}
