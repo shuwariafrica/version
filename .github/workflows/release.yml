@@ -124,7 +124,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: vendor/libgit2/build
-          key: libgit2-v2-publish-maven-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala') }}
+          key: libgit2-v2-publish-maven-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
 
       - name: Import Signing Key
         uses: crazy-max/ghaction-import-gpg@v7

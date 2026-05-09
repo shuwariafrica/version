@@ -20,7 +20,7 @@ val version =
     .settings(publishSettings)
     .settings(libraryDependencies += Libraries.boilerplate)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 // FIXME: Re-enable JS axis when scala-js supports sbt 2.x. See scala-js/scala-js#5238.
 //    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
 
@@ -29,7 +29,7 @@ val `version-testkit` =
     .in(file("modules/testkit"))
     .settings(publish / skip := true)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
 val resolution =
   projectMatrix
@@ -46,7 +46,7 @@ val resolution =
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(nativeSettings *).enablePlugins(Libgit2Build)
+      configure = (p: Project) => p.settings(NativePlatformPlugin.nativeSettings *).enablePlugins(Libgit2Build)
     )
 
 val `version-cli` =
@@ -68,7 +68,7 @@ val `version-cli` =
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(nativeSettings *).settings(cliNativeSettings *).enablePlugins(Libgit2Build, ActionsPublish)
+      configure = (p: Project) => p.settings(NativePlatformPlugin.applicationSettings *).enablePlugins(Libgit2Build, ActionsPublish)
     )
 
 val `sbt-version` =
@@ -140,62 +140,6 @@ val `version-root` =
     .in(file("."))
     .settings(publish / skip := true)
     .aggregate(`version-jvm`, `version-native`)
-
-def nativeSettings: List[Setting[?]] = {
-  import scala.scalanative.build.Mode
-  List(
-    Test / parallelExecution := true,
-    Compile / unmanagedResourceDirectories +=
-      (Compile / sourceDirectory).value / "resources-native",
-    Test / unmanagedResourceDirectories +=
-      (Test / sourceDirectory).value / "resources-native",
-    libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
-    // Force optimised codegen for every native artefact, including test binaries.
-    // Mode.debug keeps every Scala call as a real frame; the resolver path then
-    // exceeds musl's default 8MB main-thread stack on Alpine. releaseFast inlines
-    // sufficiently to keep stack usage. releaseFull is used for the shipped binary.
-    nativeConfig := Def.uncached(
-      nativeConfig.value
-        .withMultithreading(false)
-        .withMode(Mode.releaseFast)
-    )
-  )
-}
-
-def cliNativeSettings: List[Setting[?]] = {
-  import scala.scalanative.build.{LTO, Mode}
-  val isStaticLink = sys.props.get("release.binary.static").contains("true")
-  // releaseFull is what we ship; releaseFast keeps local iteration tractable
-  // while still exercising optimised codegen end-to-end. The shipping CI lanes
-  // pass `-Dsbt.ci=true` so the binary tested matches the binary shipped.
-  val isCi = sys.props.get("sbt.ci").contains("true")
-  val mode = if (isCi) Mode.releaseFull else Mode.releaseFast
-  val osName = sys.props.getOrElse("os.name", "").toLowerCase
-  val isMacOS = osName.contains("mac") || osName.contains("darwin")
-  val isLinux = osName.contains("linux")
-  // scala-native's own Validator warns LTO.thin is unstable on macOS: thin LTO
-  // drops the platform/posix/libunwind/__unw_* symbols the system linker still
-  // references, breaking the link. LTO.full performs whole-program optimisation
-  // and keeps those symbols reachable.
-  val lto = if (isMacOS) LTO.full else LTO.thin
-  // Stack protection and source fortification apply to C compilation
-  // (resources-native shims). Linux-only because clang on macOS Apple
-  // toolchain rejects -D_FORTIFY_SOURCE without a sysroot setting and
-  // clang-cl on Windows uses /GS, which is enabled by default for /MT builds.
-  val hardening = if (isLinux) Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
-  List(
-    nativeConfig := Def.uncached {
-      val prev = nativeConfig.value
-      val base = prev
-        .withBaseName("version")
-        .withMode(mode)
-        .withLTO(lto)
-        .withCompileOptions(prev.compileOptions ++ hardening)
-      if (isStaticLink) base.withLinkingOptions(base.linkingOptions :+ "-static")
-      else base
-    }
-  )
-}
 
 def noticeMappingSettings: Seq[Setting[?]] = List(
   Compile / packageBin / mappings += {

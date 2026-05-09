@@ -31,7 +31,7 @@ import version.resolution.parsing.KeywordParser
   */
 object Resolver:
 
-  private def lift[A](r: Either[GitError, A]): Either[ResolutionError, A] =
+  private inline def lift[A](r: Either[GitError, A]): Either[ResolutionError, A] =
     r.left.map(ResolutionError.GitFailure.apply)
 
   /** Resolves the repository version from Git state. */
@@ -120,7 +120,6 @@ object Resolver:
           end if
       end match
   end doResolve
-  // scalafix:on
 
   private def extractKeywords[V](
     commits: IArray[RawCommit],
@@ -178,7 +177,6 @@ object Resolver:
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
-    import scala.util.boundary, boundary.break
     val mergeCommitsWithIgnore = commits.filter: c =>
       c.isMerge && KeywordParser
         .parse[V](c.message)

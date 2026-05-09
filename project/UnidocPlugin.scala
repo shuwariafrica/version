@@ -19,31 +19,33 @@ object VersionUnidocPlugin extends AutoPlugin:
   override def trigger: PluginTrigger = noTrigger // Manual activation required
 
   object autoImport:
-    // Custom keys for documentation
     val documentationSourceLinks = settingKey[String]("Source link configuration for Scaladoc")
     val documentationFooter = settingKey[String]("Footer text for documentation")
     val generateUnidoc = taskKey[File]("Generate unified API documentation with static site")
     val preprocessDocs = taskKey[File]("Preprocess documentation with mdoc and copy assets")
 
-    // Version keys for injection into documentation via mdoc
-    val scalaNativeVersion = settingKey[String]("Scala Native version used in the project")
+    /** Scala Native version surfaced into mdoc as `@SCALANATIVE_VERSION@`. Defaults to the
+      * version of `sbt-scala-native` declared in `project/plugins.sbt`; override only when
+      * documentation needs to advertise a different floor.
+      */
+    val scalaNativeVersion = settingKey[String]("Scala Native version surfaced in documentation")
 
   import autoImport.*
 
   override def projectSettings: Seq[Setting[?]] = Seq(
-    // Default documentation settings
     documentationSourceLinks := {
       val rev = sys.env.getOrElse("GIT_REVISION", "main")
       s"github://shuwariafrica/version/$rev"
     },
     documentationFooter := s"`version` - v${version.value}",
 
-    // Configure mdoc to preprocess documentation with version variables
+    scalaNativeVersion := pluginVersions.value.scalaNative,
+
     mdocIn := (ThisProject / baseDirectory).value / "_docs",
     mdocOut := target.value / "mdoc-processed" / "_docs",
     mdocVariables := Map(
       "SCALA3_VERSION" -> scalaVersion.value,
-      "SCALANATIVE_VERSION" -> pluginVersions.value.scalaNative,
+      "SCALANATIVE_VERSION" -> scalaNativeVersion.value,
       "JDK_VERSION" -> {
         val version = java.lang.Runtime.version()
         s"${version.feature()}.${version.interim()}.${version.update()}"

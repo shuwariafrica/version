@@ -31,22 +31,33 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
   import LibGit2.*
   import LibGit2Constants.*
 
-  private def lastError: String =
+  private inline def lastError: String =
     val err = git_error_last()
     if err == null then "unknown error"
     else
       val msg = git_error_message(err)
       if msg == null then "unknown error" else fromCString(msg)
 
-  private def oidToHex(oid: Ptr[Byte]): String =
+  private inline def oidToHex(oid: Ptr[Byte]): String =
     val buf = stackalloc[Byte](GIT_OID_SHA1_HEXSIZE + 1)
     git_oid_tostr(buf, (GIT_OID_SHA1_HEXSIZE + 1).toUSize, oid): Unit
     fromCString(buf).toLowerCase
 
+  // Hex SHAs are ASCII-only (a-f0-9), so write them directly into a stack
+  // buffer rather than spinning up a Zone + heap-allocated CString per call.
+  // git_oid_fromstr returns GIT_OK or rejects the input; the resolver only
+  // ever feeds us SHAs that came from libgit2 itself, so a parse failure
+  // here is a logic error worth surfacing.
   private def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
-    Zone:
-      val rc = git_oid_fromstr(oid, toCString(hex))
-      if rc != GIT_OK then throw RuntimeException(s"Invalid OID: $hex")
+    val len = hex.length
+    val cstr = stackalloc[Byte](len + 1)
+    var i = 0
+    while i < len do
+      !(cstr + i) = hex.charAt(i).toByte
+      i += 1
+    !(cstr + len) = 0.toByte
+    val rc = git_oid_fromstr(oid, cstr)
+    if rc != GIT_OK then throw RuntimeException(s"Invalid OID: $hex")
 
   def head: Either[GitError, Option[CommitSha]] =
     val unborn = git_repository_head_unborn(repo)
@@ -107,44 +118,46 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     else Right(rc == 0)
 
   def tags: Either[GitError, IArray[RawTag]] =
-    Zone:
-      // Single allocation site for every Ptr[Byte] slot we reuse across the
-      // ref iteration. stackalloc inside the loop body is not always promoted
-      // to the function entry by LLVM and would grow stack per iteration.
-      val iterOut = stackalloc[Ptr[Byte]](1)
-      val refOut = stackalloc[Ptr[Byte]](1)
-      val tagObjOut = stackalloc[Ptr[Byte]](1)
-      val commitObjOut = stackalloc[Ptr[Byte]](1)
-      val rc = git_reference_iterator_glob_new(iterOut, repo, toCString("refs/tags/*"))
-      if rc < 0 then Left(GitError.BackendFailure(lastError))
-      else
-        val iter = !iterOut
-        val builder = IArray.newBuilder[RawTag]
-        var iterRc = git_reference_next(refOut, iter)
-        while iterRc == GIT_OK do
-          val ref = !refOut
-          val name = fromCString(git_reference_shorthand(ref))
+    // c"…" is an intrinsic compile-time constant CString — no Zone or runtime
+    // toCString allocation. Single allocation site for every Ptr[Byte] slot
+    // we reuse across the ref iteration; stackalloc inside the loop body is
+    // not always promoted to the function entry by LLVM and would grow stack
+    // per iteration.
+    val iterOut = stackalloc[Ptr[Byte]](1)
+    val refOut = stackalloc[Ptr[Byte]](1)
+    val tagObjOut = stackalloc[Ptr[Byte]](1)
+    val commitObjOut = stackalloc[Ptr[Byte]](1)
+    val rc = git_reference_iterator_glob_new(iterOut, repo, c"refs/tags/*")
+    if rc < 0 then Left(GitError.BackendFailure(lastError))
+    else
+      val iter = !iterOut
+      val builder = IArray.newBuilder[RawTag]
+      var iterRc = git_reference_next(refOut, iter)
+      while iterRc == GIT_OK do
+        val ref = !refOut
+        val name = fromCString(git_reference_shorthand(ref))
 
-          val tagPeelRc = git_reference_peel(tagObjOut, ref, GIT_OBJECT_TAG)
-          val kind = if tagPeelRc == GIT_OK then
-            git_object_free(!tagObjOut)
-            TagKind.Annotated
-          else TagKind.Lightweight
+        val tagPeelRc = git_reference_peel(tagObjOut, ref, GIT_OBJECT_TAG)
+        val kind = if tagPeelRc == GIT_OK then
+          git_object_free(!tagObjOut)
+          TagKind.Annotated
+        else TagKind.Lightweight
 
-          val commitPeelRc = git_reference_peel(commitObjOut, ref, GIT_OBJECT_COMMIT)
-          if commitPeelRc == GIT_OK then
-            val commitObj = !commitObjOut
-            val oid = git_object_id(commitObj)
-            val hex = oidToHex(oid)
-            git_object_free(commitObj)
-            builder += RawTag(name, CommitSha(hex), kind)
+        val commitPeelRc = git_reference_peel(commitObjOut, ref, GIT_OBJECT_COMMIT)
+        if commitPeelRc == GIT_OK then
+          val commitObj = !commitObjOut
+          val oid = git_object_id(commitObj)
+          val hex = oidToHex(oid)
+          git_object_free(commitObj)
+          builder += RawTag(name, CommitSha(hex), kind)
 
-          git_reference_free(ref)
-          iterRc = git_reference_next(refOut, iter)
-        end while
-        git_reference_iterator_free(iter)
-        Right(builder.result())
-      end if
+        git_reference_free(ref)
+        iterRc = git_reference_next(refOut, iter)
+      end while
+      git_reference_iterator_free(iter)
+      Right(builder.result())
+    end if
+  end tags
 
   def isAncestorOf(ancestor: CommitSha, commit: CommitSha): Either[GitError, Boolean] =
     if ancestor.value == commit.value then Right(true)
@@ -244,9 +257,17 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val msg = fromCString(git_commit_message(commit))
       val time = git_commit_time(commit)
       val parentCount = git_commit_parentcount(commit).toInt
-      val parents = IArray.tabulate(parentCount): i =>
-        val parentOid = git_commit_parent_id(commit, i.toUInt)
-        CommitSha(oidToHex(parentOid))
+      // Build parents via direct while-loop into the builder rather than
+      // IArray.tabulate, which captures the lambda and the surrounding
+      // commit/oid handles in a heap closure each call.
+      val parentsBuilder = IArray.newBuilder[CommitSha]
+      parentsBuilder.sizeHint(parentCount)
+      var p = 0
+      while p < parentCount do
+        val parentOid = git_commit_parent_id(commit, p.toUInt)
+        parentsBuilder += CommitSha(oidToHex(parentOid))
+        p += 1
+      val parents = parentsBuilder.result()
       git_commit_free(commit)
       Right(RawCommit(CommitSha(hex), msg, parents, time))
 
@@ -260,6 +281,11 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
   def close(): Unit =
     try git_repository_free(repo)
     catch case _: Throwable => ()
+      // Match the git_libgit2_init() in `open` so the library's thread-local
+      // destructors run cleanly when the last user closes. Without this every
+      // successful open leaks a refcount and libgit2's per-thread state lingers
+      // for the lifetime of the JVM session that drove the resolution.
+    git_libgit2_shutdown(): Unit
 
 end NativeGitRepository
 

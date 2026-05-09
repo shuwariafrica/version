@@ -1,9 +1,24 @@
-# Run sbt directly, or inside a Docker image when $env:DOCKER_IMAGE is set.
+# Mirror of run-sbt.sh for Windows / PowerShell developers. CI does not
+# exercise this script.
 #
-# Mirror of run-sbt.sh for Windows developers. CI does not exercise this
-# script. SBT_PROPS, when set, is split on whitespace and prepended to
-# the sbt argv. sbt 2.x resolution is coursier-based, so only the
-# coursier cache is mounted.
+# SBT_PROPS, when set, is split on whitespace and prepended to the sbt
+# argv (intended for matrix-driven `-D...=...` flags).
+#
+# Two host caches are mounted at the same path inside the container —
+# both are content-addressed and safe to share between host and container:
+#   - ~/.cache/coursier: coursier's resolved-artefact cache
+#   - ~/.cache/sbt:      sbt 2.x's content-addressed compile cache (cas/)
+# Sharing the cas store keeps `target/` symlinks valid across host and
+# container invocations. ~/.sbt (the launcher's boot/locks dir) is
+# intentionally NOT shared; the container creates its own.
+#
+# On Linux/macOS the container runs with --user matching the caller's
+# UID/GID and HOME redirected to a per-UID /tmp directory so files
+# written through the bind mount inherit caller ownership and the sbt
+# launcher can create ~/.sbt/boot/ without bumping into the overlay
+# rootfs. On Windows hosts (Docker Desktop) --user is omitted because
+# Docker Desktop maps Windows ACLs differently and a numeric UID would
+# mismatch.
 $ErrorActionPreference = 'Stop'
 
 $extraArgs = @()
@@ -26,16 +41,23 @@ $dockerArgs = @(
     '-v', "${PWD}:${PWD}",
     '-v', "${coursierCache}:${coursierCache}",
     '-v', "${sbtCache}:${sbtCache}",
-    '-w', "$PWD"
+    '-w', "$PWD",
+    '-e', "COURSIER_CACHE=${coursierCache}",
+    '-e', "SBT_LOCAL_CACHE=${sbtCache}"
 )
-# On Linux Docker, pin container UID/GID to the host user so files written
-# back via the bind mount inherit caller ownership rather than root. On
-# Windows hosts (Docker Desktop), --user is unnecessary — Docker maps
-# Windows ACLs differently and forcing a numeric UID would mismatch.
+
 if ($IsLinux -or $IsMacOS) {
-    $uid = & id -u
-    $gid = & id -g
-    $dockerArgs += @('--user', "${uid}:${gid}")
+    $uid = (& id -u).Trim()
+    $gid = (& id -g).Trim()
+    $containerHome = "/tmp/sbt-build-${uid}"
+    $dockerArgs += @(
+        '--user', "${uid}:${gid}",
+        '-e', "HOME=${containerHome}"
+    )
+} else {
+    # Windows / Docker Desktop: keep the host HOME so coursier and the sbt cas
+    # mounts resolve to the same path inside the container as outside.
+    $dockerArgs += @('-e', "HOME=${HOME}")
 }
 
 foreach ($name in 'GITHUB_OUTPUT', 'GITHUB_PATH', 'GITHUB_ENV', 'GITHUB_STEP_SUMMARY') {
@@ -45,12 +67,18 @@ foreach ($name in 'GITHUB_OUTPUT', 'GITHUB_PATH', 'GITHUB_ENV', 'GITHUB_STEP_SUM
     }
 }
 
-foreach ($name in 'HOME', 'TERM', 'CI', 'GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_REF_NAME', 'GITHUB_SHA', 'GITHUB_ACTIONS', 'GITHUB_WORKSPACE', 'SBT_OPTS', 'SBT_PROPS', 'COURSIER_CACHE') {
+foreach ($name in 'TERM', 'CI', 'GITHUB_TOKEN', 'GITHUB_REPOSITORY', 'GITHUB_REF', 'GITHUB_REF_NAME', 'GITHUB_SHA', 'GITHUB_ACTIONS', 'GITHUB_WORKSPACE', 'SBT_OPTS') {
     $val = [Environment]::GetEnvironmentVariable($name)
     if (-not [string]::IsNullOrEmpty($val)) {
         $dockerArgs += @('-e', $name)
     }
 }
 
-& docker run @dockerArgs $env:DOCKER_IMAGE sbt @extraArgs @args
+if ($IsLinux -or $IsMacOS) {
+    # Materialise the per-UID /tmp HOME inside the container before sbt runs.
+    & docker run @dockerArgs --entrypoint sh $env:DOCKER_IMAGE -c `
+        'mkdir -p "$HOME" && exec sbt "$@"' sh @extraArgs @args
+} else {
+    & docker run @dockerArgs $env:DOCKER_IMAGE sbt @extraArgs @args
+}
 exit $LASTEXITCODE
