@@ -1,5 +1,4 @@
 #include <git2.h>
-#include <stdlib.h>
 
 /* --------------------------------------------------------------------------
  * working-tree dirty count
@@ -11,7 +10,7 @@
  * the working tree is clean. Returns -1 on libgit2 failure.
  *
  * Implemented as a single shim so that the git_status_options struct is stack-allocated
- * and properly initialised via GIT_STATUS_OPTIONS_INIT — heap-allocating a
+ * and properly initialised via GIT_STATUS_OPTIONS_INIT - heap-allocating a
  * git_status_options across the FFI boundary triggers a segfault inside
  * git_diff_index_to_workdir on musl/Alpine, even when the struct is otherwise valid.
  */
@@ -35,56 +34,11 @@ int version_resolution_git_workdir_dirty_count(git_repository* repo) {
 }
 
 /* --------------------------------------------------------------------------
- * git_error
+ * git_error message accessor
  * -------------------------------------------------------------------------- */
 
-/**
- * Read the message field from a git_error.
- * Returns NULL if err is NULL.
- */
+/* Read the message field from a git_error; NULL if err is NULL. The shim
+ * keeps the git_error struct shape out of the Scala FFI surface. */
 const char* version_resolution_git_error_message(const git_error* err) {
     return err ? err->message : NULL;
-}
-
-/**
- * Read the klass field from a git_error.
- * Returns 0 if err is NULL.
- */
-int version_resolution_git_error_klass(const git_error* err) {
-    return err ? err->klass : 0;
-}
-
-/* --------------------------------------------------------------------------
- * git_repository_is_bare
- * -------------------------------------------------------------------------- */
-
-/**
- * Thin wrapper: git_repository_is_bare returns non-zero if bare.
- */
-int version_resolution_git_repository_is_bare(git_repository* repo) {
-    return git_repository_is_bare(repo);
-}
-
-/* --------------------------------------------------------------------------
- * git_commit_time
- * -------------------------------------------------------------------------- */
-
-/**
- * Thin wrapper: git_commit_time returns git_time_t (int64_t).
- * We return as int for the RawCommit.commitTime field (seconds since epoch,
- * matching JGit RevCommit.getCommitTime() which returns int).
- */
-int version_resolution_git_commit_time(const git_commit* commit) {
-    return (int)git_commit_time(commit);
-}
-
-/* --------------------------------------------------------------------------
- * git_commit_message_encoding
- * -------------------------------------------------------------------------- */
-
-/**
- * Returns the encoding of the commit message, or NULL for UTF-8 default.
- */
-const char* version_resolution_git_commit_message_encoding(const git_commit* commit) {
-    return git_commit_message_encoding(commit);
 }

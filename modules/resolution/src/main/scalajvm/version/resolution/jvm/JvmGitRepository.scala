@@ -28,6 +28,7 @@ import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 
+import scala.annotation.threadUnsafe
 import scala.util.Using
 import scala.util.boundary
 import scala.util.boundary.break
@@ -39,6 +40,8 @@ import version.resolution.domain.*
 // scalafix:off
 /** JGit-backed [[GitRepository]] implementation for the JVM platform. */
 final class JvmGitRepository private (repo: Repository) extends GitRepository:
+
+  @threadUnsafe private var closed: Boolean = false
 
   def head: Either[GitError, Option[CommitSha]] =
     try
@@ -171,8 +174,10 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
     catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.nn))
 
   def close(): Unit =
-    try repo.close()
-    catch case _: Throwable => ()
+    if !closed then
+      closed = true
+      try repo.close()
+      catch case scala.util.control.NonFatal(_) => ()
 
   private def toRawCommit(c: RevCommit): RawCommit =
     val parentIds = IArray.from(c.getParents.nn.map(p => CommitSha(p.nn.getId.name)))

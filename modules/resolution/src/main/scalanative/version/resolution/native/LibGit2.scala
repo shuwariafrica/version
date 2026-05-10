@@ -18,13 +18,10 @@ package version.resolution.native
 import scala.scalanative.unsafe.*
 import scala.scalanative.unsigned.*
 
-/** Low-level libgit2 FFI bindings.
+/** libgit2 constants used by [[LibGit2]] and [[NativeGitRepository]].
   *
-  * Direct C function bindings for use by [[NativeGitRepository]] only. Pointer types are `Ptr[Byte]`; nominal
-  * discrimination via opaque types is applied at the call site.
-  */
-/** libgit2 constants. Separated from the `@extern` object because `inline val` in `@extern` objects requires literal
-  * constant types.
+  * Held separately from the `@extern` object so the values can be `inline val` literal-typed constants; the
+  * scala-native FFI macro does not allow `inline val` declarations inside an `@extern` object.
   */
 private[native] object LibGit2Constants:
   inline val GIT_OK = 0
@@ -41,6 +38,12 @@ private[native] object LibGit2Constants:
   inline val GIT_OID_SHA1_SIZE = 20
   inline val GIT_OID_SHA1_HEXSIZE = 40
 
+/** Low-level libgit2 FFI bindings.
+  *
+  * Direct C function bindings consumed by [[NativeGitRepository]] only. Pointer types are `Ptr[Byte]`; nominal
+  * discrimination via opaque types is applied at the call site. Returned pointers from libgit2 are not nullable unless
+  * the upstream documentation says otherwise; null handling lives at the call site.
+  */
 @extern
 private[native] object LibGit2:
 
@@ -54,15 +57,10 @@ private[native] object LibGit2:
   def git_repository_head(out: Ptr[Ptr[Byte]], repo: Ptr[Byte]): CInt = extern
   def git_repository_head_detached(repo: Ptr[Byte]): CInt = extern
   def git_repository_head_unborn(repo: Ptr[Byte]): CInt = extern
-
-  // OID
-  def git_oid_fromstr(out: Ptr[Byte], str: CString): CInt = extern
-  def git_oid_tostr(out: CString, n: CSize, oid: Ptr[Byte]): CString = extern
-  def git_oid_equal(a: Ptr[Byte], b: Ptr[Byte]): CInt = extern
+  def git_repository_is_bare(repo: Ptr[Byte]): CInt = extern
 
   // Objects
   def git_object_id(obj: Ptr[Byte]): Ptr[Byte] = extern
-  def git_object_type(obj: Ptr[Byte]): CInt = extern
   def git_object_free(obj: Ptr[Byte]): Unit = extern
 
   // Revparse
@@ -72,16 +70,18 @@ private[native] object LibGit2:
   def git_reference_iterator_glob_new(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], glob: CString): CInt = extern
   def git_reference_next(out: Ptr[Ptr[Byte]], iter: Ptr[Byte]): CInt = extern
   def git_reference_iterator_free(iter: Ptr[Byte]): Unit = extern
-  def git_reference_name(ref: Ptr[Byte]): CString = extern
   def git_reference_shorthand(ref: Ptr[Byte]): CString = extern
   def git_reference_peel(out: Ptr[Ptr[Byte]], ref: Ptr[Byte], targetType: CInt): CInt = extern
   def git_reference_free(ref: Ptr[Byte]): Unit = extern
 
-  // Commits
+  // git_commit_time returns git_time_t (int64_t on POSIX, __time64_t on Windows);
+  // NativeGitRepository.loadCommit narrows to Int at the call site to mirror
+  // JGit RevCommit.getCommitTime().
   def git_commit_lookup(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], oid: Ptr[Byte]): CInt = extern
   def git_commit_parentcount(commit: Ptr[Byte]): CUnsignedInt = extern
   def git_commit_parent_id(commit: Ptr[Byte], n: CUnsignedInt): Ptr[Byte] = extern
   def git_commit_message(commit: Ptr[Byte]): CString = extern
+  def git_commit_time(commit: Ptr[Byte]): CLongLong = extern
   def git_commit_free(commit: Ptr[Byte]): Unit = extern
 
   // Revwalk
@@ -96,23 +96,19 @@ private[native] object LibGit2:
   // Graph
   def git_graph_descendant_of(repo: Ptr[Byte], commit: Ptr[Byte], ancestor: Ptr[Byte]): CInt = extern
 
-  // Shim functions
+  // Errors
+  def git_error_last(): Ptr[Byte] = extern
+
+  // The status walk for the working-tree dirty count must allocate
+  // git_status_options on the C-side stack; heap-allocating that struct
+  // across the FFI boundary segfaults inside git_diff_index_to_workdir
+  // on musl.
   @name("version_resolution_git_workdir_dirty_count")
   def git_workdir_dirty_count(repo: Ptr[Byte]): CInt = extern
 
+  // git_error is { char* message; int klass; }; reading message field through
+  // a C shim avoids declaring the struct shape on the Scala side.
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
-
-  @name("version_resolution_git_error_klass")
-  def git_error_klass(err: Ptr[Byte]): CInt = extern
-
-  @name("version_resolution_git_repository_is_bare")
-  def git_repository_is_bare(repo: Ptr[Byte]): CInt = extern
-
-  @name("version_resolution_git_commit_time")
-  def git_commit_time(commit: Ptr[Byte]): CInt = extern
-
-  // Error retrieval
-  def git_error_last(): Ptr[Byte] = extern
 
 end LibGit2

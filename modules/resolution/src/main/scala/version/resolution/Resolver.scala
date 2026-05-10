@@ -15,6 +15,7 @@
  ****************************************************************************/
 package version.resolution
 
+import scala.collection.mutable
 import scala.util.boundary
 import scala.util.boundary.break
 
@@ -177,29 +178,38 @@ object Resolver:
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
-    val mergeCommitsWithIgnore = commits.filter: c =>
-      c.isMerge && KeywordParser
-        .parse[V](c.message)
-        .exists:
-          case Keyword.IgnoreMerged => true
-          case _                    => false
-
+    // Hotpath: a mutable.HashSet absorbs every walked commit in O(1)
+    // amortised, returned as an immutable Set at the end. The previous
+    // implementation rebuilt a persistent immutable Set via `++` per merge
+    // parent, allocating tree nodes proportional to the walk size.
     boundary:
-      var exclusions = Set.empty[CommitSha]
-      val iter = mergeCommitsWithIgnore.iterator
-      while iter.hasNext do
-        val mc = iter.next()
-        val parents = mc.parentIds.drop(1)
-        val pIter = parents.iterator
-        while pIter.hasNext do
-          val parentId = pIter.next()
-          lift(repo.walkAll(parentId, Some(mc.parentIds(0)))) match
-            case Left(err)     => break(Left(err))
-            case Right(walked) =>
-              exclusions = exclusions ++ walked.map(_.id).toSet
-      Right(exclusions)
+      val exclusions = mutable.HashSet.empty[CommitSha]
+      var i = 0
+      while i < commits.length do
+        val mc = commits(i)
+        if mc.isMerge && hasIgnoreMerged[V](mc) then
+          val firstParent = mc.parentIds(0)
+          var p = 1
+          while p < mc.parentIds.length do
+            lift(repo.walkAll(mc.parentIds(p), Some(firstParent))) match
+              case Left(err)     => break(Left(err))
+              case Right(walked) =>
+                var w = 0
+                while w < walked.length do
+                  exclusions += walked(w).id
+                  w += 1
+            p += 1
+        i += 1
+      Right(exclusions.toSet)
   end computeMergeExclusions
   // scalafix:on
+
+  private inline def hasIgnoreMerged[V](mc: RawCommit)(using ResolvableScheme[V]): Boolean =
+    KeywordParser
+      .parse[V](mc.message)
+      .exists:
+        case Keyword.IgnoreMerged => true
+        case _                    => false
 
   private def calculateTarget[V](
     keywords: List[Keyword],

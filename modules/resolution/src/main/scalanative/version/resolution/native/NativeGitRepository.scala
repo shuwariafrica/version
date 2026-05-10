@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.resolution.native
 
+import scala.annotation.threadUnsafe
+import scala.collection.mutable
 import scala.scalanative.unsafe.*
 import scala.scalanative.unsigned.*
 import scala.util.boundary
@@ -30,6 +32,9 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   import LibGit2.*
   import LibGit2Constants.*
+  import NativeGitRepository.*
+
+  @threadUnsafe private var closed: Boolean = false
 
   private inline def lastError: String =
     val err = git_error_last()
@@ -37,27 +42,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     else
       val msg = git_error_message(err)
       if msg == null then "unknown error" else fromCString(msg)
-
-  private inline def oidToHex(oid: Ptr[Byte]): String =
-    val buf = stackalloc[Byte](GIT_OID_SHA1_HEXSIZE + 1)
-    git_oid_tostr(buf, (GIT_OID_SHA1_HEXSIZE + 1).toUSize, oid): Unit
-    fromCString(buf).toLowerCase
-
-  // Hex SHAs are ASCII-only (a-f0-9), so write them directly into a stack
-  // buffer rather than spinning up a Zone + heap-allocated CString per call.
-  // git_oid_fromstr returns GIT_OK or rejects the input; the resolver only
-  // ever feeds us SHAs that came from libgit2 itself, so a parse failure
-  // here is a logic error worth surfacing.
-  private def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
-    val len = hex.length
-    val cstr = stackalloc[Byte](len + 1)
-    var i = 0
-    while i < len do
-      !(cstr + i) = hex.charAt(i).toByte
-      i += 1
-    !(cstr + len) = 0.toByte
-    val rc = git_oid_fromstr(oid, cstr)
-    if rc != GIT_OK then throw RuntimeException(s"Invalid OID: $hex")
 
   def head: Either[GitError, Option[CommitSha]] =
     val unborn = git_repository_head_unborn(repo)
@@ -76,8 +60,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         if peelRc < 0 then Left(GitError.BackendFailure(lastError))
         else
           val obj = !objOut
-          val oid = git_object_id(obj)
-          val hex = oidToHex(oid)
+          val hex = oidToHex(git_object_id(obj))
           git_object_free(obj)
           Right(Some(CommitSha(hex)))
 
@@ -90,8 +73,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       else if rc < 0 then Left(GitError.BackendFailure(lastError))
       else
         val obj = !objOut
-        val oid = git_object_id(obj)
-        val hex = oidToHex(oid)
+        val hex = oidToHex(git_object_id(obj))
         git_object_free(obj)
         Right(CommitSha(hex))
 
@@ -118,11 +100,11 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     else Right(rc == 0)
 
   def tags: Either[GitError, IArray[RawTag]] =
-    // c"…" is an intrinsic compile-time constant CString — no Zone or runtime
-    // toCString allocation. Single allocation site for every Ptr[Byte] slot
-    // we reuse across the ref iteration; stackalloc inside the loop body is
-    // not always promoted to the function entry by LLVM and would grow stack
-    // per iteration.
+    // c"..." is a compile-time-constant CString - no Zone, no toCString
+    // allocation. The four Ptr[Byte] slots are hoisted to function entry so
+    // each ref iteration reuses the same stack storage; LLVM does not
+    // promote allocas declared inside the loop body to entry under
+    // release-fast.
     val iterOut = stackalloc[Ptr[Byte]](1)
     val refOut = stackalloc[Ptr[Byte]](1)
     val tagObjOut = stackalloc[Ptr[Byte]](1)
@@ -138,16 +120,16 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         val name = fromCString(git_reference_shorthand(ref))
 
         val tagPeelRc = git_reference_peel(tagObjOut, ref, GIT_OBJECT_TAG)
-        val kind = if tagPeelRc == GIT_OK then
-          git_object_free(!tagObjOut)
-          TagKind.Annotated
-        else TagKind.Lightweight
+        val kind =
+          if tagPeelRc == GIT_OK then
+            git_object_free(!tagObjOut)
+            TagKind.Annotated
+          else TagKind.Lightweight
 
         val commitPeelRc = git_reference_peel(commitObjOut, ref, GIT_OBJECT_COMMIT)
         if commitPeelRc == GIT_OK then
           val commitObj = !commitObjOut
-          val oid = git_object_id(commitObj)
-          val hex = oidToHex(oid)
+          val hex = oidToHex(git_object_id(commitObj))
           git_object_free(commitObj)
           builder += RawTag(name, CommitSha(hex), kind)
 
@@ -175,33 +157,36 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     if tagCommits.isEmpty then Right(Set.empty)
     else
       val walkOut = stackalloc[Ptr[Byte]](1)
-      var rc = git_revwalk_new(walkOut, repo)
+      val rc = git_revwalk_new(walkOut, repo)
       if rc < 0 then Left(GitError.BackendFailure(lastError))
       else
         val walk = !walkOut
         git_revwalk_sorting(walk, GIT_SORT_TIME): Unit
         val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
         hexToOid(from.value, fromOid)
-        rc = git_revwalk_push(walk, fromOid)
-        if rc < 0 then
+        val pushRc = git_revwalk_push(walk, fromOid)
+        if pushRc < 0 then
           git_revwalk_free(walk)
           Left(GitError.BackendFailure(lastError))
         else
+          // Hotpath: a mutable HashSet of the underlying String values keeps
+          // the inner per-commit lookup at amortised O(1) and avoids the
+          // immutable Set node allocation that the previous implementation
+          // paid for every visited commit.
+          val remaining = mutable.HashSet.from(tagCommits.iterator.map(_.value))
+          val found = mutable.HashSet.empty[String]
           val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-          var remaining = tagCommits
-          var found = Set.empty[CommitSha]
           var walkRc = git_revwalk_next(oidBuf, walk)
           boundary:
             while walkRc == GIT_OK do
               val hex = oidToHex(oidBuf)
-              val sha = CommitSha(hex)
-              if remaining.contains(sha) then
-                found = found + sha
-                remaining = remaining - sha
+              if remaining.remove(hex) then
+                found += hex
                 if remaining.isEmpty then break(())
               walkRc = git_revwalk_next(oidBuf, walk)
           git_revwalk_free(walk)
-          Right(found)
+          val outcome = found.iterator.map(CommitSha.apply).toSet
+          Right(outcome)
       end if
 
   def walkAll(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]] =
@@ -212,7 +197,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   private def doWalk(from: CommitSha, until: Option[CommitSha], firstParent: Boolean): Either[GitError, IArray[RawCommit]] =
     val walkOut = stackalloc[Ptr[Byte]](1)
-    var rc = git_revwalk_new(walkOut, repo)
+    val rc = git_revwalk_new(walkOut, repo)
     if rc < 0 then Left(GitError.BackendFailure(lastError))
     else
       val walk = !walkOut
@@ -220,82 +205,128 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       if firstParent then git_revwalk_simplify_first_parent(walk)
       val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
       hexToOid(from.value, fromOid)
-      rc = git_revwalk_push(walk, fromOid)
-      if rc < 0 then
+      val pushRc = git_revwalk_push(walk, fromOid)
+      if pushRc < 0 then
         git_revwalk_free(walk)
         Left(GitError.BackendFailure(lastError))
       else
-        until.foreach: u =>
-          val untilOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-          hexToOid(u.value, untilOid)
-          git_revwalk_hide(walk, untilOid)
-
-        val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-        val builder = IArray.newBuilder[RawCommit]
-        var walkRc = git_revwalk_next(oidBuf, walk)
-        var error: Option[GitError] = None
-        while walkRc == GIT_OK && error.isEmpty do
-          loadCommit(oidBuf) match
-            case Right(c) =>
-              builder += c
-              walkRc = git_revwalk_next(oidBuf, walk)
-            case Left(e) => error = Some(e)
-        git_revwalk_free(walk)
-        error match
-          case Some(e) => Left(e)
-          case None    => Right(builder.result())
+        val hideRc = until match
+          case Some(u) =>
+            val untilOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+            hexToOid(u.value, untilOid)
+            git_revwalk_hide(walk, untilOid)
+          case None => GIT_OK
+        if hideRc < 0 then
+          git_revwalk_free(walk)
+          Left(GitError.BackendFailure(lastError))
+        else
+          val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+          val builder = IArray.newBuilder[RawCommit]
+          var walkRc = git_revwalk_next(oidBuf, walk)
+          var error: Option[GitError] = None
+          while walkRc == GIT_OK && error.isEmpty do
+            loadCommit(oidBuf) match
+              case Right(c) =>
+                builder += c
+                walkRc = git_revwalk_next(oidBuf, walk)
+              case Left(e) => error = Some(e)
+          git_revwalk_free(walk)
+          error match
+            case Some(e) => Left(e)
+            case None    => Right(builder.result())
+      end if
     end if
   end doWalk
 
   private def loadCommit(oid: Ptr[Byte]): Either[GitError, RawCommit] =
     val commitOut = stackalloc[Ptr[Byte]](1)
-    val rc = git_commit_lookup(commitOut, repo, oid)
-    if rc < 0 then Left(GitError.ObjectNotFound(oidToHex(oid)))
+    val lookupRc = git_commit_lookup(commitOut, repo, oid)
+    if lookupRc < 0 then Left(GitError.ObjectNotFound(oidToHex(oid)))
     else
       val commit = !commitOut
       val hex = oidToHex(oid)
       val msg = fromCString(git_commit_message(commit))
-      val time = git_commit_time(commit)
+      val time = git_commit_time(commit).toInt
       val parentCount = git_commit_parentcount(commit).toInt
-      // Build parents via direct while-loop into the builder rather than
-      // IArray.tabulate, which captures the lambda and the surrounding
-      // commit/oid handles in a heap closure each call.
-      val parentsBuilder = IArray.newBuilder[CommitSha]
-      parentsBuilder.sizeHint(parentCount)
+      // Hotpath: parentCount is known up-front, so a fixed Array[CommitSha]
+      // sized exactly to the count beats IArray.newBuilder, whose closure
+      // construction shows up as Lambda$ heap allocation in IR.
+      val parentArr = new Array[CommitSha](parentCount)
       var p = 0
       while p < parentCount do
         val parentOid = git_commit_parent_id(commit, p.toUInt)
-        parentsBuilder += CommitSha(oidToHex(parentOid))
+        parentArr(p) = CommitSha(oidToHex(parentOid))
         p += 1
-      val parents = parentsBuilder.result()
+      val parents = IArray.unsafeFromArray(parentArr)
       git_commit_free(commit)
       Right(RawCommit(CommitSha(hex), msg, parents, time))
 
   def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
-    val oid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-    hexToOid(id.value, oid)
-    val buf = stackalloc[Byte](length + 1)
-    git_oid_tostr(buf, (length + 1).toUSize, oid): Unit
-    Right(fromCString(buf).toLowerCase)
+    val v = id.value
+    val n = if length < 0 then 0 else if length > v.length then v.length else length
+    Right(v.substring(0, n))
 
   def close(): Unit =
-    try git_repository_free(repo)
-    catch case _: Throwable => ()
-      // Match the git_libgit2_init() in `open` so the library's thread-local
-      // destructors run cleanly when the last user closes. Without this every
-      // successful open leaks a refcount and libgit2's per-thread state lingers
-      // for the lifetime of the JVM session that drove the resolution.
-    git_libgit2_shutdown(): Unit
+    if !closed then
+      closed = true
+      git_repository_free(repo)
+      // Pair with the git_libgit2_init() in `open` so libgit2's thread-local
+      // destructors run cleanly when the last user closes; without this every
+      // successful open leaks a refcount and per-thread state lingers for the
+      // session lifetime.
+      git_libgit2_shutdown(): Unit
 
 end NativeGitRepository
 
+/** Factories and FFI utilities for [[NativeGitRepository]]. */
 object NativeGitRepository:
 
   import LibGit2.*
   import LibGit2Constants.*
 
-  // libgit2 init/shutdown are reference-counted; every successful init must be paired with
-  // a shutdown so libgit2's thread-local destructors run cleanly when the last user is gone.
+  // libgit2 emits OIDs as lowercase ASCII hex (the upstream git_oid_fmt_substr
+  // helper writes from the constant table "0123456789abcdef"); we replicate
+  // that contract directly here, reading the raw 20 SHA-1 bytes via Ptr[Byte]
+  // and writing 40 chars into a single Array[Char] for one String allocation.
+  // Bypasses the previous chain of 41-byte stackalloc, memset, FFI call to
+  // git_oid_tostr, fromCString's UTF-8 charset decode, and a redundant
+  // .toLowerCase pass on already-lowercase output.
+  private inline def oidToHex(oid: Ptr[Byte]): String =
+    val chars = new Array[Char](GIT_OID_SHA1_HEXSIZE)
+    var i = 0
+    while i < GIT_OID_SHA1_SIZE do
+      val b = (!(oid + i)).toInt & 0xff
+      val hi = b >>> 4
+      val lo = b & 0x0f
+      chars(2 * i) = (if hi < 10 then hi + '0' else hi + 'a' - 10).toChar
+      chars(2 * i + 1) = (if lo < 10 then lo + '0' else lo + 'a' - 10).toChar
+      i += 1
+    new String(chars)
+
+  // Decode a 40-char hex SHA into the 20 raw bytes of a git_oid buffer in
+  // place. CommitSha.validate already constrains input to hex characters but
+  // not length, so the length re-check below guards against silent truncation
+  // or overrun of the OID buffer. Per-char validation is intentionally
+  // absent: hexNibble is only reachable through CommitSha-validated paths.
+  // Kept as a non-inline def so the cold RuntimeException's IR sits in one
+  // function rather than fanning out to every caller.
+  private def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
+    if hex.length != GIT_OID_SHA1_HEXSIZE then throw RuntimeException("CommitSha length is not 40 hex characters")
+    var i = 0
+    while i < GIT_OID_SHA1_SIZE do
+      val hi = hexNibble(hex.charAt(2 * i))
+      val lo = hexNibble(hex.charAt(2 * i + 1))
+      !(oid + i) = ((hi << 4) | lo).toByte
+      i += 1
+
+  private inline def hexNibble(c: Char): Int =
+    if c >= '0' && c <= '9' then c - '0'
+    else if c >= 'a' && c <= 'f' then c - 'a' + 10
+    else c - 'A' + 10
+
+  /** Opens a libgit2-backed [[NativeGitRepository]] at the given path. */
+  // libgit2 init/shutdown are reference-counted; pair every successful init
+  // with a shutdown so per-thread destructors run when the last user closes.
   def open(path: String): Either[GitError, NativeGitRepository] =
     git_libgit2_init(): Unit
     val result = Zone:
@@ -304,12 +335,14 @@ object NativeGitRepository:
       if rc == GIT_ENOTFOUND then Left(GitError.RepositoryNotFound(path))
       else if rc < 0 then
         val err = git_error_last()
-        val msg = if err != null then
-          val m = git_error_message(err)
-          if m != null then fromCString(m) else "unknown error"
-        else "unknown error"
+        val msg =
+          if err != null then
+            val m = git_error_message(err)
+            if m != null then fromCString(m) else "unknown error"
+          else "unknown error"
         Left(GitError.BackendFailure(msg))
       else Right(new NativeGitRepository(!repoOut))
     if result.isLeft then git_libgit2_shutdown(): Unit
     result
+end NativeGitRepository
 // scalafix:on

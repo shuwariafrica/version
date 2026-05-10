@@ -2,7 +2,7 @@
 
 A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build integration.
 
-Cross-platform (JVM, Scala.js, Scala Native) with sbt integration, CLI tooling, and codec support.
+Cross-platform (JVM, Scala Native) with sbt integration, CLI tooling, and codec support. Scala.js axis is deferred pending upstream sbt 2.x support.
 
 ## Overview
 
@@ -73,12 +73,12 @@ fix: Handle edge case               # Patch increment
 
 ## Modules
 
-| Module               | Platforms       | Description                      |
-|----------------------|-----------------|----------------------------------|
-| `version`            | JVM, JS, Native | Version model, parsing, operations |
-| `version-resolution` | JVM, Native     | Git-based version derivation     |
-| `version-cli`        | JVM, Native     | CLI application                  |
-| `sbt-version`        | sbt 2.x        | sbt plugin for build integration |
+| Module               | Platforms   | Description                      |
+|----------------------|-------------|----------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations |
+| `resolution`         | JVM, Native | Git-based version derivation     |
+| `version-cli`        | JVM, Native | CLI application (Native binary is shipped) |
+| `sbt-version`        | sbt 2.x     | sbt plugin for build integration |
 
 ## Licence
 

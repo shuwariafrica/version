@@ -27,6 +27,7 @@ val version =
 val `version-testkit` =
   projectMatrix
     .in(file("modules/testkit"))
+    .settings(licenseSettings)
     .settings(publish / skip := true)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
@@ -176,8 +177,10 @@ def publishSettings = pgpSettings ++: List(
   },
   pomIncludeRepository := (_ => false),
   publishMavenStyle := true,
-  headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
+  licenseSettings
 )
+
+def licenseSettings = headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 
 def pgpSettings = List(
   PgpKeys.pgpSelectPassphrase :=

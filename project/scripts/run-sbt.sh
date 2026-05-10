@@ -8,7 +8,7 @@
 # SBT_PROPS, when set, is split on whitespace and prepended to the sbt
 # argv (intended for matrix-driven `-D...=...` flags).
 #
-# Two host caches are mounted at the same path inside the container —
+# Two host caches are mounted at the same path inside the container -
 # both are content-addressed and safe to share between host and container:
 #   - ~/.cache/coursier: coursier's resolved-artefact cache
 #   - ~/.cache/sbt:      sbt 2.x's content-addressed compile cache (cas/)
