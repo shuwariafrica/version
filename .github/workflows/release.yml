@@ -172,7 +172,7 @@ jobs:
           path: ${{ steps.build-site.outputs.site_dir }}
 
   site-release:
-    name: Publish Site & Finalise Release
+    name: Finalise Release
     needs: [ publish_binaries, publish_maven, docs ]
     runs-on: ubuntu-24.04
     permissions:

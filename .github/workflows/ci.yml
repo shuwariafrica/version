@@ -26,7 +26,7 @@ env:
 
 jobs:
   test_jvm:
-    name: "[JDK ${{ matrix.java }}] Execute Tests"
+    name: "[JDK ${{ matrix.java }}] Tests"
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
         run: project/scripts/run-sbt.sh "version-jvm/package"
 
   test_native:
-    name: "Native: ${{ matrix.target }}"
+    name: "[Native: ${{ matrix.target }}] Tests"
     strategy:
       fail-fast: false
       matrix:
@@ -188,18 +188,18 @@ jobs:
           esac
 
       - name: Upload Binary Artefact
-        if: matrix.ship && github.event_name == 'push'
+        if: matrix.ship
         uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.archiveTarget }}
           path: ${{ steps.archive.outputs.archive }}
-          retention-days: 90
+          # Push builds feed publish_binaries; PR builds feed verify only.
+          retention-days: ${{ github.event_name == 'push' && 90 || 1 }}
           if-no-files-found: error
 
   verify_linux_static_portability:
-    name: "[glibc ${{ matrix.arch }}] Verify Linux Binary"
+    name: "[Native: glibc ${{ matrix.arch }}] Verify Static Binary"
     needs: test_native
-    if: github.event_name == 'push'
     strategy:
       fail-fast: false
       matrix:
@@ -246,7 +246,7 @@ jobs:
           esac
 
   test_sbt_scripted:
-    name: Execute sbt Scripted Tests
+    name: "[sbt-plugin] Scripted Tests"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
