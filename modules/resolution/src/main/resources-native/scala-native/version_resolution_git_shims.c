@@ -43,20 +43,16 @@ const char* version_resolution_git_error_message(const git_error* err) {
     return err ? err->message : NULL;
 }
 
-/* TODO: drop this whole section once scala-native ships the
- * main-thread maxStackSize fix in nativeThreadTLS.c::detectStackBounds. */
+/* TODO(scala-native#4908): drop this section once the fix ships. */
 
 #ifdef __linux__
 
-#define _GNU_SOURCE 1
-#include <stdint.h>
-#include <stdio.h>
 #include <stdbool.h>
 #include <sys/resource.h>
 #include <unistd.h>
 
 /* Layout must match scala-native's ThreadInfo (nativeThreadTLS.h) through
- * maxStackSize so we can patch that field in place. */
+ * isMainThread (read) and maxStackSize (write). */
 typedef struct SnThreadInfo {
     size_t stackSize;
     size_t maxStackSize;

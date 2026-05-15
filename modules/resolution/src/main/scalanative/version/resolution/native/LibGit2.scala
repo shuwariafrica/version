@@ -74,9 +74,6 @@ private[native] object LibGit2:
   def git_reference_peel(out: Ptr[Ptr[Byte]], ref: Ptr[Byte], targetType: CInt): CInt = extern
   def git_reference_free(ref: Ptr[Byte]): Unit = extern
 
-  // git_commit_time returns git_time_t (int64_t on POSIX, __time64_t on Windows);
-  // NativeGitRepository.loadCommit narrows to Int at the call site to mirror
-  // JGit RevCommit.getCommitTime().
   def git_commit_lookup(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], oid: Ptr[Byte]): CInt = extern
   def git_commit_parentcount(commit: Ptr[Byte]): CUnsignedInt = extern
   def git_commit_parent_id(commit: Ptr[Byte], n: CUnsignedInt): Ptr[Byte] = extern
@@ -111,8 +108,7 @@ private[native] object LibGit2:
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
 
-  // TODO: remove with the C shim workaround when scala-native ships the
-  // main-thread maxStackSize fix.
+  // TODO(scala-native#4908): remove once the fix ships.
   @name("version_resolution_fix_main_thread_stack_limit")
   def fix_main_thread_stack_limit(): CInt = extern
 

@@ -250,7 +250,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val commit = !commitOut
       val hex = oidToHex(oid)
       val msg = fromCString(git_commit_message(commit))
-      val time = git_commit_time(commit).toInt
+      val time = git_commit_time(commit)
       val parentCount = git_commit_parentcount(commit).toInt
       // Hotpath: parentCount is known up-front, so a fixed Array[CommitSha]
       // sized exactly to the count beats IArray.newBuilder, whose closure
@@ -264,6 +264,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val parents = IArray.unsafeFromArray(parentArr)
       git_commit_free(commit)
       Right(RawCommit(CommitSha(hex), msg, parents, time))
+  end loadCommit
 
   def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
     val v = id.value
@@ -332,7 +333,7 @@ object NativeGitRepository:
   // libgit2 init/shutdown are reference-counted; pair every successful init
   // with a shutdown so per-thread destructors run when the last user closes.
   def open(path: String): Either[GitError, NativeGitRepository] =
-    // TODO: remove once scala-native ships the main-thread maxStackSize fix.
+    // TODO(scala-native#4908): remove once the fix ships.
     fix_main_thread_stack_limit(): Unit
     git_libgit2_init(): Unit
     val result = Zone:

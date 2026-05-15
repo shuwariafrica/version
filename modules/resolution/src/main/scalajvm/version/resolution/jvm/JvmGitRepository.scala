@@ -185,7 +185,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
       id = CommitSha(c.getId.name),
       message = c.getFullMessage.nn,
       parentIds = parentIds,
-      commitTime = c.getCommitTime
+      commitTime = c.getCommitTime.toLong
     )
 end JvmGitRepository
 
