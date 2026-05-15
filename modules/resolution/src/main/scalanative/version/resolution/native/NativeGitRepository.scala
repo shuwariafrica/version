@@ -43,18 +43,23 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val msg = git_error_message(err)
       if msg == null then "unknown error" else fromCString(msg)
 
+  // FFI buffer slots are at function entry so each lowers to a static alloca:
+  // release-fast's inliner only hoists entry-block allocas to the caller's
+  // entry. `resolve` and `open` keep theirs inside `Zone:` since both run
+  // once per resolver invocation.
+
   def head: Either[GitError, Option[CommitSha]] =
+    val refOut = stackalloc[Ptr[Byte]](1)
+    val objOut = stackalloc[Ptr[Byte]](1)
     val unborn = git_repository_head_unborn(repo)
     if unborn == 1 then Right(None)
     else if unborn < 0 then Left(GitError.BackendFailure(lastError))
     else
-      val refOut = stackalloc[Ptr[Byte]](1)
       val rc = git_repository_head(refOut, repo)
       if rc == GIT_EUNBORNBRANCH then Right(None)
       else if rc < 0 then Left(GitError.BackendFailure(lastError))
       else
         val ref = !refOut
-        val objOut = stackalloc[Ptr[Byte]](1)
         val peelRc = git_reference_peel(objOut, ref, GIT_OBJECT_COMMIT)
         git_reference_free(ref)
         if peelRc < 0 then Left(GitError.BackendFailure(lastError))
@@ -78,10 +83,10 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         Right(CommitSha(hex))
 
   def branch: Either[GitError, Option[String]] =
+    val refOut = stackalloc[Ptr[Byte]](1)
     val detached = git_repository_head_detached(repo)
     if detached == 1 then Right(None)
     else
-      val refOut = stackalloc[Ptr[Byte]](1)
       val rc = git_repository_head(refOut, repo)
       if rc == GIT_EUNBORNBRANCH then Right(None)
       else if rc < 0 then Left(GitError.BackendFailure(lastError))
@@ -101,10 +106,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   def tags: Either[GitError, IArray[RawTag]] =
     // c"..." is a compile-time-constant CString - no Zone, no toCString
-    // allocation. The four Ptr[Byte] slots are hoisted to function entry so
-    // each ref iteration reuses the same stack storage; LLVM does not
-    // promote allocas declared inside the loop body to entry under
-    // release-fast.
+    // allocation needed.
     val iterOut = stackalloc[Ptr[Byte]](1)
     val refOut = stackalloc[Ptr[Byte]](1)
     val tagObjOut = stackalloc[Ptr[Byte]](1)
@@ -142,10 +144,10 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
   end tags
 
   def isAncestorOf(ancestor: CommitSha, commit: CommitSha): Either[GitError, Boolean] =
+    val ancestorOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+    val commitOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
     if ancestor.value == commit.value then Right(true)
     else
-      val ancestorOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-      val commitOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
       hexToOid(ancestor.value, ancestorOid)
       hexToOid(commit.value, commitOid)
       val rc = git_graph_descendant_of(repo, commitOid, ancestorOid)
@@ -154,15 +156,16 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       else Left(GitError.BackendFailure(lastError))
 
   def reachableTags(from: CommitSha, tagCommits: Set[CommitSha]): Either[GitError, Set[CommitSha]] =
+    val walkOut = stackalloc[Ptr[Byte]](1)
+    val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+    val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
     if tagCommits.isEmpty then Right(Set.empty)
     else
-      val walkOut = stackalloc[Ptr[Byte]](1)
       val rc = git_revwalk_new(walkOut, repo)
       if rc < 0 then Left(GitError.BackendFailure(lastError))
       else
         val walk = !walkOut
         git_revwalk_sorting(walk, GIT_SORT_TIME): Unit
-        val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
         hexToOid(from.value, fromOid)
         val pushRc = git_revwalk_push(walk, fromOid)
         if pushRc < 0 then
@@ -175,7 +178,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           // paid for every visited commit.
           val remaining = mutable.HashSet.from(tagCommits.iterator.map(_.value))
           val found = mutable.HashSet.empty[String]
-          val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
           var walkRc = git_revwalk_next(oidBuf, walk)
           boundary:
             while walkRc == GIT_OK do
@@ -188,6 +190,8 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           val outcome = found.iterator.map(CommitSha.apply).toSet
           Right(outcome)
       end if
+    end if
+  end reachableTags
 
   def walkAll(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]] =
     doWalk(from, until, firstParent = false)
@@ -197,13 +201,15 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   private def doWalk(from: CommitSha, until: Option[CommitSha], firstParent: Boolean): Either[GitError, IArray[RawCommit]] =
     val walkOut = stackalloc[Ptr[Byte]](1)
+    val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+    val untilOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+    val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
     val rc = git_revwalk_new(walkOut, repo)
     if rc < 0 then Left(GitError.BackendFailure(lastError))
     else
       val walk = !walkOut
       git_revwalk_sorting(walk, GIT_SORT_TIME): Unit
       if firstParent then git_revwalk_simplify_first_parent(walk)
-      val fromOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
       hexToOid(from.value, fromOid)
       val pushRc = git_revwalk_push(walk, fromOid)
       if pushRc < 0 then
@@ -212,7 +218,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       else
         val hideRc = until match
           case Some(u) =>
-            val untilOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
             hexToOid(u.value, untilOid)
             git_revwalk_hide(walk, untilOid)
           case None => GIT_OK
@@ -220,7 +225,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           git_revwalk_free(walk)
           Left(GitError.BackendFailure(lastError))
         else
-          val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
           val builder = IArray.newBuilder[RawCommit]
           var walkRc = git_revwalk_next(oidBuf, walk)
           var error: Option[GitError] = None
@@ -328,6 +332,8 @@ object NativeGitRepository:
   // libgit2 init/shutdown are reference-counted; pair every successful init
   // with a shutdown so per-thread destructors run when the last user closes.
   def open(path: String): Either[GitError, NativeGitRepository] =
+    // TODO: remove once scala-native ships the main-thread maxStackSize fix.
+    fix_main_thread_stack_limit(): Unit
     git_libgit2_init(): Unit
     val result = Zone:
       val repoOut = stackalloc[Ptr[Byte]](1)

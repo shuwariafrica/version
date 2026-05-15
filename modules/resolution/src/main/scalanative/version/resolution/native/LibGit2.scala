@@ -111,4 +111,9 @@ private[native] object LibGit2:
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
 
+  // TODO: remove with the C shim workaround when scala-native ships the
+  // main-thread maxStackSize fix.
+  @name("version_resolution_fix_main_thread_stack_limit")
+  def fix_main_thread_stack_limit(): CInt = extern
+
 end LibGit2

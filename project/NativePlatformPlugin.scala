@@ -63,21 +63,17 @@ object NativePlatformPlugin extends AutoPlugin:
 
   val isStaticLink: Boolean = sys.props.get("release.binary.static").contains("true")
 
-  // macOS: LTO.thin drops libunwind __unw_* symbols the system linker
-  // references. aarch64 Linux: scala-native ThinLTO drops PIC/PIE
-  // module flags (scala-native/scala-native#4904).
-  val lto: LTO =
-    if os == Os.MacOs then LTO.full
-    else if os == Os.Linux && arch == Arch.Aarch64 then LTO.none
-    else LTO.thin
+  // macOS needs LTO.full: ThinLTO drops the libunwind __unw_* symbols the
+  // system linker references. Linux uses LTO.none pending scala-native#4904
+  // shipping in a v0.5.x release.
+  // TODO: revisit LTO.thin on Linux once scala-native#4904 ships.
+  val applicationLto: LTO = if os == Os.MacOs then LTO.full else LTO.none
 
   // Linux only: macOS clang rejects _FORTIFY_SOURCE without a sysroot, and
   // clang-cl applies /GS automatically under /MT.
   val cHardening: Seq[String] =
     if os == Os.Linux then Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
 
-  // releaseFast + thin LTO is required: Mode.debug overflows musl's 8MB
-  // main-thread stack along the resolver call chain.
   val nativeSettings: List[Setting[?]] = List(
     Test / parallelExecution := true,
     Compile / unmanagedResourceDirectories +=
@@ -89,7 +85,6 @@ object NativePlatformPlugin extends AutoPlugin:
       nativeConfig.value
         .withMultithreading(false)
         .withMode(Mode.releaseFast)
-        .withLTO(lto)
     )
   )
 
@@ -100,7 +95,7 @@ object NativePlatformPlugin extends AutoPlugin:
       val base = prev
         .withBaseName("version")
         .withMode(mode)
-        .withLTO(lto)
+        .withLTO(applicationLto)
         .withCompileOptions(prev.compileOptions ++ cHardening)
       if isStaticLink then base.withLinkingOptions(base.linkingOptions :+ "-static")
       else base
