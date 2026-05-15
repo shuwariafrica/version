@@ -46,6 +46,8 @@ const char* version_resolution_git_error_message(const git_error* err) {
 /* TODO: drop this whole section once scala-native ships the
  * main-thread maxStackSize fix in nativeThreadTLS.c::detectStackBounds. */
 
+#ifdef __linux__
+
 #define _GNU_SOURCE 1
 #include <stdint.h>
 #include <stdio.h>
@@ -93,3 +95,10 @@ int version_resolution_fix_main_thread_stack_limit(void) {
     }
     return 0;
 }
+
+#else  /* non-Linux: pthread_attr_getstack returns the actual stack size, no
+        * patching needed. Provide a stub so the Scala extern resolves. */
+
+int version_resolution_fix_main_thread_stack_limit(void) { return 0; }
+
+#endif
