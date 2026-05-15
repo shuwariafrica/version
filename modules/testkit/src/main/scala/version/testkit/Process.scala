@@ -47,6 +47,8 @@ object Process:
   // scalafix:on
 
   private val MaxStartAttempts = 5
+  private val InitialBackoffMillis = 10L
+  private val MaxBackoffMillis = 500L
 
   private def startWithRetry(
     command: Seq[String],
@@ -60,6 +62,9 @@ object Process:
       .redirectError(stderrFile.toFile)
     attemptStart(pb, 1)
 
+  private inline def backoffMillis(attempt: Int): Long =
+    Math.min(InitialBackoffMillis * (1L << attempt), MaxBackoffMillis)
+
   // scalafix:off DisableSyntax.throw
   @scala.annotation.tailrec
   private def attemptStart(pb: ProcessBuilder, attempt: Int): java.lang.Process =
@@ -70,7 +75,7 @@ object Process:
       case Right(process)                             => process
       case Left(error) if attempt >= MaxStartAttempts => throw error
       case Left(_)                                    =>
-        Thread.sleep((10L << attempt).min(500L))
+        Thread.sleep(backoffMillis(attempt))
         attemptStart(pb, attempt + 1)
   // scalafix:on
 

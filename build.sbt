@@ -161,7 +161,7 @@ def formattingSettings =
     scalafmtPrintDiff := true
   )
 
-def publishSettings = pgpSettings ++: List(
+def publishSettings = List(
   packageOptions += Package.ManifestAttributes(
     "Created-By" -> "Simple Build Tool",
     "Built-By" -> System.getProperty("user.name"),
@@ -181,14 +181,6 @@ def publishSettings = pgpSettings ++: List(
 )
 
 def licenseSettings = headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
-
-def pgpSettings = List(
-  PgpKeys.pgpSelectPassphrase :=
-    sys.props
-      .get("SIGNING_KEY_PASSPHRASE")
-      .map(_.toCharArray),
-  usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
-)
 
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),

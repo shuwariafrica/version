@@ -22,23 +22,17 @@ import scala.sys.process.Process
   */
 object ActionsPublish extends AutoPlugin:
 
-  val releaseArchiveTarget = settingKey[String](
-    "Platform identifier embedded in the release archive name (e.g. linux-x86_64, " +
-      "macos-aarch64, windows-x86_64). Read from `-Dactions.publish.target=<id>`."
-  )
-
   val releaseArchive = taskKey[File](
     "Stage the native binary, shell completions and licence files; produce a tar.gz " +
       "or zip; emit `archive=<path>` and `binary=<path>` to $GITHUB_OUTPUT when set."
   )
 
+  private inline val TargetProperty = "actions.publish.target"
+
   override def trigger = noTrigger
   override def requires: Plugins = ScalaNativePlugin
 
   override def projectSettings: Seq[Setting[?]] = Seq(
-    // Empty default so non-release reloads don't trip on a missing system property.
-    // `releaseArchive` validates non-emptiness when it actually runs.
-    releaseArchiveTarget := sys.props.getOrElse("actions.publish.target", ""),
     releaseArchive := Def.uncached(stageAndArchive.value)
   )
 
@@ -51,11 +45,8 @@ object ActionsPublish extends AutoPlugin:
     val binary = converter.toPath(binaryRef).toFile
     val rootBase = (ThisBuild / baseDirectory).value
     val outDir = target.value
-    val targetId = releaseArchiveTarget.value
-    if targetId.isEmpty then
-      sys.error(
-        "ActionsPublish: required system property `-Dactions.publish.target=<id>` is not set"
-      )
+    val targetId = sys.props.getOrElse(TargetProperty, "")
+    if targetId.isEmpty then sys.error(s"ActionsPublish: required system property `-D$TargetProperty=<id>` is not set")
     val ver = version.value
 
     val isWindows = targetId.startsWith("windows-")

@@ -139,7 +139,6 @@ jobs:
         env:
           SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
-          SIGNING_KEY_ID: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY_ID }}
 
   docs:
     name: Build Documentation Site

@@ -308,15 +308,9 @@ object NativeGitRepository:
       i += 1
     new String(chars)
 
-  // Decode a 40-char hex SHA into the 20 raw bytes of a git_oid buffer in
-  // place. CommitSha.validate already constrains input to hex characters but
-  // not length, so the length re-check below guards against silent truncation
-  // or overrun of the OID buffer. Per-char validation is intentionally
-  // absent: hexNibble is only reachable through CommitSha-validated paths.
-  // Kept as a non-inline def so the cold RuntimeException's IR sits in one
-  // function rather than fanning out to every caller.
-  private def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
-    if hex.length != GIT_OID_SHA1_HEXSIZE then throw RuntimeException("CommitSha length is not 40 hex characters")
+  // Decode a CommitSha into the 20 raw bytes of a git_oid buffer in place.
+  // CommitSha.validate enforces 40-char lowercase hex; no runtime guard here.
+  private inline def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
     var i = 0
     while i < GIT_OID_SHA1_SIZE do
       val hi = hexNibble(hex.charAt(2 * i))
