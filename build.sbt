@@ -32,7 +32,7 @@ val `version-testkit` =
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
-val resolution =
+val `version-resolution` =
   projectMatrix
     .in(file("modules/resolution"))
     .dependsOn(version)
@@ -53,7 +53,7 @@ val resolution =
 val `version-cli` =
   projectMatrix
     .in(file("modules/cli"))
-    .dependsOn(resolution)
+    .dependsOn(`version-resolution`)
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(BuildInfoPlugin)
     .settings(unitTestSettings)
@@ -76,7 +76,7 @@ val `sbt-version` =
   projectMatrix
     .in(file("modules/sbt-version"))
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .dependsOn(resolution)
+    .dependsOn(`version-resolution`)
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(SbtPlugin)
     .settings(publishSettings)
@@ -98,7 +98,7 @@ val `version-jvm` =
     .aggregate(
       version,
       `version-testkit`,
-      resolution,
+      `version-resolution`,
       `version-cli`,
       `sbt-version`
     )
@@ -112,7 +112,7 @@ val `version-native` =
     .aggregate(
       version,
       `version-testkit`,
-      resolution,
+      `version-resolution`,
       `version-cli`
     )
 
@@ -127,11 +127,13 @@ val docs =
   project
     .in(file("docs"))
     .settings(publish / skip := true)
+    .settings(crossPaths := false)
     .enablePlugins(VersionUnidocPlugin)
+    .settings(scalaNativeVersion := buildinfo.Info.scalaNativeVersion)
     .settings(
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
         version.jvm(Libraries.scala3.revision),
-        resolution.jvm(Libraries.scala3.revision),
+        `version-resolution`.jvm(Libraries.scala3.revision),
         `sbt-version`.jvm(Libraries.scala3.revision)
       )
     )
@@ -163,9 +165,6 @@ def formattingSettings =
 
 def publishSettings = List(
   packageOptions += Package.ManifestAttributes(
-    "Created-By" -> "Simple Build Tool",
-    "Built-By" -> System.getProperty("user.name"),
-    "Build-Jdk" -> System.getProperty("java.version"),
     "Specification-Title" -> name.value,
     "Specification-Version" -> Keys.version.value,
     "Specification-Vendor" -> organizationName.value

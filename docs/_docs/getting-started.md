@@ -8,11 +8,12 @@ A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automat
 
 ## Modules
 
-| Module               | Platforms   | Description                           |
-|----------------------|-------------|---------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations    |
-| `version-resolution` | JVM, Native | Automatic version derivation from Git |
-| `sbt-version`        | sbt 2.x     | Build integration                     |
+| Module               | Platforms   | Description                                |
+|----------------------|-------------|--------------------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations         |
+| `version-resolution` | JVM, Native | Automatic version derivation from Git      |
+| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases)    |
+| `sbt-version`        | sbt 2.x     | Build integration                          |
 
 ```scala
 // Core library

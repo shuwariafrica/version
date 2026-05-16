@@ -7,30 +7,69 @@ import mdoc.MdocPlugin.autoImport.*
 import sbt.plugins.JvmPlugin
 import sbtunidoc.ScalaUnidocPlugin
 
-/** Plugin for managing Scaladoc/Unidoc settings for the `version` project.
-  *
-  * Must be manually enabled on the root project to keep documentation settings organised. This plugin requires
-  * MdocPlugin because it uses mdoc to preprocess documentation files before Scaladoc generation, enabling dynamic
-  * variable substitution.
+/** AutoPlugin assembling the `version` documentation site: mdoc preprocessing of the prose pages and the repo-root
+  * README, Scaladoc/Unidoc generation, and the final static-site assembly under `target/site`.
   */
 object VersionUnidocPlugin extends AutoPlugin:
 
   override def requires: Plugins = JvmPlugin && MdocPlugin && ScalaUnidocPlugin
-  override def trigger: PluginTrigger = noTrigger // Manual activation required
+  override def trigger: PluginTrigger = noTrigger
 
   object autoImport:
     val documentationSourceLinks = settingKey[String]("Source link configuration for Scaladoc")
     val documentationFooter = settingKey[String]("Footer text for documentation")
     val generateUnidoc = taskKey[File]("Generate unified API documentation with static site")
-    val preprocessDocs = taskKey[File]("Preprocess documentation with mdoc and copy assets")
+    val preprocessDocs = taskKey[File]("Run mdoc over the prose pages and the repo-root README; copy site assets")
+    val scalaNativeVersion = settingKey[String]("Version of Scala Native used to build the project")
 
-    /** Scala Native version surfaced into mdoc as `@SCALANATIVE_VERSION@`. Defaults to the
-      * version of `sbt-scala-native` declared in `project/plugins.sbt`; override only when
-      * documentation needs to advertise a different floor.
-      */
-    val scalaNativeVersion = settingKey[String]("Scala Native version surfaced in documentation")
+  private val renderedReadme = Def.setting((ThisProject / target).value / "readme" / "README.md")
+  private val documentationSite = Def.setting((ThisProject / target).value / "site")
 
   import autoImport.*
+
+  // Render the `_docs/` prose pages via mdoc and copy non-markdown assets
+  // (sidebar.yml, rootdoc.md, _assets, _layouts) into the dottydoc siteroot.
+  private val processSite: Def.Initialize[Task[File]] = Def.task {
+    val log = streams.value.log
+    val _ = (Compile / mdoc).toTask("").value
+
+    val docsRoot = (ThisProject / baseDirectory).value
+    val siteRoot = mdocOut.value.getParentFile
+
+    val filesToCopy = Seq(
+      docsRoot / "sidebar.yml" -> siteRoot / "sidebar.yml",
+      docsRoot / "rootdoc.md" -> siteRoot / "rootdoc.md"
+    )
+    val dirsToCopy = Seq(
+      docsRoot / "_assets" -> siteRoot / "_assets",
+      docsRoot / "_layouts" -> siteRoot / "_layouts"
+    )
+    filesToCopy.foreach: (src, dest) =>
+      if src.exists() then
+        IO.copyFile(src, dest)
+        log.info(s"Copied ${src.getName} -> ${dest.getAbsolutePath}")
+    dirsToCopy.foreach: (src, dest) =>
+      if src.exists() then
+        IO.copyDirectory(src, dest)
+        log.info(s"Copied ${src.getName}/ -> ${dest.getAbsolutePath}")
+
+    siteRoot
+  }
+
+  // Render the repo-root README via mdoc to `renderedReadme.value`. Output
+  // sits outside the dottydoc siteroot so it is never picked up as a doc
+  // page. The release workflow consumes the file to commit it back to main.
+  // Def.taskDyn so the --in/--out args compose from task-time settings
+  // before the InputTask is constructed.
+  private val processReadme: Def.Initialize[Task[File]] = Def.taskDyn {
+    val rootReadme = (LocalRootProject / baseDirectory).value / "README.md"
+    val readmeOut = renderedReadme.value
+    val args = s" --in ${rootReadme.getAbsolutePath} --out ${readmeOut.getAbsolutePath}"
+    Def.task {
+      val _ = (Compile / mdoc).toTask(args).value
+      readmeOut
+    }
+  }
 
   override def projectSettings: Seq[Setting[?]] = Seq(
     documentationSourceLinks := {
@@ -39,78 +78,31 @@ object VersionUnidocPlugin extends AutoPlugin:
     },
     documentationFooter := s"`version` - v${version.value}",
 
-    scalaNativeVersion := pluginVersions.value.scalaNative,
-
     mdocIn := (ThisProject / baseDirectory).value / "_docs",
-    mdocOut := target.value / "mdoc-processed" / "_docs",
+    mdocOut := target.value / "docs" / "_docs",
     mdocVariables := Map(
+      "VERSION" -> version.value,
       "SCALA3_VERSION" -> scalaVersion.value,
       "SCALANATIVE_VERSION" -> scalaNativeVersion.value,
       "JDK_VERSION" -> {
         val version = java.lang.Runtime.version()
         s"${version.feature()}.${version.interim()}.${version.update()}"
-      },
-      "VERSION" -> version.value
+      }
     ),
-
-    // Suppress link hygiene warnings for API references mdoc can't validate
     mdocExtraArguments := Seq("--no-link-hygiene"),
 
-    // Task to run mdoc and copy non-markdown assets
     preprocessDocs := Def.uncached {
-      val log = streams.value.log
-
-      // First run mdoc to process markdown files (mdoc is an InputTask)
-      val _ = (Compile / mdoc).toTask("").value
-
-      val docsRoot = (ThisProject / baseDirectory).value
-      val mdocOutputRoot = mdocOut.value.getParentFile // target/mdoc-processed
-
-      // Copy sidebar.yml, rootdoc.md, _assets, _layouts if they exist
-      val filesToCopy = List(
-        docsRoot / "sidebar.yml" -> mdocOutputRoot / "sidebar.yml",
-        docsRoot / "rootdoc.md" -> mdocOutputRoot / "rootdoc.md"
-      )
-
-      val dirsToCopy = List(
-        docsRoot / "_assets" -> mdocOutputRoot / "_assets",
-        docsRoot / "_layouts" -> mdocOutputRoot / "_layouts"
-      )
-
-      // Copy files
-      filesToCopy.foreach { case (src, dest) =>
-        if src.exists() then
-          IO.copyFile(src, dest)
-          log.info(s"Copied ${src.getName} to mdoc output")
-      }
-
-      // Copy directories
-      dirsToCopy.foreach { case (src, dest) =>
-        if src.exists() then
-          IO.copyDirectory(src, dest)
-          log.info(s"Copied ${src.getName}/ to mdoc output")
-      }
-
-      mdocOutputRoot
+      val site = processSite.value
+      val _ = processReadme.value
+      site
     },
 
-    // Ensure unidoc depends on preprocessDocs for complete pipeline
     Compile / unidoc := (Compile / unidoc).dependsOn(preprocessDocs).value,
 
-    // Enhanced Scaladoc options - these will be picked up by ScalaUnidoc
     Compile / doc / scalacOptions ++= Def.uncached {
-      // CRITICAL: Run mdoc (with asset copying) BEFORE generating Scaladoc
       val processedDocsDir = preprocessDocs.value
-
-      val siteRoot = processedDocsDir.getAbsolutePath
-      val projectUrl = "https://version.shuwari.africa"
-      val socialLinks = Seq("github" -> "https://github.com/shuwariafrica/version")
-      val sourceLinks = documentationSourceLinks.value
-      // rootdoc.md is now in the mdoc output directory
       val rootContent = processedDocsDir / "rootdoc.md"
-      // logo is in the copied _assets directory
       val logo = processedDocsDir / "_assets" / "media" / "logo.svg"
-      val footer = documentationFooter.value
 
       val baseOptions = Seq(
         "-project",
@@ -118,66 +110,53 @@ object VersionUnidocPlugin extends AutoPlugin:
         "-project-version",
         version.value,
         "-project-url",
-        projectUrl,
+        "https://version.shuwari.africa",
         "-siteroot",
-        siteRoot,
+        processedDocsDir.getAbsolutePath,
         "-author",
         "-groups",
-        // Enable Inkuire type-based search engine
-        "-Ygenerate-inkuire"
+        "-Ygenerate-inkuire",
+        "-project-footer",
+        documentationFooter.value,
+        "-social-links",
+        "github::https://github.com/shuwariafrica/version",
+        "-source-links",
+        documentationSourceLinks.value
       )
 
       val rootContentOption =
         if rootContent.exists() then Seq("-doc-root-content", rootContent.getAbsolutePath)
         else Seq.empty
-
       val logoOption =
         if logo.exists() then Seq("-project-logo", logo.getAbsolutePath)
         else Seq.empty
 
-      val footerOption = Seq("-project-footer", footer)
-
-      val socialLinkOptions = socialLinks.flatMap { case (platform, url) =>
-        Seq("-social-links", s"$platform::$url")
-      }
-
-      val sourceLinkOptions = Seq("-source-links", sourceLinks)
-
-      baseOptions ++ rootContentOption ++ logoOption ++ footerOption ++
-        socialLinkOptions ++ sourceLinkOptions
+      baseOptions ++ rootContentOption ++ logoOption
     },
 
-    // Generate unified documentation task
     generateUnidoc := Def.uncached {
       val log = streams.value.log
-      log.info("Generating unified API documentation with static site...")
-
-      // This uses the ScalaUnidoc plugin
       val docDirs = (Compile / unidoc).value
       val mainDocDir = docDirs.headOption.getOrElse(target.value / "unidoc")
-
-      val siteDir = (LocalRootProject / baseDirectory).value / "target" / "site"
+      val siteDir = documentationSite.value
+      val readmeOut = renderedReadme.value
       if siteDir.exists() then IO.delete(siteDir)
       IO.copyDirectory(mainDocDir, siteDir)
-      log.info(s"Copied unified documentation to: ${siteDir.getAbsolutePath}")
+      log.info(s"Documentation site assembled at ${siteDir.getAbsolutePath}")
+
+      // Emit produced paths to $GITHUB_OUTPUT so the release workflow does
+      // not need to know sbt's per-axis target layout.
+      sys.env.get("GITHUB_OUTPUT").foreach { ghOutput =>
+        val outputs = Seq(
+          s"site_dir=${siteDir.getAbsolutePath}",
+          s"readme_path=${readmeOut.getAbsolutePath}",
+          ""
+        ).mkString("\n")
+        IO.append(new File(ghOutput), outputs)
+      }
+
       siteDir
     }
   )
 
-  final private case class PluginVersions(scalaNative: String)
-
-  private lazy val pluginVersions = Def.setting[PluginVersions] {
-    val sourceFile = (LocalRootProject / baseDirectory).value / "project" / "plugins.sbt"
-    val lines = IO.read(sourceFile)
-
-    def findVersion(regex: scala.util.matching.Regex, pluginName: String): String =
-      regex
-        .findFirstMatchIn(lines)
-        .map(_.group(1))
-        .getOrElse(sys.error(s"Could not find version for $pluginName in $sourceFile"))
-
-    val scalaNativeRegex = """addSbtPlugin\("org\.scala-native"\s*%\s*"sbt-scala-native"\s*%\s*"([^"]+)"\)""".r
-
-    PluginVersions(scalaNative = findVersion(scalaNativeRegex, "sbt-scala-native"))
-  }
 end VersionUnidocPlugin

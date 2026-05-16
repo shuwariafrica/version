@@ -28,7 +28,7 @@ distances from a _previous_ one.
 Add to `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("africa.shuwari" % "sbt-version" % "<version>")
+addSbtPlugin("africa.shuwari" % "sbt-version" % "@VERSION@")
 ```
 
 The plugin automatically derives and sets `version` for all projects.
@@ -36,7 +36,7 @@ The plugin automatically derives and sets `version` for all projects.
 ### Library
 
 ```scala
-//> using dep "africa.shuwari::version::<version>"
+//> using dep "africa.shuwari::version::@VERSION@"
 
 import version.semver.*
 
@@ -73,12 +73,12 @@ fix: Handle edge case               # Patch increment
 
 ## Modules
 
-| Module               | Platforms   | Description                      |
-|----------------------|-------------|----------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations |
-| `resolution`         | JVM, Native | Git-based version derivation     |
-| `version-cli`        | JVM, Native | CLI application (Native binary is shipped) |
-| `sbt-version`        | sbt 2.x     | sbt plugin for build integration |
+| Module               | Platforms   | Description                                |
+|----------------------|-------------|--------------------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations         |
+| `version-resolution` | JVM, Native | Git-based version derivation               |
+| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases)    |
+| `sbt-version`        | sbt 2.x     | Build integration                          |
 
 ## Licence
 

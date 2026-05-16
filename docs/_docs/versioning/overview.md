@@ -5,7 +5,7 @@ title: Automatic Versioning
 Derive semantic versions from Git repository state and commit messages.
 
 ```scala
-libraryDependencies += "africa.shuwari" %% "version-resolution" % "@VERSION@"
+libraryDependencies += "africa.shuwari" %%% "version-resolution" % "@VERSION@"
 ```
 
 Available on JVM and Scala Native.

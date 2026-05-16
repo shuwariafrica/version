@@ -80,6 +80,12 @@ jobs:
           fi
           ls -la archives/
 
+      - name: Generate Checksums
+        run: |
+          cd archives
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,21 +164,33 @@ jobs:
 
       - name: Build Documentation Site
         id: build-site
+        # generateUnidoc emits `site_dir` and `readme_path` to $GITHUB_OUTPUT
+        # (see project/UnidocPlugin.scala). Downstream steps consume them
+        # via `steps.build-site.outputs.<name>`.
+        run: project/scripts/run-sbt.sh -Dsbt.ci=true docs/generateUnidoc
+
+      - name: Verify Documentation Built
         run: |
-          project/scripts/run-sbt.sh -Dsbt.ci=true docs/generateUnidoc
-          site_dir="$(pwd)/target/site"
+          site_dir="${{ steps.build-site.outputs.site_dir }}"
           test -s "$site_dir/index.html" \
             || { echo "::error::Documentation site build produced no index.html"; exit 1; }
           touch "$site_dir/.nojekyll"
-          echo "site_dir=$site_dir" >> "$GITHUB_OUTPUT"
 
       - name: Upload Pages Artefact
         uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ steps.build-site.outputs.site_dir }}
 
+      - name: Upload Rendered README
+        uses: actions/upload-artifact@v7
+        with:
+          name: readme
+          path: ${{ steps.build-site.outputs.readme_path }}
+          retention-days: 1
+          if-no-files-found: error
+
   site-release:
-    name: Finalise Release
+    name: Release Documentation Site
     needs: [ publish_binaries, publish_maven, docs ]
     runs-on: ubuntu-24.04
     permissions:
@@ -190,6 +208,42 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deploy-pages
         uses: actions/deploy-pages@v5
+
+      - name: Download Processed README
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: readme
+          path: readme
+
+      - name: Update README on Main
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/github-script@v8
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        with:
+          script: |
+            const fs = require('fs');
+            const rendered = fs.readFileSync('readme/README.md', 'utf8');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'README.md';
+
+            const { data: mainReadme } = await github.rest.repos.getContent({ owner, repo, path, ref: 'main' });
+            const current = Buffer.from(mainReadme.content, 'base64').toString('utf8');
+            if (current === rendered) {
+              core.info(`README on main already matches rendered output for ${process.env.RELEASE_TAG}`);
+              return;
+            }
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path,
+              message: `Update README for ${process.env.RELEASE_TAG}`,
+              content: Buffer.from(rendered).toString('base64'),
+              sha: mainReadme.sha,
+              branch: 'main',
+            });
+            core.info(`Update README for ${process.env.RELEASE_TAG}`);
 
       - name: Finalise GitHub Release
         env:
