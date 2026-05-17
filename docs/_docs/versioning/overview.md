@@ -5,17 +5,17 @@ title: Automatic Versioning
 Derive semantic versions from Git repository state and commit messages.
 
 ```scala
-libraryDependencies += "africa.shuwari" %% "version-resolution" % "@VERSION@"
+libraryDependencies += "africa.shuwari" %%% "version-resolution" % "@VERSION@"
 ```
 
 Available on JVM and Scala Native.
 
 ## Mode Selection
 
-| Condition | Result |
-|-----------|--------|
-| Basis commit has a valid annotated tag AND clean worktree | **Concrete version** - exact tag |
-| Otherwise | **Development version** - snapshot with metadata |
+| Condition                                                 | Result                                           |
+|-----------------------------------------------------------|--------------------------------------------------|
+| Basis commit has a valid annotated tag AND clean worktree | **Concrete version** - exact tag                 |
+| Otherwise                                                 | **Development version** - snapshot with metadata |
 
 "Dirty" includes modified tracked files and untracked files (excluding ignored).
 
@@ -38,28 +38,43 @@ Between releases, a target version is computed:
 3. **Relative changes** - `version: major` or `breaking:` (coalesced)
 4. **Default fallback:**
 
-| Condition | Target Core |
-|-----------|-------------|
-| Base is pre-release | Core unchanged |
-| Base is final | Patch + 1 |
+| Condition              | Target Core       |
+|------------------------|-------------------|
+| Base is pre-release    | Core unchanged    |
+| Base is final          | Patch + 1         |
 | No base, repo has tags | Highest major + 1 |
-| No tags anywhere | `0.1.0` |
+| No tags anywhere       | `0.1.0`           |
 
 ### Build Metadata
 
-Development versions include metadata identifiers in strict order:
+Development versions ship with structured metadata describing the basis commit. The resolver populates a
+`DevelopmentMetadata` record; the chosen [Formatter](../schemes/semver/operations.md#rendering) decides whether and how
+it appears in the rendered version string.
 
-| Position | Identifier | Condition |
-|----------|------------|-----------|
-| 1 | `pr<N>` | PR number provided |
-| 2 | `branch<name>` | Always (or `branchdetached`) |
-| 3 | `commits<N>` | Always |
-| 4 | `sha<hex>` | Always (7-40 chars) |
-| 5 | `dirty` | Worktree dirty |
+For the SemVer scheme, the default `developmentVersion` writes these identifiers, in order, into the `+` build-metadata
+section:
 
-Whether metadata appears in the rendered string depends on the [Formatter](../schemes/semver/operations.md#rendering) used.
+| Position | Identifier                                                   | Condition              |
+|----------|--------------------------------------------------------------|------------------------|
+| 1        | `yyyymmddhhmm` (UTC committer time)                          | Basis commit available |
+| 2        | `<branch>` (sanitised) or `detached`                         | Always                 |
+| 3        | `<short-sha>` (lowercase hex; length from `shaLength`, 7-40) | Always                 |
+| 4        | `pr<N>`                                                      | PR number supplied     |
+| 5        | `dirty`                                                      | Worktree dirty         |
 
-**Example:** `1.2.4-SNAPSHOT+pr42.branchmain.commits5.shaabc1234.dirty`
+The 12-character UTC timestamp leads so that raw string comparison of two snapshots of the same base sorts them in
+commit-time order. The timestamp is the basis commit's committer time, not the build time, so re-runs are reproducible.
+Git-recorded times can be skewed (backdated or forward-dated commits); the resolver renders them as-is.
+
+For PR builds, the branch slot carries the **target** branch (where the merge will land); the source branch is typically
+too volatile to be useful in a version string. Branch names are sanitised for the SemVer build-metadata grammar at
+render time (lowercased; non-`[0-9a-z-]` replaced with `-`; runs of `-` collapsed; leading/trailing `-` trimmed). The
+raw branch label remains in `DevelopmentMetadata.branch` for programmatic consumers.
+
+`v.show` and the default `version` setting exclude build metadata. Set `versionFormatter := Some(SemVer.Formatter.full)`
+to include it.
+
+**Example:** `1.2.4-SNAPSHOT+202605170145.main.abcdef123456.pr42.dirty`
 
 ## Tag Recognition
 
@@ -70,16 +85,18 @@ A tag is recognised as a valid version tag if:
 - Pre-release classifiers map to known aliases
 - All numeric components are within bounds
 
-When multiple valid tags exist on one commit, a final release outranks a pre-release of the same core. Otherwise, the highest version wins.
+When multiple valid tags exist on one commit, a final release outranks a pre-release of the same core. Otherwise, the
+highest version wins.
 
 ## Commit Scanning
 
-| Condition | Scan Range |
-|-----------|------------|
-| Base tag exists | Commits after base up to HEAD |
-| No base tag | All commits reachable from HEAD |
+| Condition       | Scan Range                      |
+|-----------------|---------------------------------|
+| Base tag exists | Commits after base up to HEAD   |
+| No base tag     | All commits reachable from HEAD |
 
-All commits are scanned for keywords, including merge commits and commits from merged branches. The commit count in build metadata uses first-parent only, excluding merges.
+All commits are scanned for keywords, including merge commits and commits from merged branches. See
+the [Specification](specification.md) for ignore-directive semantics and the commit-count convention.
 
 ## API Usage
 

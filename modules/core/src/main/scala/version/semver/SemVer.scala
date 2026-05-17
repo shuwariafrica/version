@@ -155,16 +155,17 @@ object SemVer:
 
   /** Configurable rendering strategy for [[SemVer]] values.
     *
-    * Three instances are provided:
-    *   - [[Formatter$.standard standard]] - `MAJOR.MINOR.PATCH[-PRERELEASE]` (same as [[VersionScheme]]'s `show`)
-    *   - [[Formatter$.extended extended]] - includes build metadata with SHA truncation
-    *   - [[Formatter$.full full]] - includes verbatim build metadata (for serialisation round-trips)
+    * Two instances are provided:
+    *   - [[Formatter$.standard standard]] - `MAJOR.MINOR.PATCH[-PRERELEASE]` (matches `v.show`)
+    *   - [[Formatter$.full full]] - includes build metadata verbatim (suitable for serialisation round-trips)
+    *
+    * Implement the trait directly for any other rendering shape.
     */
   trait Formatter:
     def format(v: SemVer): String
 
   object Formatter:
-    // Hotpath: batch rendering benefits from reduced allocations
+    // Append into a caller-supplied StringBuilder to elide per-call intermediate Strings.
     private inline def appendCore(sb: StringBuilder, v: SemVer): Unit =
       sb.append(v.major.value).append('.').append(v.minor.value).append('.').append(v.patch.value): Unit
 
@@ -176,29 +177,6 @@ object SemVer:
       val sb = StringBuilder(24)
       appendCore(sb, v)
       appendPreRelease(sb, v)
-      sb.result()
-
-    private val shaPrefix = "sha"
-    private val shortShaLength = 7
-
-    /** Extended rendering with build metadata. SHA identifiers truncated to 7 characters. */
-    val extended: Formatter = (v: SemVer) =>
-      val sb = StringBuilder(64)
-      appendCore(sb, v)
-      appendPreRelease(sb, v)
-      v.metadata.foreach { bm =>
-        sb.append('+'): Unit
-        // Hotpath: index-based loop avoids iterator allocation from mkString.
-        val ids = bm.identifiers
-        var i = 0 // scalafix:ok DisableSyntax.var
-        while i < ids.length do // scalafix:ok DisableSyntax.while
-          if i > 0 then sb.append('.'): Unit
-          val id = ids(i)
-          if id.startsWith(shaPrefix) && id.length > shaPrefix.length + shortShaLength then
-            sb.append(shaPrefix).append(id.substring(shaPrefix.length, shaPrefix.length + shortShaLength)): Unit
-          else sb.append(id): Unit
-          i += 1
-      }
       sb.result()
 
     /** Full rendering with verbatim build metadata. Use for serialisation round-trips. */
@@ -230,6 +208,81 @@ object SemVer:
 
   given CanEqual[SemVer, SemVer] = CanEqual.derived
 
+  // --- Development-version timestamp formatting ---
+
+  /** Sanitise an arbitrary branch label for use as a SemVer build-metadata identifier.
+    *
+    * The SemVer 2.0.0 grammar restricts identifiers to `[0-9A-Za-z-]`. This helper lowercases the input, replaces any
+    * other character with `-`, collapses runs of `-`, trims leading/trailing `-`, and returns `"detached"` for an
+    * empty result. The input is not mutated; consumers retain the original branch label in
+    * [[version.DevelopmentMetadata DevelopmentMetadata]].
+    */
+  private[version] def sanitiseBranchIdentifier(name: String): String =
+    // scalafix:off DisableSyntax.var
+    // Use a var tracker to drop the per-char boxing of a fold-with-tuple shape.
+    val lower = name.toLowerCase
+    val sb = new StringBuilder(lower.length)
+    var prevHyphen = false
+    lower.foreach { ch =>
+      val ok = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-'
+      if ok then
+        if ch == '-' then
+          if !prevHyphen then
+            sb.append('-'): Unit
+            prevHyphen = true
+        else
+          sb.append(ch): Unit
+          prevHyphen = false
+      else if !prevHyphen then
+        sb.append('-'): Unit
+        prevHyphen = true
+    }
+    val raw = sb.result()
+    val trimmed = raw.dropWhile(_ == '-').reverse.dropWhile(_ == '-').reverse
+    if trimmed.isEmpty then "detached" else trimmed
+    // scalafix:on DisableSyntax.var
+  end sanitiseBranchIdentifier
+
+  /** Render an epoch-seconds (UTC) timestamp as a 12-character `yyyymmddhhmm` identifier.
+    *
+    * The fixed width keeps lexicographic ordering aligned with chronological ordering for snapshots of the same base.
+    * Conversion uses Howard Hinnant's civil-from-days algorithm so no `java.time` dependency is required (Scala Native
+    * does not ship the full `java.time` package).
+    */
+  private[version] def formatUtcTimestamp(epochSeconds: Long): String =
+    val secondsPerDay = 86400L
+    val days = Math.floorDiv(epochSeconds, secondsPerDay)
+    val secondsOfDay = Math.floorMod(epochSeconds, secondsPerDay).toInt
+    val z = days + 719468L
+    val era = if z >= 0 then z / 146097L else (z - 146096L) / 146097L
+    val doe = (z - era * 146097L).toInt
+    val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    val baseYear = yoe + era * 400L
+    val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    val mp = (5 * doy + 2) / 153
+    val day = doy - (153 * mp + 2) / 5 + 1
+    val month = if mp < 10 then mp + 3 else mp - 9
+    val year = if month <= 2 then baseYear + 1 else baseYear
+    val hour = secondsOfDay / 3600
+    val minute = (secondsOfDay % 3600) / 60
+    val sb = StringBuilder(12)
+    appendYear(sb, year)
+    appendPad2(sb, month)
+    appendPad2(sb, day)
+    appendPad2(sb, hour)
+    appendPad2(sb, minute)
+    sb.result()
+
+  private inline def appendPad2(sb: StringBuilder, n: Int): Unit =
+    if n < 10 then sb.append('0').append(n): Unit else sb.append(n): Unit
+
+  private inline def appendYear(sb: StringBuilder, y: Long): Unit =
+    if y < 0 then sb.append(y): Unit
+    else if y < 10 then sb.append("000").append(y): Unit
+    else if y < 100 then sb.append("00").append(y): Unit
+    else if y < 1000 then sb.append('0').append(y): Unit
+    else sb.append(y): Unit
+
   // --- given ResolvableScheme[SemVer] ---
 
   given ResolvableScheme[SemVer] with
@@ -259,11 +312,15 @@ object SemVer:
     def initialVersion: SemVer = SemVer(Major(0), Minor(1), Patch(0))
 
     def developmentVersion(targetCore: SemVer, meta: DevelopmentMetadata): SemVer =
+      // Spine `<timestamp>.<branch>.<short-sha>` is invariant. The 12-character UTC
+      // timestamp first lets raw string comparison of snapshots of the same base sort
+      // chronologically. Tail-conditional flags (`pr<N>`, `dirty`) trail.
+      val branchId = meta.branch.map(SemVer.sanitiseBranchIdentifier).getOrElse("detached")
       val ids = List(
+        meta.commitTime.map(SemVer.formatUtcTimestamp),
+        Some(branchId),
+        meta.commitSha,
         meta.prNumber.map(n => s"pr${Math.max(0, n)}"),
-        meta.branch.map(b => s"branch$b"),
-        meta.commitCount.map(n => s"commits$n"),
-        meta.commitSha.map(s => s"sha$s"),
         if meta.isDirty then Some("dirty") else None
       ).flatten
       val md = Metadata.from(ids).toOption

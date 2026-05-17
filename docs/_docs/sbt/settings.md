@@ -10,12 +10,13 @@ Configuration settings for the sbt plugin.
 
 #### versionTagParser
 
-Controls how Git tag names are parsed into SemVer values. The default strips `v`/`V` prefixes and delegates to `SemVer.parse`.
+Controls how Git tag names are parsed into SemVer values. The default strips `v`/`V` prefixes and delegates to
+`SemVer.parse`.
 
-|             |                                                           |
-|-------------|-----------------------------------------------------------|
-| **Type**    | `String => Option[SemVer]`                                |
-| **Default** | Strips `v`/`V` prefix, then `SemVer.parse(...).toOption`  |
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| **Type**    | `String => Option[SemVer]`                               |
+| **Default** | Strips `v`/`V` prefix, then `SemVer.parse(...).toOption` |
 
 Supply a custom function to handle non-standard tag naming conventions:
 
@@ -34,35 +35,37 @@ versionTagParser := { name =>
 
 #### versionFormatter
 
-Controls how `ThisBuild / version` is rendered. `None` uses `v.show` (standard format, excludes build metadata).
-Supply `Some(formatter)` to override.
+Controls how `ThisBuild / version` is rendered. `None` uses `v.show` (core plus pre-release; no build metadata).
+Supply `Some(formatter)` to render verbatim build metadata as well.
 
 ```scala
-versionFormatter := Some(SemVer.Formatter.extended) // include metadata
-versionFormatter := None                            // default (no metadata)
+versionFormatter := Some(SemVer.Formatter.full) // include build metadata
+versionFormatter := None                        // default (no metadata)
 ```
 
-|             |                                                           |
-|-------------|-----------------------------------------------------------|
-| **Type**    | `Option[SemVer.Formatter]`                                |
-| **Default** | `None` (uses `v.show` - standard SemVer without metadata) |
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| **Type**    | `Option[SemVer.Formatter]`                               |
+| **Default** | `None` (uses `v.show` - core + pre-release, no metadata) |
 
 ---
 
 #### resolvedVersion
 
-The fully resolved SemVer value for the current repository state. The plugin records the complete 40-character commit SHA in build metadata; rendering logic decides how much to surface.
+The fully resolved `SemVer` for the current repository state. The plugin requests the full 40-character SHA in the
+metadata model, so any rendering can choose how much to surface.
 
 ```scala
 val v = resolvedVersion.value
 val core = s"${v.major.value}.${v.minor.value}.${v.patch.value}"
 ```
 
-|             |                      |
-|-------------|----------------------|
-| **Type**    | `SettingKey[SemVer]` |
+|          |                      |
+|----------|----------------------|
+| **Type** | `SettingKey[SemVer]` |
 
-Use this when you need structured data (e.g. to derive Docker tags) rather than the pre-rendered string.
+Use this when downstream tasks need structured data (e.g. computing a Docker tag from the core) rather than the
+pre-rendered version string.
 
 ---
 
@@ -97,8 +100,10 @@ Two environment variables influence resolution:
 ```scala
 // build.sbt
 versionBranchOverride := sys.env.get("GITHUB_REF_NAME")
-versionFormatter := Some(SemVer.Formatter.extended)
+versionFormatter := Some(SemVer.Formatter.full)
 
-// Access the structured version when needed
-def dockerTag = SemVer.Formatter.extended.format(resolvedVersion.value)
+// Compose a Docker tag from the structured version
+def dockerTag =
+  val v = resolvedVersion.value
+  s"${v.major.value}.${v.minor.value}.${v.patch.value}"
 ```

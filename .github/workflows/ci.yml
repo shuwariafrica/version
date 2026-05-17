@@ -1,0 +1,369 @@
+name: "CI"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  JDK_CURRENT: 25
+  LLVM_VERSION: 22
+  SBT_OPTS: >- # Use all available resources
+    -Xmx10G
+    -Xms6G
+    -Xss4M
+    -XX:ReservedCodeCacheSize=512M
+
+jobs:
+  test_jvm:
+    name: "[JDK ${{ matrix.java }}] Tests"
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ 17, 21, 25 ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:${{ matrix.java }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Execute Unit Tests
+        run: project/scripts/run-sbt.sh "version-jvm/test"
+
+      - name: Package Project Products
+        run: project/scripts/run-sbt.sh "version-jvm/package"
+
+  test_native:
+    name: "[Native: ${{ matrix.target }}] Tests"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-musl-x86_64
+            runner: ubuntu-24.04
+            dockerImage: shuwariafrica/alpine-jdk:25
+            archiveTarget: linux-x86_64
+            releaseProps: -Dsbt.ci=true -Drelease.binary.static=true
+            ship: true
+          - target: linux-musl-aarch64
+            runner: ubuntu-24.04-arm
+            dockerImage: shuwariafrica/alpine-jdk:25
+            archiveTarget: linux-aarch64
+            releaseProps: -Dsbt.ci=true -Drelease.binary.static=true
+            ship: true
+          - target: linux-glibc-x86_64
+            runner: ubuntu-24.04
+            dockerImage: shuwariafrica/el10-jdk:25
+            archiveTarget: linux-glibc-x86_64
+            ship: false
+          - target: linux-glibc-aarch64
+            runner: ubuntu-24.04-arm
+            dockerImage: shuwariafrica/el10-jdk:25
+            archiveTarget: linux-glibc-aarch64
+            ship: false
+          - target: macos-aarch64
+            runner: macos-26
+            archiveTarget: macos-aarch64
+            releaseProps: -Dsbt.ci=true
+            ship: true
+          - target: windows-x86_64
+            runner: windows-2025-vs2026
+            archiveTarget: windows-x86_64
+            releaseProps: -Dsbt.ci=true
+            ship: true
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      DOCKER_IMAGE: ${{ matrix.dockerImage }}
+      SBT_PROPS: ${{ matrix.releaseProps }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: "[host] Setup Java"
+        if: matrix.dockerImage == ''
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_CURRENT }}
+          check-latest: true
+
+      - name: "[host] Setup sbt"
+        if: matrix.dockerImage == ''
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Resolve libgit2 SHA
+        id: libgit2
+        shell: bash
+        run: echo "sha=$(git -C vendor/libgit2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache libgit2 Build
+        uses: actions/cache@v5
+        with:
+          path: vendor/libgit2/build
+          key: libgit2-v2-${{ matrix.target }}-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
+
+      - name: "[macOS] Install LLVM"
+        if: startsWith(matrix.target, 'macos-')
+        shell: bash
+        run: |
+          brew update
+          brew install "llvm@${LLVM_VERSION}" cmake
+          echo "$(brew --prefix "llvm@${LLVM_VERSION}")/bin" >> "$GITHUB_PATH"
+
+      - name: "[Windows] Setup MSVC"
+        # Use vcvarsall.bat
+        if: startsWith(matrix.target, 'windows-')
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -latest -property installationPath
+          cmd /c "`"$vs\VC\Auxiliary\Build\vcvarsall.bat`" amd64 && set" |
+            ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { "$($Matches[1])=$($Matches[2])" } } |
+            Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Execute Unit Tests
+        shell: bash
+        run: project/scripts/run-sbt.sh "version-native/test"
+
+      - name: Build Release Archive
+        id: archive
+        shell: bash
+        run: >
+          project/scripts/run-sbt.sh
+          -Dactions.publish.target=${{ matrix.archiveTarget }}
+          "version-cliNative/releaseArchive"
+
+      - name: "[Linux] Verify Static Linkage"
+        if: matrix.ship && contains(matrix.releaseProps, 'release.binary.static=true')
+        shell: sh
+        run: |
+          bin="${{ steps.archive.outputs.binary }}"
+          file_out=$(file "$bin")
+          echo "$file_out"
+          case "$file_out" in
+            *"statically linked"*) echo "OK: $bin is statically linked" ;;
+            *) echo "::error::$bin is NOT statically linked: $file_out"; exit 1 ;;
+          esac
+
+      - name: Execute Binary Test
+        shell: bash
+        env:
+          BIN_PATH: ${{ steps.archive.outputs.binary }}
+        run: |
+          fixture=$(mktemp -d)
+          git -c init.defaultBranch=main init -q "$fixture"
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci commit -q --allow-empty -m initial
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci tag -am "v1.2.3" v1.2.3
+          unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
+          out=$("$BIN_PATH" --repository "$fixture" --emit raw)
+          echo "Resolved: $out"
+          case "$out" in
+            *1.2.3*) echo "OK: expected version produced" ;;
+            *) echo "::error::expected 1.2.3 in output, got: $out"; exit 1 ;;
+          esac
+
+      - name: Upload Binary Artefact
+        if: matrix.ship
+        uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.archiveTarget }}
+          path: ${{ steps.archive.outputs.archive }}
+          # Push builds feed publish_binaries; PR builds feed verify only.
+          retention-days: ${{ github.event_name == 'push' && 90 || 1 }}
+          if-no-files-found: error
+
+  verify_linux_static_portability:
+    name: "[Native: glibc ${{ matrix.arch }}] Verify Static Binary"
+    needs: test_native
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    steps:
+      - name: Download Binary Artefact
+        uses: actions/download-artifact@v8
+        with:
+          name: binary-linux-${{ matrix.arch }}
+          path: bin
+
+      - name: Execute Binary
+        shell: bash
+        run: |
+          archive=$(ls bin/*.tar.gz | head -1)
+          mkdir -p extracted
+          tar -xzf "$archive" -C extracted
+          bin_path=$(find extracted -maxdepth 3 -type f -name version | head -1)
+          if [[ -z "$bin_path" ]]; then
+            echo "::error::no version binary found inside $archive"; exit 1
+          fi
+          ldd_out=$(ldd "$bin_path" 2>&1 || true)
+          echo "$ldd_out"
+          case "$ldd_out" in
+            *"not a dynamic executable"*|*"statically linked"*) ;;
+            *) echo "::error::expected static binary, ldd reports dynamic dependencies"; exit 1 ;;
+          esac
+          fixture=$(mktemp -d)
+          git -c init.defaultBranch=main init -q "$fixture"
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci commit -q --allow-empty -m initial
+          git -C "$fixture" -c user.email=ci@example.com -c user.name=ci tag -am "v1.2.3" v1.2.3
+          unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
+          out=$("$bin_path" --repository "$fixture" --emit raw)
+          echo "Resolved on glibc: $out"
+          case "$out" in
+            *1.2.3*) echo "OK: static-musl binary works on glibc" ;;
+            *) echo "::error::expected 1.2.3 in output, got: $out"; exit 1 ;;
+          esac
+
+  test_sbt_scripted:
+    name: "[sbt-plugin] Scripted Tests"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Execute sbt Scripted Tests
+        # Scripted tests run the plugin against synthetic fixtures; the workflow's CI env must not leak in.
+        run: |
+          unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
+          project/scripts/run-sbt.sh "sbt-version/scripted"
+
+  static_analysis:
+    name: Static Analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Verify Source Formatting
+        id: scalafmt
+        continue-on-error: true
+        run: project/scripts/run-sbt.sh scalafmtCheckAll scalafmtSbtCheck
+
+      - name: Verify Linting Conformity
+        id: scalafix
+        continue-on-error: true
+        run: project/scripts/run-sbt.sh "scalafixAll --check"
+
+      - name: Verify File Header Conformity
+        id: headers
+        continue-on-error: true
+        run: project/scripts/run-sbt.sh headerCheckAll
+
+      - name: Check for Failures
+        if: always()
+        run: |
+          failed=""
+          [[ "${{ steps.scalafmt.outcome }}" == "failure" ]] && failed="$failed scalafmtCheckAll"
+          [[ "${{ steps.scalafix.outcome }}" == "failure" ]] && failed="$failed scalafixAll"
+          [[ "${{ steps.headers.outcome }}" == "failure" ]] && failed="$failed headerCheckAll"
+          if [[ -n "$failed" ]]; then
+            echo "::error::Static analysis checks failed:$failed"
+            exit 1
+          fi
+
+  docs:
+    name: Assemble Documentation Site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # Pinned to JDK 17 so the @JDK_VERSION@ surfaced in mdoc-rendered docs
+      # reflects the project minimum.
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:17
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Build Documentation Site
+        id: build-site
+        run: project/scripts/run-sbt.sh -Dsbt.ci=true docs/generateUnidoc
+
+      - name: Verify Documentation Built
+        run: |
+          test -s "${{ steps.build-site.outputs.site_dir }}/index.html" \
+            || { echo "::error::Documentation site build produced no index.html"; exit 1; }
+
+  dependency-graph:
+    name: Update Dependency Graph
+    # scalacenter/sbt-dependency-submission manages its own sbt invocation,
+    # so this job intentionally does not use run-sbt.sh.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_CURRENT }}
+          check-latest: true
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Submit Dependency Graph
+        uses: scalacenter/sbt-dependency-submission@v3

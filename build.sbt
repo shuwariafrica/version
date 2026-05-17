@@ -20,18 +20,19 @@ val version =
     .settings(publishSettings)
     .settings(libraryDependencies += Libraries.boilerplate)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 // FIXME: Re-enable JS axis when scala-js supports sbt 2.x. See scala-js/scala-js#5238.
 //    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
 
 val `version-testkit` =
   projectMatrix
     .in(file("modules/testkit"))
+    .settings(licenseSettings)
     .settings(publish / skip := true)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = nativeSettings)
+    .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
-val resolution =
+val `version-resolution` =
   projectMatrix
     .in(file("modules/resolution"))
     .dependsOn(version)
@@ -46,13 +47,13 @@ val resolution =
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(nativeSettings *).enablePlugins(Libgit2Build)
+      configure = (p: Project) => p.settings(NativePlatformPlugin.nativeSettings *).enablePlugins(Libgit2Build)
     )
 
 val `version-cli` =
   projectMatrix
     .in(file("modules/cli"))
-    .dependsOn(resolution)
+    .dependsOn(`version-resolution`)
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(BuildInfoPlugin)
     .settings(unitTestSettings)
@@ -68,14 +69,14 @@ val `version-cli` =
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(nativeSettings *).settings(cliNativeSettings *).enablePlugins(Libgit2Build, ActionsPublish)
+      configure = (p: Project) => p.settings(NativePlatformPlugin.applicationSettings *).enablePlugins(Libgit2Build, ActionsPublish)
     )
 
 val `sbt-version` =
   projectMatrix
     .in(file("modules/sbt-version"))
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
-    .dependsOn(resolution)
+    .dependsOn(`version-resolution`)
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(SbtPlugin)
     .settings(publishSettings)
@@ -97,7 +98,7 @@ val `version-jvm` =
     .aggregate(
       version,
       `version-testkit`,
-      resolution,
+      `version-resolution`,
       `version-cli`,
       `sbt-version`
     )
@@ -111,7 +112,7 @@ val `version-native` =
     .aggregate(
       version,
       `version-testkit`,
-      resolution,
+      `version-resolution`,
       `version-cli`
     )
 
@@ -126,11 +127,13 @@ val docs =
   project
     .in(file("docs"))
     .settings(publish / skip := true)
+    .settings(crossPaths := false)
     .enablePlugins(VersionUnidocPlugin)
+    .settings(scalaNativeVersion := buildinfo.Info.scalaNativeVersion)
     .settings(
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
         version.jvm(Libraries.scala3.revision),
-        resolution.jvm(Libraries.scala3.revision),
+        `version-resolution`.jvm(Libraries.scala3.revision),
         `sbt-version`.jvm(Libraries.scala3.revision)
       )
     )
@@ -140,35 +143,6 @@ val `version-root` =
     .in(file("."))
     .settings(publish / skip := true)
     .aggregate(`version-jvm`, `version-native`)
-
-def nativeSettings: List[Setting[?]] = List(
-  Test / parallelExecution := true,
-  Compile / unmanagedResourceDirectories +=
-    (Compile / sourceDirectory).value / "resources-native",
-  Test / unmanagedResourceDirectories +=
-    (Test / sourceDirectory).value / "resources-native",
-  libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
-  // Our code, tests, and the libgit2 binding are entirely sequential. Forcing multithreading
-  // off keeps the MT runtime out of every native binary.
-  nativeConfig := Def.uncached(nativeConfig.value.withMultithreading(false))
-)
-
-def cliNativeSettings: List[Setting[?]] = {
-  import scala.scalanative.build.{LTO, Mode}
-  val isReleaseBinary = sys.props.get("release.binary").contains("true")
-  val isStaticLink = sys.props.get("release.binary.static").contains("true")
-  List(
-    nativeConfig := Def.uncached {
-      val base = nativeConfig.value.withBaseName("version")
-      if (!isReleaseBinary) base
-      else {
-        val optimised = base.withMode(Mode.releaseFull).withLTO(LTO.thin)
-        if (isStaticLink) optimised.withLinkingOptions(optimised.linkingOptions :+ "-static")
-        else optimised
-      }
-    }
-  )
-}
 
 def noticeMappingSettings: Seq[Setting[?]] = List(
   Compile / packageBin / mappings += {
@@ -189,11 +163,8 @@ def formattingSettings =
     scalafmtPrintDiff := true
   )
 
-def publishSettings = pgpSettings ++: List(
+def publishSettings = List(
   packageOptions += Package.ManifestAttributes(
-    "Created-By" -> "Simple Build Tool",
-    "Built-By" -> System.getProperty("user.name"),
-    "Build-Jdk" -> System.getProperty("java.version"),
     "Specification-Title" -> name.value,
     "Specification-Version" -> Keys.version.value,
     "Specification-Vendor" -> organizationName.value
@@ -205,16 +176,10 @@ def publishSettings = pgpSettings ++: List(
   },
   pomIncludeRepository := (_ => false),
   publishMavenStyle := true,
-  headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
+  licenseSettings
 )
 
-def pgpSettings = List(
-  PgpKeys.pgpSelectPassphrase :=
-    sys.props
-      .get("SIGNING_KEY_PASSPHRASE")
-      .map(_.toCharArray),
-  usePgpKeyHex(System.getenv("SIGNING_KEY_ID"))
-)
+def licenseSettings = headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),

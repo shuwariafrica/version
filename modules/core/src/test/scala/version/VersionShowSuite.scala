@@ -42,13 +42,13 @@ class VersionShowSuite extends munit.FunSuite:
   }
 
   test("show: excludes build metadata") {
-    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
+    val meta = Metadata(List("1234567890abc", "main"))
     val v = V(1, 2, 3).copy(metadata = Some(meta))
     assertEquals(v.show, "1.2.3")
   }
 
   test("show: pre-release present, metadata excluded") {
-    val meta = Metadata(List("sha1234567890abc"))
+    val meta = Metadata(List("1234567890abc"))
     val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.beta(PRN(5))), metadata = Some(meta))
     assertEquals(v.show, "1.0.0-beta.5")
   }
@@ -70,35 +70,6 @@ class VersionShowSuite extends munit.FunSuite:
     assertEquals(SemVer.Formatter.standard.format(v), v.show)
   }
 
-  // --- Formatter.extended ---
-
-  test("Formatter.extended: core version only") {
-    assertEquals(SemVer.Formatter.extended.format(V(1, 2, 3)), "1.2.3")
-  }
-
-  test("Formatter.extended: with pre-release only") {
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.releaseCandidate(PRN(3))))
-    assertEquals(SemVer.Formatter.extended.format(v), "1.0.0-rc.3")
-  }
-
-  test("Formatter.extended: with build metadata only") {
-    val meta = Metadata(List("build", "123"))
-    val v = V(1, 2, 3).copy(metadata = Some(meta))
-    assertEquals(SemVer.Formatter.extended.format(v), "1.2.3+build.123")
-  }
-
-  test("Formatter.extended: with both pre-release and metadata") {
-    val meta = Metadata(List("sha1234567890abc", "branch", "main"))
-    val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
-    assertEquals(SemVer.Formatter.extended.format(v), "1.0.0-alpha.1+sha1234567.branch.main")
-  }
-
-  test("Formatter.extended: SHA truncation") {
-    val meta = Metadata(List("pr42", "branchfeature-x", "commits5", "shaabcdef1234567", "dirty"))
-    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
-    assertEquals(SemVer.Formatter.extended.format(v), "2.1.0-SNAPSHOT+pr42.branchfeature-x.commits5.shaabcdef1.dirty")
-  }
-
   // --- Formatter.full ---
 
   test("Formatter.full: preserves complete metadata") {
@@ -108,10 +79,19 @@ class VersionShowSuite extends munit.FunSuite:
   }
 
   test("Formatter.full: preserves full SHA (no truncation)") {
-    val longSha = "shaabcdef1234567890"
-    val meta = Metadata(List(longSha, "branch", "main"))
+    val longSha = "abcdef1234567890abcdef1234567890abcdef12"
+    val meta = Metadata(List(longSha, "main"))
     val v = V(1, 0, 0).copy(metadata = Some(meta))
-    assertEquals(SemVer.Formatter.full.format(v), s"1.0.0+$longSha.branch.main")
+    assertEquals(SemVer.Formatter.full.format(v), s"1.0.0+$longSha.main")
+  }
+
+  test("Formatter.full: renders the development-version layout verbatim") {
+    val meta = Metadata(List("202605170145", "main", "abcdef123456", "pr42", "dirty"))
+    val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
+    assertEquals(
+      SemVer.Formatter.full.format(v),
+      "2.1.0-SNAPSHOT+202605170145.main.abcdef123456.pr42.dirty"
+    )
   }
 
   // --- Explicit variant selection ---
@@ -120,7 +100,6 @@ class VersionShowSuite extends munit.FunSuite:
     val meta = Metadata(List("build"))
     val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
     assertEquals(SemVer.Formatter.standard.format(v), "1.2.3-alpha.1")
-    assertEquals(SemVer.Formatter.extended.format(v), "1.2.3-alpha.1+build")
     assertEquals(SemVer.Formatter.full.format(v), "1.2.3-alpha.1+build")
   }
 

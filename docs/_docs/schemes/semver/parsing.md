@@ -4,8 +4,8 @@ title: Parsing
 
 The core library provides robust parsing for SemVer 2.0.0 strings via:
 
-- `SemVer.parse(input)` and `SemVer.parseUnsafe(input)` - parse strings to [[version.semver.SemVer SemVer]]
-- [[version.semver.PreRelease.Resolver]] - maps pre-release identifiers to structured `PreRelease`
+- `SemVer.parse(input)` and `SemVer.parseUnsafe(input)` - parse strings to `SemVer`
+- `PreRelease.Resolver` - maps pre-release identifiers to structured `PreRelease`
 
 ### Basic Usage
 
@@ -74,7 +74,7 @@ SemVer.parse("1.2.3+build.456.dirty")
 
 ### Custom Pre-release Mapping
 
-Implement [[version.semver.PreRelease.Resolver]] to handle non-standard pre-release formats. The resolver receives
+Implement `PreRelease.Resolver` to handle non-standard pre-release formats. The resolver receives
 dot-separated identifier tokens and returns `Some(PreRelease)` on success or `None` to reject.
 
 ```scala
@@ -145,10 +145,10 @@ SemVer.parse("abc") match
 
 ### Validation Summary
 
-| Component          | Constraint             | Error                                    |
-|--------------------|------------------------|------------------------------------------|
-| Major              | >= 0                   | `InvalidComponent(value, "Major", ...)`  |
-| Minor              | >= 0                   | `InvalidComponent(value, "Minor", ...)`  |
-| Patch              | >= 0                   | `InvalidComponent(value, "Patch", ...)`  |
-| Pre-release number | >= 1                   | `InvalidComponent(value, ...)`           |
-| Build metadata     | Non-empty, valid chars | `InvalidMetadata`                        |
+| Component          | Constraint             | Error                                   |
+|--------------------|------------------------|-----------------------------------------|
+| Major              | >= 0                   | `InvalidComponent(value, "Major", ...)` |
+| Minor              | >= 0                   | `InvalidComponent(value, "Minor", ...)` |
+| Patch              | >= 0                   | `InvalidComponent(value, "Patch", ...)` |
+| Pre-release number | >= 1                   | `InvalidComponent(value, ...)`          |
+| Build metadata     | Non-empty, valid chars | `InvalidMetadata`                       |

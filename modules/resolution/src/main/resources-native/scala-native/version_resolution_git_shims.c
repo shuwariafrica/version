@@ -1,5 +1,4 @@
 #include <git2.h>
-#include <stdlib.h>
 
 /* --------------------------------------------------------------------------
  * working-tree dirty count
@@ -11,7 +10,7 @@
  * the working tree is clean. Returns -1 on libgit2 failure.
  *
  * Implemented as a single shim so that the git_status_options struct is stack-allocated
- * and properly initialised via GIT_STATUS_OPTIONS_INIT — heap-allocating a
+ * and properly initialised via GIT_STATUS_OPTIONS_INIT - heap-allocating a
  * git_status_options across the FFI boundary triggers a segfault inside
  * git_diff_index_to_workdir on musl/Alpine, even when the struct is otherwise valid.
  */
@@ -35,56 +34,67 @@ int version_resolution_git_workdir_dirty_count(git_repository* repo) {
 }
 
 /* --------------------------------------------------------------------------
- * git_error
+ * git_error message accessor
  * -------------------------------------------------------------------------- */
 
-/**
- * Read the message field from a git_error.
- * Returns NULL if err is NULL.
- */
+/* Read the message field from a git_error; NULL if err is NULL. The shim
+ * keeps the git_error struct shape out of the Scala FFI surface. */
 const char* version_resolution_git_error_message(const git_error* err) {
     return err ? err->message : NULL;
 }
 
-/**
- * Read the klass field from a git_error.
- * Returns 0 if err is NULL.
- */
-int version_resolution_git_error_klass(const git_error* err) {
-    return err ? err->klass : 0;
+/* TODO(scala-native#4908): drop this section once the fix ships. */
+
+#ifdef __linux__
+
+#include <stdbool.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+/* Layout must match scala-native's ThreadInfo (nativeThreadTLS.h) through
+ * isMainThread (read) and maxStackSize (write). */
+typedef struct SnThreadInfo {
+    size_t stackSize;
+    size_t maxStackSize;
+    void *stackTop;
+    void *stackBottom;
+    void *stackGuardPage;
+    bool isMainThread;
+    bool pendingStackOverflowException;
+    void *signalHandlerStack;
+    size_t signalHandlerStackSize;
+} SnThreadInfo;
+
+extern SnThreadInfo *scalanative_currentThreadInfo(void);
+
+/* Restore the main thread's maxStackSize to RLIMIT_STACK; scala-native's
+ * detectStackBounds clobbers it with pthread_attr_getstack's initial-mapping
+ * size on Linux. Idempotent. */
+int version_resolution_fix_main_thread_stack_limit(void) {
+    SnThreadInfo *ti = scalanative_currentThreadInfo();
+    if (ti == NULL) return 0;
+    if (!ti->isMainThread) return 0;
+
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_STACK, &rl) != 0) return 0;
+    if (rl.rlim_cur == RLIM_INFINITY) return 0;
+
+    long pageSize = sysconf(_SC_PAGESIZE);
+    if (pageSize <= 0) return 0;
+
+    /* rlimit minus 4 guard pages - mirror scalanative_setupCurrentThreadInfo. */
+    if ((size_t)rl.rlim_cur <= (size_t)(4 * pageSize)) return 0;
+    size_t correctMax = (size_t)rl.rlim_cur - (size_t)(4 * pageSize);
+    if (correctMax > ti->maxStackSize) {
+        ti->maxStackSize = correctMax;
+        return 1;
+    }
+    return 0;
 }
 
-/* --------------------------------------------------------------------------
- * git_repository_is_bare
- * -------------------------------------------------------------------------- */
+#else  /* non-Linux: pthread_attr_getstack returns the actual stack size, no
+        * patching needed. Provide a stub so the Scala extern resolves. */
 
-/**
- * Thin wrapper: git_repository_is_bare returns non-zero if bare.
- */
-int version_resolution_git_repository_is_bare(git_repository* repo) {
-    return git_repository_is_bare(repo);
-}
+int version_resolution_fix_main_thread_stack_limit(void) { return 0; }
 
-/* --------------------------------------------------------------------------
- * git_commit_time
- * -------------------------------------------------------------------------- */
-
-/**
- * Thin wrapper: git_commit_time returns git_time_t (int64_t).
- * We return as int for the RawCommit.commitTime field (seconds since epoch,
- * matching JGit RevCommit.getCommitTime() which returns int).
- */
-int version_resolution_git_commit_time(const git_commit* commit) {
-    return (int)git_commit_time(commit);
-}
-
-/* --------------------------------------------------------------------------
- * git_commit_message_encoding
- * -------------------------------------------------------------------------- */
-
-/**
- * Returns the encoding of the commit message, or NULL for UTF-8 default.
- */
-const char* version_resolution_git_commit_message_encoding(const git_commit* commit) {
-    return git_commit_message_encoding(commit);
-}
+#endif

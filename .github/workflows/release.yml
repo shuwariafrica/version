@@ -1,0 +1,260 @@
+name: "Release"
+
+on:
+  workflow_dispatch:
+  push:
+    tags: [ v* ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  SBT_OPTS: >- # Use all available resources
+    -Xmx10G
+    -Xms6G
+    -Xss4M
+    -XX:ReservedCodeCacheSize=512M
+
+jobs:
+  publish_binaries:
+    name: Publish Release Binaries
+    # Sources binaries from the CI run that built this commit on main —
+    # the test matrix produces the exact static-musl/macOS/Windows archives
+    # we publish, so we don't rebuild here.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Resolve CI Run
+        id: ci-run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Walk recent CI runs for this commit and accept the first one whose
+          # binary-* artefact set is non-empty. Filtering by `--status success`
+          # alone would accept a run where the native matrix was skipped.
+          mapfile -t run_ids < <(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow CI \
+            --commit "${{ github.sha }}" \
+            --status success \
+            --limit 5 \
+            --json databaseId --jq '.[].databaseId')
+          run_id=""
+          for id in "${run_ids[@]}"; do
+            count=$(gh api "repos/${{ github.repository }}/actions/runs/$id/artifacts" \
+              --jq '[.artifacts[] | select(.name | startswith("binary-"))] | length')
+            if [[ "$count" -gt 0 ]]; then
+              run_id="$id"
+              break
+            fi
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful CI run with binary-* artefacts found for ${{ github.sha }}. Push the commit to main and let CI complete before tagging."
+            exit 1
+          fi
+          echo "Resolved CI run: $run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download Binaries
+        uses: actions/download-artifact@v8
+        with:
+          path: archives
+          pattern: binary-*
+          merge-multiple: true
+          run-id: ${{ steps.ci-run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Binaries Downloaded
+        run: |
+          if [[ -z "$(ls -A archives 2>/dev/null)" ]]; then
+            echo "::error::CI run ${{ steps.ci-run.outputs.run_id }} produced no binary-* artefacts."
+            exit 1
+          fi
+          ls -la archives/
+
+      - name: Generate Checksums
+        run: |
+          cd archives
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create "${{ github.ref_name }}" \
+              --repo "${{ github.repository }}" \
+              --title "${{ github.ref_name }}" \
+              --draft \
+              --generate-notes
+          for archive in archives/*; do
+            gh release upload "${{ github.ref_name }}" "$archive" \
+              --repo "${{ github.repository }}" --clobber
+          done
+
+  publish_maven:
+    name: Publish Maven Artefacts
+    # Uses `container:` rather than run-sbt.sh so crazy-max/ghaction-import-gpg
+    # and sbt share one filesystem; this avoids bind-mounting the host's
+    # ~/.gnupg (with its gpg-agent socket) into a separate `docker run`.
+    runs-on: ubuntu-24.04
+    container: shuwariafrica/el10-jdk:17
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Resolve libgit2 SHA
+        id: libgit2
+        shell: bash
+        run: echo "sha=$(git -C vendor/libgit2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache libgit2 Build
+        uses: actions/cache@v5
+        with:
+          path: vendor/libgit2/build
+          key: libgit2-v2-publish-maven-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
+
+      - name: Import Signing Key
+        uses: crazy-max/ghaction-import-gpg@v7
+        with:
+          gpg_private_key: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+          trust_level: 5
+
+      - name: Publish Artefacts
+        run: sbt publishSigned sonaUpload sonaRelease
+        env:
+          SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
+          SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}
+
+  docs:
+    name: Build Documentation Site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:17
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Build Documentation Site
+        id: build-site
+        # generateUnidoc emits `site_dir` and `readme_path` to $GITHUB_OUTPUT
+        # (see project/UnidocPlugin.scala). Downstream steps consume them
+        # via `steps.build-site.outputs.<name>`.
+        run: project/scripts/run-sbt.sh -Dsbt.ci=true docs/generateUnidoc
+
+      - name: Verify Documentation Built
+        run: |
+          site_dir="${{ steps.build-site.outputs.site_dir }}"
+          test -s "$site_dir/index.html" \
+            || { echo "::error::Documentation site build produced no index.html"; exit 1; }
+          touch "$site_dir/.nojekyll"
+
+      - name: Upload Pages Artefact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ steps.build-site.outputs.site_dir }}
+
+      - name: Upload Rendered README
+        uses: actions/upload-artifact@v7
+        with:
+          name: readme
+          path: ${{ steps.build-site.outputs.readme_path }}
+          retention-days: 1
+          if-no-files-found: error
+
+  site-release:
+    name: Release Documentation Site
+    needs: [ publish_binaries, publish_maven, docs ]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+    timeout-minutes: 15
+    steps:
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Deploy to GitHub Pages
+        id: deploy-pages
+        uses: actions/deploy-pages@v5
+
+      - name: Download Processed README
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: readme
+          path: readme
+
+      - name: Update README on Main
+        if: ${{ !contains(github.ref_name, '-') }}
+        uses: actions/github-script@v8
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        with:
+          script: |
+            const fs = require('fs');
+            const rendered = fs.readFileSync('readme/README.md', 'utf8');
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const path = 'README.md';
+
+            const { data: mainReadme } = await github.rest.repos.getContent({ owner, repo, path, ref: 'main' });
+            const current = Buffer.from(mainReadme.content, 'base64').toString('utf8');
+            if (current === rendered) {
+              core.info(`README on main already matches rendered output for ${process.env.RELEASE_TAG}`);
+              return;
+            }
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, path,
+              message: `Update README for ${process.env.RELEASE_TAG}`,
+              content: Buffer.from(rendered).toString('base64'),
+              sha: mainReadme.sha,
+              branch: 'main',
+            });
+            core.info(`Update README for ${process.env.RELEASE_TAG}`);
+
+      - name: Finalise GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          prerelease_flag=""
+          if [[ "${{ github.ref_name }}" == *-* ]]; then
+            prerelease_flag="--prerelease"
+          fi
+          gh release edit "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --verify-tag \
+            --draft=false \
+            $prerelease_flag

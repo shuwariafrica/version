@@ -2,12 +2,14 @@
 title: Version Schemes
 ---
 
-A version scheme defines how version numbers are structured, parsed, compared, and advanced. The `version` library is scheme-generic - each scheme plugs in via a single import, and all tools (parsing, resolution, sbt plugin) work with it automatically.
+A version scheme defines how version numbers are structured, parsed, compared, and advanced. The `version` library is
+scheme-generic - each scheme plugs in via a single import, and all tools (parsing, resolution, sbt plugin) work with it
+automatically.
 
 ## Available Schemes
 
-| Scheme | Import | Status |
-|--------|--------|--------|
+| Scheme                             | Import                    | Status |
+|------------------------------------|---------------------------|--------|
 | [SemVer 2.0.0](semver/overview.md) | `import version.semver.*` | Stable |
 
 Additional schemes will appear here as they are implemented.
@@ -31,11 +33,11 @@ No explicit `given` imports are needed - Scala 3 finds instances in the companio
 
 Each scheme provides progressively richer capabilities:
 
-| Capability | What It Provides |
-|------------|-----------------|
-| **Parsing and rendering** | Parse strings, produce canonical output, compare and order versions |
+| Capability                 | What It Provides                                                         |
+|----------------------------|--------------------------------------------------------------------------|
+| **Parsing and rendering**  | Parse strings, produce canonical output, compare and order versions      |
 | **Component manipulation** | Bump or set individual components (e.g. increment major, set patch to 5) |
-| **Git-based resolution** | Derive versions from repository state via commit directives and tags |
+| **Git-based resolution**   | Derive versions from repository state via commit directives and tags     |
 
 The SemVer scheme supports all three. Simpler schemes may support only parsing and rendering.
 
@@ -43,10 +45,11 @@ The SemVer scheme supports all three. Simpler schemes may support only parsing a
 
 Scheme components carry semantic roles that drive automatic versioning:
 
-| Role | Meaning | SemVer |
-|------|---------|--------|
-| `Breaking` | API-incompatible changes | Major |
-| `Feature` | Backwards-compatible additions | Minor |
-| `Fix` | Backwards-compatible fixes | Patch |
+| Role       | Meaning                        | SemVer |
+|------------|--------------------------------|--------|
+| `Breaking` | API-incompatible changes       | Major  |
+| `Feature`  | Backwards-compatible additions | Minor  |
+| `Fix`      | Backwards-compatible fixes     | Patch  |
 
-Commit directives like `breaking:` and `feature:` map to these roles, making automatic versioning work across different schemes.
+Commit directives like `breaking:` and `feature:` map to these roles, making automatic versioning work across different
+schemes.

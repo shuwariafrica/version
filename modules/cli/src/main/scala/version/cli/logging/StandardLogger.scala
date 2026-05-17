@@ -15,7 +15,6 @@
  ****************************************************************************/
 package version.cli.logging
 
-import version.cli.logging.AnsiColours.colorize
 import version.resolution.logging.LogEntry
 import version.resolution.logging.LogLevel
 import version.resolution.logging.Logger
@@ -39,11 +38,7 @@ object AnsiColours:
   val Gray = "\u001b[90m" // Debug/verbose output
   val Bold = "\u001b[1m"
 
-  extension (colour: String)
-    /** Apply colour to text with automatic reset. */
-    inline def colorize(text: String): String = s"$colour$text$Reset"
-
-/** Configuration for coloured output behavior. */
+/** Configuration for coloured output behaviour. */
 final case class ColourConfig(enableColours: Boolean, isCI: Boolean)
 
 object ColourConfig:
@@ -67,9 +62,9 @@ object ColourConfig:
     ColourConfig(enableColours = enable, isCI = isCI)
 
   extension (config: ColourConfig)
-    /** Apply colour if enabled, otherwise return plain text. */
-    inline def colourize(text: String, colour: String): String =
-      if config.enableColours then colour.colorize(text) else text
+    /** Apply `colour` around `text` with automatic reset when colour is enabled, otherwise return plain text. */
+    inline def colourise(text: String, colour: String): String =
+      if config.enableColours then s"$colour$text${AnsiColours.Reset}" else text
 end ColourConfig
 
 /** Shared log routing to avoid duplication in concrete loggers. */
@@ -84,12 +79,10 @@ abstract class BaseLogger(protected val logConfig: LogConfig) extends Logger:
         System.err.println(formatEntry(entry))
       case _ => () // Skip if verbose not enabled
 
-/** Standard implementation of Logger that outputs to stdout/stderr with optional colours.
+/** Writes [[Logger]] entries to stdout/stderr with optional ANSI colour.
   *
-  * This implementation follows the specification:
-  *   - Error logs go to stderr
-  *   - Version output goes to stdout with appropriate colours
-  *   - Debug/verbose logs go to stderr in gray
+  * Error entries and verbose diagnostics go to stderr; the resolved version (when emitted via [[outputVersion]]) goes
+  * to stdout. Colour application is gated on [[ColourConfig]].
   */
 final class StandardLogger(
   logConfig: LogConfig,
@@ -98,14 +91,14 @@ final class StandardLogger(
 
   /** Format a version with appropriate colours based on its type. */
   private inline def formatVersion(version: SemVer): String =
-    val versionStr = SemVer.Formatter.extended.format(version)
-    if version.preRelease.isEmpty then colourConfig.colourize(versionStr, AnsiColours.Green)
-    else if version.snapshot then colourConfig.colourize(versionStr, AnsiColours.Red)
-    else colourConfig.colourize(versionStr, AnsiColours.Yellow)
+    val versionStr = SemVer.Formatter.full.format(version)
+    if version.preRelease.isEmpty then colourConfig.colourise(versionStr, AnsiColours.Green)
+    else if version.snapshot then colourConfig.colourise(versionStr, AnsiColours.Red)
+    else colourConfig.colourise(versionStr, AnsiColours.Yellow)
 
   /** Output a version to stdout with appropriate formatting. */
   def outputVersion(version: SemVer): Unit =
-    val formatted = if colourConfig.isCI then SemVer.Formatter.extended.format(version) else formatVersion(version)
+    val formatted = if colourConfig.isCI then SemVer.Formatter.full.format(version) else formatVersion(version)
     println(formatted)
 
   private inline def levelPrefix(level: LogLevel): String = level match
@@ -121,7 +114,7 @@ final class StandardLogger(
     val contextStr = entry.context.fold("")(ctx => s"[$ctx] ")
     val prefix = levelPrefix(entry.level)
     val fullMessage = s"$timestamp$contextStr${entry.message}"
-    colourConfig.colourize(prefix + fullMessage, levelColour(entry.level))
+    colourConfig.colourise(prefix + fullMessage, levelColour(entry.level))
 end StandardLogger
 
 object StandardLogger:

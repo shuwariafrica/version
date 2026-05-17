@@ -2,24 +2,26 @@
 title: Getting Started
 ---
 
-A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build integration.
+A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build
+integration.
 
 ---
 
 ## Modules
 
-| Module               | Platforms       | Description                           |
-|----------------------|-----------------|---------------------------------------|
-| `version`            | JVM, JS, Native | Version model, parsing, operations    |
-| `version-resolution` | JVM, Native     | Automatic version derivation from Git |
-| `sbt-version`        | sbt 2.x        | Build integration                     |
+| Module               | Platforms   | Description                             |
+|----------------------|-------------|-----------------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations      |
+| `version-resolution` | JVM, Native | Automatic version derivation from Git   |
+| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
+| `sbt-version`        | sbt 2.x     | Build integration                       |
 
 ```scala
 // Core library
 libraryDependencies += "africa.shuwari" %%% "version" % "@VERSION@"
 
-// Automatic versioning (JVM/Native only - use %% not %%%)
-libraryDependencies += "africa.shuwari" %% "version-resolution" % "@VERSION@"
+// Automatic versioning
+libraryDependencies += "africa.shuwari" %%% "version-resolution" % "@VERSION@"
 
 // sbt plugin
 addSbtPlugin("africa.shuwari" % "sbt-version" % "@VERSION@")
@@ -46,8 +48,6 @@ v.core          // 1.2.3
 
 ---
 
-## How It Works
-
 ## Automatic Versioning
 
 The resolution engine and sbt plugin derive versions from Git state:
@@ -68,9 +68,9 @@ The resolution engine and sbt plugin derive versions from Git state:
 
 ### Platform Support
 
-| Scala             | JDK            | Scala.js           | Scala Native           |
-|-------------------|----------------|--------------------|------------------------|
-| @SCALA3_VERSION@+ | @JDK_VERSION@+ | @SCALAJS_VERSION@+ | @SCALANATIVE_VERSION@+ |
+| Scala             | JDK            | Scala Native           |
+|-------------------|----------------|------------------------|
+| @SCALA3_VERSION@+ | @JDK_VERSION@+ | @SCALANATIVE_VERSION@+ |
 
 ### Licence
 

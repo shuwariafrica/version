@@ -19,9 +19,9 @@ import version.ResolvableScheme
 import version.resolution.domain.Keyword
 import version.resolution.domain.Tag
 
-/** Logic for selecting/deriving the target version core given keywords and context.
-  *
-  * All operations use the scheme's type class methods - zero scheme-specific imports.
+/** Selects or derives the target version core from extracted [[version.resolution.domain.Keyword Keyword]] directives
+  * and the reachable tag context, using the supplied [[version.ResolvableScheme ResolvableScheme]] for component
+  * manipulation.
   */
 object TargetVersionCalculator:
 

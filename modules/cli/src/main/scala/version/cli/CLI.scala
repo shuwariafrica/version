@@ -145,7 +145,7 @@ object CLI:
     val sep = System.lineSeparator()
     b.append(s"Version:$sep")
     b.append(s"  version   : ${v.show}$sep")
-    b.append(s"  extended  : ${SemVer.Formatter.extended.format(v)}$sep")
+    b.append(s"  full      : ${SemVer.Formatter.full.format(v)}$sep")
     b.append(s"  preRelease: ${v.preRelease.fold("none")(_.show)}$sep")
     b.append(s"  metadata  : ${v.metadata.map(_.show).getOrElse("none")}$sep")
     b.result()

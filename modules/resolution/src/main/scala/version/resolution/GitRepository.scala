@@ -57,6 +57,9 @@ trait GitRepository extends AutoCloseable:
   /** Walks commits from `from` (inclusive) back to `until` (exclusive), following first-parent only. */
   def walkFirstParent(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]]
 
+  /** Looks up a single commit by its SHA and returns it as a [[RawCommit]]. */
+  def loadCommit(sha: CommitSha): Either[GitError, RawCommit]
+
   /** Returns the hex SHA truncated to `length` characters. */
   def abbreviate(id: CommitSha, length: Int): Either[GitError, String]
 end GitRepository

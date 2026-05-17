@@ -13,32 +13,26 @@ import scala.sys.process.Process
   * Usage in CI:
   * {{{
   *   sbt -Dactions.publish.target=<id> \
-  *       -Drelease.binary=true [-Drelease.binary.static=true] \
+  *       [-Drelease.binary.static=true] \
   *       version-cliNative/releaseArchive
   * }}}
   *
-  * Single source of truth for "what gets shipped, in what shape" lives here in Scala so the release pipeline does not
+  * Single source of truth for "what gets shipped, in what shape" lives here so the release pipeline does not
   * duplicate the staging logic across YAML branches.
   */
 object ActionsPublish extends AutoPlugin:
-
-  val releaseArchiveTarget = settingKey[String](
-    "Platform identifier embedded in the release archive name (e.g. linux-x86_64-musl, " +
-      "macos-aarch64, windows-x86_64). Read from `-Dactions.publish.target=<id>`."
-  )
 
   val releaseArchive = taskKey[File](
     "Stage the native binary, shell completions and licence files; produce a tar.gz " +
       "or zip; emit `archive=<path>` and `binary=<path>` to $GITHUB_OUTPUT when set."
   )
 
+  private inline val TargetProperty = "actions.publish.target"
+
   override def trigger = noTrigger
   override def requires: Plugins = ScalaNativePlugin
 
   override def projectSettings: Seq[Setting[?]] = Seq(
-    // Empty default so non-release reloads don't trip on a missing system property.
-    // `releaseArchive` validates non-emptiness when it actually runs.
-    releaseArchiveTarget := sys.props.getOrElse("actions.publish.target", ""),
     releaseArchive := Def.uncached(stageAndArchive.value)
   )
 
@@ -51,11 +45,8 @@ object ActionsPublish extends AutoPlugin:
     val binary = converter.toPath(binaryRef).toFile
     val rootBase = (ThisBuild / baseDirectory).value
     val outDir = target.value
-    val targetId = releaseArchiveTarget.value
-    if targetId.isEmpty then
-      sys.error(
-        "ActionsPublish: required system property `-Dactions.publish.target=<id>` is not set"
-      )
+    val targetId = sys.props.getOrElse(TargetProperty, "")
+    if targetId.isEmpty then sys.error(s"ActionsPublish: required system property `-D$TargetProperty=<id>` is not set")
     val ver = version.value
 
     val isWindows = targetId.startsWith("windows-")
@@ -77,7 +68,7 @@ object ActionsPublish extends AutoPlugin:
     IO.copyFile(rootBase / "LICENSE", staging / s"LICENSE$licenseExt")
     IO.copyFile(rootBase / "NOTICE", staging / s"NOTICE$licenseExt")
 
-    val completionsSrc = rootBase / "packaging" / "completions"
+    val completionsSrc = rootBase / "project" / "completions"
     val completionFiles =
       if isWindows then Seq("version.ps1")
       else Seq("version.bash", "_version", "version.fish")
@@ -89,9 +80,13 @@ object ActionsPublish extends AutoPlugin:
     else writeTarGz(staging, archive, log)
 
     sys.env.get("GITHUB_OUTPUT").foreach { ghOutput =>
+      // Emit forward-slash form so downstream `shell: bash` steps on Windows
+      // runners receive paths bash quotes losslessly; native Windows tools
+      // accept either separator.
+      def normalise(f: File): String = f.getAbsolutePath.replace('\\', '/')
       val outputs = Seq(
-        s"archive=${archive.getAbsolutePath}",
-        s"binary=${binary.getAbsolutePath}",
+        s"archive=${normalise(archive)}",
+        s"binary=${normalise(binary)}",
         ""
       ).mkString("\n")
       IO.append(new File(ghOutput), outputs)
@@ -101,8 +96,8 @@ object ActionsPublish extends AutoPlugin:
     archive
   }
 
-  /** Pure-JVM zip via sbt.io.IO.zip. Entries are pathed relative to the staging directory's parent so the archive
-    * contains `<archiveBase>/...`, matching the tar.gz layout convention.
+  /** Entries are pathed relative to the staging directory's parent so the archive contains `<archiveBase>/...`,
+    * matching the tar.gz layout convention.
     */
   private def writeZip(staging: File, archive: File): Unit =
     val parent = staging.getParentFile.toPath
@@ -116,9 +111,6 @@ object ActionsPublish extends AutoPlugin:
         }
     IO.zip(entries, archive, None)
 
-  /** Tarball + gzip via the host `tar`. Linux/macOS runners ship tar natively; Windows runners get it via Git Bash.
-    * Single-call invocation for portability.
-    */
   private def writeTarGz(staging: File, archive: File, log: Logger): Unit =
     val parent = staging.getParentFile
     val baseName = staging.getName

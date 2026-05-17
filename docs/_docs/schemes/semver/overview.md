@@ -18,16 +18,16 @@ All SemVer types, extensions, and `given` instances are accessible from this sin
 
 ## Types
 
-| Type | Purpose | Constraint |
-|------|---------|------------|
-| `Major` | Major component | >= 0 |
-| `Minor` | Minor component | >= 0 |
-| `Patch` | Patch component | >= 0 |
-| `PreReleaseNumber` | Pre-release version | >= 1 |
-| `PreReleaseClassifier` | Classifier enum | dev, milestone, alpha, beta, rc, snapshot |
-| `PreRelease` | Structured pre-release | Classifier + optional number |
-| `Metadata` | Build identifiers | `[0-9A-Za-z-]+` per identifier |
-| `SemVer` | Complete version | `MAJOR.MINOR.PATCH[-PRERELEASE][+META]` |
+| Type                   | Purpose                | Constraint                                |
+|------------------------|------------------------|-------------------------------------------|
+| `Major`                | Major component        | >= 0                                      |
+| `Minor`                | Minor component        | >= 0                                      |
+| `Patch`                | Patch component        | >= 0                                      |
+| `PreReleaseNumber`     | Pre-release version    | >= 1                                      |
+| `PreReleaseClassifier` | Classifier enum        | dev, milestone, alpha, beta, rc, snapshot |
+| `PreRelease`           | Structured pre-release | Classifier + optional number              |
+| `Metadata`             | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
+| `SemVer`               | Complete version       | `MAJOR.MINOR.PATCH[-PRERELEASE][+META]`   |
 
 ## Quick Reference
 
@@ -58,11 +58,11 @@ v.as[Snapshot]      // 1.2.3-SNAPSHOT
 v.as[Beta]          // 1.2.3-beta.1
 
 // Rendering
-v.show                              // "1.2.3-alpha.1"
-SemVer.Formatter.extended.format(v) // "1.2.3-alpha.1+build.456"
+v.show                          // "1.2.3-alpha.1"
+SemVer.Formatter.full.format(v) // "1.2.3-alpha.1+build.456"
 ```
 
-Supports JVM, Scala.js, and Scala Native.
+Supports JVM and Scala Native.
 
 ### See Also
 

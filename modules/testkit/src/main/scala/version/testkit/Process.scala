@@ -1,20 +1,18 @@
-/****************************************************************
- * Copyright © 2023, 2026 Shuwari Africa Ltd.                   *
- *                                                              *
- * This file is licensed to you under the terms of the Apache   *
- * License Version 2.0 (the "License"); you may not use this    *
- * file except in compliance with the License. You may obtain   *
- * a copy of the License at:                                    *
- *                                                              *
- *     https://www.apache.org/licenses/LICENSE-2.0              *
- *                                                              *
- * Unless required by applicable law or agreed to in writing,   *
- * software distributed under the License is distributed on an  *
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, *
- * either express or implied. See the License for the specific  *
- * language governing permissions and limitations under the     *
- * License.                                                     *
- ****************************************************************/
+/****************************************************************************
+ * Copyright 2023-2026 Shuwari Africa Ltd.                                  *
+ *                                                                          *
+ * Licensed under the Apache License, Version 2.0 (the "License");          *
+ * you may not use this file except in compliance with the License.         *
+ * You may obtain a copy of the License at                                  *
+ *                                                                          *
+ *     http://www.apache.org/licenses/LICENSE-2.0                           *
+ *                                                                          *
+ * Unless required by applicable law or agreed to in writing, software      *
+ * distributed under the License is distributed on an "AS IS" BASIS,        *
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. *
+ * See the License for the specific language governing permissions and      *
+ * limitations under the License.                                           *
+ ****************************************************************************/
 package version.testkit
 
 import java.io.FileInputStream
@@ -49,6 +47,8 @@ object Process:
   // scalafix:on
 
   private val MaxStartAttempts = 5
+  private val InitialBackoffMillis = 10L
+  private val MaxBackoffMillis = 500L
 
   private def startWithRetry(
     command: Seq[String],
@@ -62,6 +62,9 @@ object Process:
       .redirectError(stderrFile.toFile)
     attemptStart(pb, 1)
 
+  private inline def backoffMillis(attempt: Int): Long =
+    Math.min(InitialBackoffMillis * (1L << attempt), MaxBackoffMillis)
+
   // scalafix:off DisableSyntax.throw
   @scala.annotation.tailrec
   private def attemptStart(pb: ProcessBuilder, attempt: Int): java.lang.Process =
@@ -72,7 +75,7 @@ object Process:
       case Right(process)                             => process
       case Left(error) if attempt >= MaxStartAttempts => throw error
       case Left(_)                                    =>
-        Thread.sleep((10L << attempt).min(500L))
+        Thread.sleep(backoffMillis(attempt))
         attemptStart(pb, attempt + 1)
   // scalafix:on
 

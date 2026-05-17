@@ -28,6 +28,7 @@ import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 
+import scala.annotation.threadUnsafe
 import scala.util.Using
 import scala.util.boundary
 import scala.util.boundary.break
@@ -39,6 +40,8 @@ import version.resolution.domain.*
 // scalafix:off
 /** JGit-backed [[GitRepository]] implementation for the JVM platform. */
 final class JvmGitRepository private (repo: Repository) extends GitRepository:
+
+  @threadUnsafe private var closed: Boolean = false
 
   def head: Either[GitError, Option[CommitSha]] =
     try
@@ -164,6 +167,17 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
       case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.nn))
       case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.nn))
 
+  def loadCommit(sha: CommitSha): Either[GitError, RawCommit] =
+    try
+      Using.resource(new RevWalk(repo)): rw =>
+        val oid = ObjectId.fromString(sha.value)
+        val commit = rw.parseCommit(oid)
+        Right(toRawCommit(commit))
+    catch
+      case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.nn.name))
+      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.nn))
+      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.nn))
+
   def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
     try
       val oid = ObjectId.fromString(id.value)
@@ -171,8 +185,10 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
     catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.nn))
 
   def close(): Unit =
-    try repo.close()
-    catch case _: Throwable => ()
+    if !closed then
+      closed = true
+      try repo.close()
+      catch case scala.util.control.NonFatal(_) => ()
 
   private def toRawCommit(c: RevCommit): RawCommit =
     val parentIds = IArray.from(c.getParents.nn.map(p => CommitSha(p.nn.getId.name)))
@@ -180,7 +196,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
       id = CommitSha(c.getId.name),
       message = c.getFullMessage.nn,
       parentIds = parentIds,
-      commitTime = c.getCommitTime
+      commitTime = c.getCommitTime.toLong
     )
 end JvmGitRepository
 

@@ -21,9 +21,7 @@ import scala.util.boundary.break
 import version.errors.*
 
 // scalafix:off
-// Hotpath: single-pass, zero-allocation parsing via structured early exit and index arithmetic.
-// Avoids closure/Either allocation per component that chained flatMap would produce.
-// Local mutation (var, while): single-pass character-level scanning eliminates intermediate collections.
+// Index-arithmetic walk with boundary/break: avoids the per-component closure and Either allocation a chained flatMap would produce.
 
 /** SemVer 2.0.0 string parser.
   *

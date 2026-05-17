@@ -15,12 +15,8 @@
  ****************************************************************************/
 package version.resolution.domain
 
-/** A Git commit as returned by the backend walk methods.
-  *
-  * `commitTime` is seconds since epoch, matching JGit `RevCommit.getCommitTime()` and libgit2 `git_commit_time()`.
-  * `parentIds` carries full parent identities, enabling merge detection without a separate backend call.
-  */
-final case class RawCommit(id: CommitSha, message: String, parentIds: IArray[CommitSha], commitTime: Int)
+/** A Git commit as returned by the backend walk methods. `commitTime` is seconds since the Unix epoch. */
+final case class RawCommit(id: CommitSha, message: String, parentIds: IArray[CommitSha], commitTime: Long)
 
 object RawCommit:
   given CanEqual[RawCommit, RawCommit] = CanEqual.derived

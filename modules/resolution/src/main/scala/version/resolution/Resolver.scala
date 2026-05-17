@@ -15,6 +15,7 @@
  ****************************************************************************/
 package version.resolution
 
+import scala.collection.mutable
 import scala.util.boundary
 import scala.util.boundary.break
 
@@ -26,12 +27,12 @@ import version.resolution.parsing.KeywordParser
 
 /** Version resolution engine.
   *
-  * Implements the algorithm from the version resolution specification. Scheme-generic: parameterised by
-  * `[V: ResolvableScheme]`.
+  * Scheme-generic across `[V: ResolvableScheme]`: drives the standard resolution algorithm against any version type
+  * for which a [[version.ResolvableScheme ResolvableScheme]] instance exists.
   */
 object Resolver:
 
-  private def lift[A](r: Either[GitError, A]): Either[ResolutionError, A] =
+  private inline def lift[A](r: Either[GitError, A]): Either[ResolutionError, A] =
     r.left.map(ResolutionError.GitFailure.apply)
 
   /** Resolves the repository version from Git state. */
@@ -52,7 +53,6 @@ object Resolver:
       finally
         repo.close()
 
-  // scalafix:off
   private def doResolve[V](
     config: ResolutionConfig[V],
     repo: GitRepository
@@ -108,11 +108,13 @@ object Resolver:
             val fpCommits = ok(lift(repo.walkFirstParent(basis, baseTag.map(_.commit))))
             val commitCount = fpCommits.count(!_.isMerge)
             val abbreviatedSha = ok(lift(repo.abbreviate(basis, config.shaLength)))
+            val basisCommit = ok(lift(repo.loadCommit(basis)))
             val devMeta = MetadataBuilder.assemble(
               branchOverride = config.branchOverride,
               branchDetected = branchName,
               abbreviatedSha = abbreviatedSha,
               commitCount = commitCount,
+              commitTime = Some(basisCommit.commitTime),
               prNumber = config.prNumber,
               isDirty = isDirty
             )
@@ -121,7 +123,6 @@ object Resolver:
           end if
       end match
   end doResolve
-  // scalafix:on
 
   private def extractKeywords[V](
     commits: IArray[RawCommit],
@@ -179,30 +180,35 @@ object Resolver:
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
-    import scala.util.boundary, boundary.break
-    val mergeCommitsWithIgnore = commits.filter: c =>
-      c.isMerge && KeywordParser
-        .parse[V](c.message)
-        .exists:
-          case Keyword.IgnoreMerged => true
-          case _                    => false
-
+    // Use a mutable HashSet then freeze: avoids the persistent-Set tree-node allocation a `++=` chain would incur per commit.
     boundary:
-      var exclusions = Set.empty[CommitSha]
-      val iter = mergeCommitsWithIgnore.iterator
-      while iter.hasNext do
-        val mc = iter.next()
-        val parents = mc.parentIds.drop(1)
-        val pIter = parents.iterator
-        while pIter.hasNext do
-          val parentId = pIter.next()
-          lift(repo.walkAll(parentId, Some(mc.parentIds(0)))) match
-            case Left(err)     => break(Left(err))
-            case Right(walked) =>
-              exclusions = exclusions ++ walked.map(_.id).toSet
-      Right(exclusions)
+      val exclusions = mutable.HashSet.empty[CommitSha]
+      var i = 0
+      while i < commits.length do
+        val mc = commits(i)
+        if mc.isMerge && hasIgnoreMerged[V](mc) then
+          val firstParent = mc.parentIds(0)
+          var p = 1
+          while p < mc.parentIds.length do
+            lift(repo.walkAll(mc.parentIds(p), Some(firstParent))) match
+              case Left(err)     => break(Left(err))
+              case Right(walked) =>
+                var w = 0
+                while w < walked.length do
+                  exclusions += walked(w).id
+                  w += 1
+            p += 1
+        i += 1
+      Right(exclusions.toSet)
   end computeMergeExclusions
   // scalafix:on
+
+  private inline def hasIgnoreMerged[V](mc: RawCommit)(using ResolvableScheme[V]): Boolean =
+    KeywordParser
+      .parse[V](mc.message)
+      .exists:
+        case Keyword.IgnoreMerged => true
+        case _                    => false
 
   private def calculateTarget[V](
     keywords: List[Keyword],

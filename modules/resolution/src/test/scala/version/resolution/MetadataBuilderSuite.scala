@@ -20,18 +20,22 @@ import munit.FunSuite
 /** Unit tests for [[MetadataBuilder]]. */
 class MetadataBuilderSuite extends FunSuite:
 
-  test("assemble includes all metadata fields in correct order"):
+  private val sampleTime: Option[Long] = Some(1747444500L)
+
+  test("assemble preserves raw branch detected name"):
     val meta = MetadataBuilder.assemble(
       branchOverride = None,
-      branchDetected = Some("main"),
+      branchDetected = Some("Feature/Auth-Fix"),
       abbreviatedSha = "abc1234",
       commitCount = 5,
+      commitTime = sampleTime,
       prNumber = Some(42),
       isDirty = true
     )
-    assertEquals(meta.branch, Some("main"))
+    assertEquals(meta.branch, Some("Feature/Auth-Fix"))
     assertEquals(meta.commitSha, Some("abc1234"))
     assertEquals(meta.commitCount, Some(5))
+    assertEquals(meta.commitTime, sampleTime)
     assertEquals(meta.prNumber, Some(42))
     assertEquals(meta.isDirty, true)
 
@@ -41,47 +45,33 @@ class MetadataBuilderSuite extends FunSuite:
       branchDetected = Some("detected-branch"),
       abbreviatedSha = "abc1234",
       commitCount = 0,
+      commitTime = sampleTime,
       prNumber = None,
       isDirty = false
     )
     assertEquals(meta.branch, Some("override-branch"))
 
-  test("detached HEAD uses 'detached' when no branch detected"):
+  test("detached HEAD (no branch input) yields None for branch"):
     val meta = MetadataBuilder.assemble(
       branchOverride = None,
       branchDetected = None,
       abbreviatedSha = "abc1234",
       commitCount = 0,
+      commitTime = sampleTime,
       prNumber = None,
       isDirty = false
     )
-    assertEquals(meta.branch, Some("detached"))
-
-  test("branch normalisation: lowercase, replace invalid chars, collapse hyphens"):
-    val meta = MetadataBuilder.assemble(
-      branchOverride = None,
-      branchDetected = Some("Feature/ABC_123!!"),
-      abbreviatedSha = "abc1234",
-      commitCount = 0,
-      prNumber = None,
-      isDirty = false
-    )
-    assertEquals(meta.branch, Some("feature-abc-123"))
-
-  test("branch normalisation: empty becomes 'detached'"):
-    val meta = MetadataBuilder.assemble(
-      branchOverride = None,
-      branchDetected = Some("///"),
-      abbreviatedSha = "abc1234",
-      commitCount = 0,
-      prNumber = None,
-      isDirty = false
-    )
-    assertEquals(meta.branch, Some("detached"))
+    assertEquals(meta.branch, None)
 
   test("isDirty flag propagated"):
-    val clean = MetadataBuilder.assemble(None, Some("main"), "abc", 0, None, isDirty = false)
-    val dirty = MetadataBuilder.assemble(None, Some("main"), "abc", 0, None, isDirty = true)
+    val clean = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = false)
+    val dirty = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = true)
     assertEquals(clean.isDirty, false)
     assertEquals(dirty.isDirty, true)
+
+  test("commitTime propagated when present and absent"):
+    val withTime = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = false)
+    val withoutTime = MetadataBuilder.assemble(None, Some("main"), "abc", 0, None, None, isDirty = false)
+    assertEquals(withTime.commitTime, sampleTime)
+    assertEquals(withoutTime.commitTime, None)
 end MetadataBuilderSuite

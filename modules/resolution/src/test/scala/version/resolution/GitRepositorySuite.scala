@@ -244,6 +244,27 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
         assert(sha.startsWith(result.toOption.get))
       finally gr.close()
 
+  test("loadCommit returns RawCommit for an existing sha with non-zero commitTime"):
+    withMinimalRepo("loadCommit-ok"): repo =>
+      val sha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
+      val gr = openTestRepository(repo)
+      try
+        val result = gr.loadCommit(CommitSha(sha))
+        assert(result.isRight, s"Expected Right, got $result")
+        val rc = result.toOption.get
+        assertEquals(rc.id.value, sha)
+        assert(rc.commitTime > 0L, s"Expected positive commitTime, got ${rc.commitTime}")
+      finally gr.close()
+
+  test("loadCommit returns ObjectNotFound for an unknown sha"):
+    withMinimalRepo("loadCommit-missing"): repo =>
+      val gr = openTestRepository(repo)
+      try
+        val unknown = CommitSha("0" * 40)
+        val result = gr.loadCommit(unknown)
+        assert(result.isLeft, s"Expected Left, got $result")
+      finally gr.close()
+
   test("RawCommit.isMerge returns true for merge commits"):
     withMinimalRepo("rawcommit-merge"): repo =>
       Process.runChecked(Seq("git", "checkout", "-q", "-b", "feat"), repo): Unit
