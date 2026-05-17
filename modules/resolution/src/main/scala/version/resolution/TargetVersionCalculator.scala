@@ -16,6 +16,7 @@
 package version.resolution
 
 import version.ResolvableScheme
+import version.Version
 import version.resolution.domain.Keyword
 import version.resolution.domain.Tag
 
@@ -26,7 +27,7 @@ import version.resolution.domain.Tag
 object TargetVersionCalculator:
 
   /** Select the highest accepted target (core only) given the context. */
-  def selectValidTarget[V](
+  def selectValidTarget[V <: Version](
     targets: List[V],
     highestReachable: Option[Tag[V]],
     highestRepo: Option[Tag[V]],
@@ -62,7 +63,7 @@ object TargetVersionCalculator:
   end selectValidTarget
 
   /** Compute target core from generic keywords or default advancement from base. */
-  def fromKeywords[V](baseVersion: V, keywords: List[Keyword])(using scheme: ResolvableScheme[V]): V =
+  def fromKeywords[V <: Version](baseVersion: V, keywords: List[Keyword])(using scheme: ResolvableScheme[V]): V =
     import Keyword.*
     val bumps = keywords.collect { case ComponentBump(i) => i }.distinct
     val sets = keywords

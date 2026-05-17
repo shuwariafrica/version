@@ -17,6 +17,10 @@ package version.cli
 
 import scopt.OParser
 
+import version.Formatter
+import version.ResolvableScheme
+import version.Version
+import version.VersionResolver
 import version.cli.logging.ColourConfig
 import version.cli.logging.LogConfig
 import version.cli.logging.StandardLogger
@@ -32,20 +36,23 @@ import version.semver.SemVer
 
 /** Command-line entry point for version-cli.
   *
-  * This CLI:
-  *   - Invokes the resolution module to resolve a Version for a repository
-  *   - Prints the result in one or more formats: pretty | compact | json | yaml
-  *
-  * Effects are confined to main; underlying core remains pure.
+  * Resolves a [[Version]] from a repository's Git state and renders it via configured sinks.
+  * Resolution is scheme-generic via [[VersionResolver]]; today the only registered scheme is SemVer, so the
+  * SemVer-specific renderers and the JSON sink apply. Other schemes added in future supply their own renderers.
   */
 object CLI:
+
+  /** Internal bundle pairing the resolved value with the resolver's scheme for downstream rendering. */
+  final private case class TypedResult[V <: Version](
+    scheme: ResolvableScheme[V],
+    value: V
+  )
 
   def main(args: Array[String]): Unit =
     val metadata = CiDetector.detectCurrent()
     val parser = CliOptions.parser
     OParser.parse(parser, args, CliOptions.default) match
       case Some(opts0) =>
-        // Possibly inject default console sink already applied by checkConfig; ensure style override for CI if needed.
         val resolvedOpts = applyPostParseDefaults(opts0, metadata)
 
         val logConfig = LogConfig(isVerbose = resolvedOpts.verbose, isCI = resolvedOpts.ci)
@@ -62,22 +69,14 @@ object CLI:
 
         resolvedOpts.command match
           case rc: ResolveConfig =>
-            val baseCfg = ResolutionConfig
-              .default[SemVer](resolvedOpts.repository.toString)
-              .copy(
-                basisCommit = resolvedOpts.basisCommit,
-                prNumber = resolvedOpts.prNumber,
-                branchOverride = resolvedOpts.branchOverride,
-                shaLength = resolvedOpts.shaLength,
-                verbose = resolvedOpts.verbose
-              )
-            val cfg = baseCfg.mergeWith(metadata)
-            Core.resolve(cfg, openRepository, logger, Verbose(resolvedOpts.verbose)) match
+            val resolver = buildResolver()
+            val semverFullFormatter = buildSemVerFullFormatter(resolvedOpts)
+            resolve(resolver, resolvedOpts, metadata, logger) match
               case Left(e) =>
                 logger.error(renderError(e))
                 sys.exit(1)
-              case Right(v) =>
-                val (consoleOutputs, fileWrites) = render(v, rc, logger)(using Verbose(resolvedOpts.verbose))
+              case Right(typed) =>
+                val (consoleOutputs, fileWrites) = render(typed, rc, semverFullFormatter, logger)
                 val failed = fileWrites.collect { case Left(m) => m }
                 if failed.nonEmpty then
                   failed.foreach(logger.error)
@@ -115,37 +114,93 @@ object CLI:
       if s.destination.isEmpty && acc.exists(o => o.kind == s.kind && o.destination.isEmpty) then acc else acc :+ s
     }
 
-  private def render(version: SemVer, rc: ResolveConfig, logger: Logger)(using Verbose): (List[String], List[Either[String, Unit]]) =
-    val consoleBuf = scala.collection.mutable.ListBuffer.empty[String]
-    val fileResults = scala.collection.mutable.ListBuffer.empty[Either[String, Unit]]
-    rc.sinks.foreach { sink =>
-      val content = sink.kind match
-        case SinkKind.Console => renderConsole(version, rc.consoleStyle)
-        case SinkKind.Raw     => version.show // VersionScheme canonical
-        case SinkKind.Json    => SemVerJson.toJson(version)
-      sink.destination match
-        case Some(path) =>
-          try
-            // ensure parent directories exist
-            java.nio.file.Files.createDirectories(path.getParent)
-            java.nio.file.Files.writeString(path, content)
-            logger.verbose(s"Wrote ${sink.kind.toString.toLowerCase} output to $path", "CLI")
-            fileResults += Right(())
-          catch case t: Throwable => fileResults += Left(s"Failed to write $path: ${t.getMessage}")
-        case None => consoleBuf += content
-    }
-    (consoleBuf.toList, fileResults.toList)
+  /** SemVer is the only registered scheme today. */
+  private def buildResolver(): VersionResolver[? <: Version] =
+    VersionResolver.withDefaults[SemVer]
 
-  private def renderConsole(v: SemVer, style: ConsoleStyle): String = style match
-    case ConsoleStyle.Pretty  => renderConsolePretty(v)
-    case ConsoleStyle.Compact => v.show
+  /** SemVer `Full` formatter parameterised by `--sha-length` (40 leaves the SHA verbatim). */
+  private def buildSemVerFullFormatter(opts: CliOptions): Formatter[SemVer] =
+    if opts.shaLength == 40 then SemVer.Formatter.Full
+    else SemVer.Formatter.Full.withShaLength(opts.shaLength)
 
-  private def renderConsolePretty(v: SemVer): String =
+  /** Canonical-string rendering with explicit formatter selection where one is registered for the scheme. */
+  private def renderCanonical[V <: Version](v: V): String = v match
+    case s: SemVer => SemVer.Formatter.Standard.format(s)
+    case other     => other.show
+
+  private def resolve(
+    resolver: VersionResolver[? <: Version],
+    opts: CliOptions,
+    metadata: Option[CiMetadata],
+    logger: Logger
+  )(using Verbose): Either[ResolutionError, TypedResult[? <: Version]] = resolver match
+    case r: VersionResolver[v] =>
+      given ResolvableScheme[v] = r.scheme
+      val cfg = ResolutionConfig
+        .default[v](opts.repository.toString)
+        .copy(
+          basisCommit = opts.basisCommit,
+          prNumber = opts.prNumber,
+          branchOverride = opts.branchOverride,
+          verbose = opts.verbose,
+          tagParser = r.tagParser
+        )
+        .mergeWith(metadata)
+      Core.resolve(cfg, openRepository, logger, Verbose(opts.verbose)).map(value => TypedResult(r.scheme, value))
+
+  private def render(
+    typed: TypedResult[? <: Version],
+    rc: ResolveConfig,
+    semverFullFormatter: Formatter[SemVer],
+    logger: Logger
+  )(using Verbose): (List[String], List[Either[String, Unit]]) = typed match
+    case t: TypedResult[v] =>
+      val consoleBuf = scala.collection.mutable.ListBuffer.empty[String]
+      val fileResults = scala.collection.mutable.ListBuffer.empty[Either[String, Unit]]
+      rc.sinks.foreach { sink =>
+        val content = sink.kind match
+          case SinkKind.Console => renderConsole(t, rc.consoleStyle, semverFullFormatter)
+          case SinkKind.Raw     => renderCanonical(t.value)
+          case SinkKind.Json    =>
+            t.value match
+              case s: SemVer => SemVerJson.toJson(s)
+              case other     =>
+                fileResults += Left(s"json output is not supported for ${other.getClass.getSimpleName}")
+                ""
+        sink.destination match
+          case Some(path) =>
+            try
+              java.nio.file.Files.createDirectories(path.getParent)
+              java.nio.file.Files.writeString(path, content)
+              logger.verbose(s"Wrote ${sink.kind.toString.toLowerCase} output to $path", "CLI")
+              fileResults += Right(())
+            catch case th: Throwable => fileResults += Left(s"Failed to write $path: ${th.getMessage}")
+          case None => consoleBuf += content
+      }
+      (consoleBuf.toList, fileResults.toList)
+
+  private def renderConsole[V <: Version](
+    t: TypedResult[V],
+    style: ConsoleStyle,
+    semverFull: Formatter[SemVer]
+  ): String = style match
+    case ConsoleStyle.Pretty  => renderConsolePretty(t, semverFull)
+    case ConsoleStyle.Compact => renderCanonical(t.value)
+
+  private def renderConsolePretty[V <: Version](t: TypedResult[V], semverFull: Formatter[SemVer]): String =
+    t.value match
+      case s: SemVer => renderSemVerPretty(s, semverFull)
+      case other     =>
+        // Schemes other than SemVer: canonical form only until a scheme-specific renderer is registered.
+        val sep = System.lineSeparator()
+        s"Version:$sep  version : ${renderCanonical(other)}$sep"
+
+  private def renderSemVerPretty(v: SemVer, full: Formatter[SemVer]): String =
     val b = new StringBuilder
     val sep = System.lineSeparator()
     b.append(s"Version:$sep")
-    b.append(s"  version   : ${v.show}$sep")
-    b.append(s"  full      : ${SemVer.Formatter.full.format(v)}$sep")
+    b.append(s"  version   : ${SemVer.Formatter.Standard.format(v)}$sep")
+    b.append(s"  full      : ${full.format(v)}$sep")
     b.append(s"  preRelease: ${v.preRelease.fold("none")(_.show)}$sep")
     b.append(s"  metadata  : ${v.metadata.map(_.show).getOrElse("none")}$sep")
     b.result()

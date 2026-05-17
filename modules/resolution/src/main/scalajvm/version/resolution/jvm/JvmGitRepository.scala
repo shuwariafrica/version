@@ -178,12 +178,6 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
       case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.nn))
       case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.nn))
 
-  def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
-    try
-      val oid = ObjectId.fromString(id.value)
-      Right(oid.abbreviate(length).name)
-    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.nn))
-
   def close(): Unit =
     if !closed then
       closed = true

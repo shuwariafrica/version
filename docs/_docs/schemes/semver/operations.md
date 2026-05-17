@@ -151,28 +151,31 @@ List(b, a).sorted // List(a, b)
 `v.show` produces the canonical SemVer string (core + pre-release, excludes build metadata).
 `SemVer.Formatter` provides two ready instances:
 
-| Formatter                  | Behaviour                                                 | Example Output                                   |
-|----------------------------|-----------------------------------------------------------|--------------------------------------------------|
-| `Formatter.standard`       | Same as `v.show` (core + pre-release; no build metadata)  | `1.2.3-SNAPSHOT`                                 |
-| `Formatter.full`           | Includes build metadata verbatim                          | `1.2.3-SNAPSHOT+202605170145.main.1234567890ab`  |
+| Formatter                         | Behaviour                                             | Example Output                                                              |
+|-----------------------------------|-------------------------------------------------------|-----------------------------------------------------------------------------|
+| `Formatter.Standard`              | Core plus pre-release; no build metadata              | `1.2.3-SNAPSHOT`                                                            |
+| `Formatter.Full`                  | Verbatim build metadata (round-trips through `parse`) | `1.2.3-SNAPSHOT+202605170145.main.0123456789abcdef0123456789abcdef01234567` |
+| `Formatter.Full.withShaLength(N)` | As `Full`, with the commit SHA truncated to `N` chars | `1.2.3-SNAPSHOT+202605170145.main.0123456789ab` (with `N = 12`)             |
 
 ```scala
+import version.Formatter
 import version.semver.*
 
-val v = SemVer.parseUnsafe("1.2.3-SNAPSHOT+202605170145.main.1234567890ab")
+val v = SemVer.parseUnsafe("1.2.3-SNAPSHOT+202605170145.main.0123456789abcdef0123456789abcdef01234567")
 v.show // "1.2.3-SNAPSHOT"
-SemVer.Formatter.full.format(v) // "1.2.3-SNAPSHOT+202605170145.main.1234567890ab"
+SemVer.Formatter.Full.format(v) // verbatim, round-trips
+SemVer.Formatter.Full.withShaLength(12).format(v) // "1.2.3-SNAPSHOT+202605170145.main.0123456789ab"
 ```
 
-To shorten the SHA in development versions, set `shaLength` on `ResolutionConfig` (range 7-40); the resolver emits the
-requested length and `Formatter.full` round-trips it verbatim.
+`withShaLength` accepts values in `[7, 64]` (SHA-1 hash length is 40; SHA-256 is 64). The truncation applies only to
+the commit-SHA identifier; the timestamp, branch, `pr<N>`, and `dirty` identifiers are emitted unchanged.
 
 #### Custom Formatters
 
-Implement `SemVer.Formatter` for full control:
+Implement `Formatter[SemVer]` for full control:
 
 ```scala
-val minimal: SemVer.Formatter = (v: SemVer) =>
+val minimal: Formatter[SemVer] = (v: SemVer) =>
   val core = s"${v.major.value}.${v.minor.value}.${v.patch.value}"
   if v.snapshot then s"$core-dev" else core
 ```

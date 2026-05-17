@@ -97,9 +97,9 @@ class DevelopmentVersionSuite extends munit.FunSuite:
     assert(!ids.exists(_.contains("99")), s"commit count 99 leaked into $ids")
 
   test("sortability: rendered strings sort chronologically for same base"):
-    val earlier = SemVer.Formatter.full.format(scheme.developmentVersion(core, base(epochMay17_0145, "111aaaa", 3)))
-    val sameDayLater = SemVer.Formatter.full.format(scheme.developmentVersion(core, base(epochMay17_0200, "222bbbb", 4)))
-    val nextDay = SemVer.Formatter.full.format(scheme.developmentVersion(core, base(epochMay18_0145, "333cccc", 5)))
+    val earlier = SemVer.Formatter.Full.format(scheme.developmentVersion(core, base(epochMay17_0145, "111aaaa", 3)))
+    val sameDayLater = SemVer.Formatter.Full.format(scheme.developmentVersion(core, base(epochMay17_0200, "222bbbb", 4)))
+    val nextDay = SemVer.Formatter.Full.format(scheme.developmentVersion(core, base(epochMay18_0145, "333cccc", 5)))
     val ordered = List(earlier, sameDayLater, nextDay)
     assertEquals(ordered.sorted, ordered)
     assert(earlier < sameDayLater, s"$earlier should sort before $sameDayLater")

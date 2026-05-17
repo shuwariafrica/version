@@ -36,10 +36,10 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
   given Logger = NullLogger
   given Verbose = Verbose.disabled
 
-  private def cfg(repoPath: String, pr: Option[Int], shaLen: Int): ResolutionConfig[SemVer] =
-    ResolutionConfig.default[SemVer](repoPath).copy(prNumber = pr, shaLength = shaLen)
+  private def cfg(repoPath: String, pr: Option[Int]): ResolutionConfig[SemVer] =
+    ResolutionConfig.default[SemVer](repoPath).copy(prNumber = pr)
 
-  private def cfg(repoPath: String): ResolutionConfig[SemVer] = cfg(repoPath, None, 12)
+  private def cfg(repoPath: String): ResolutionConfig[SemVer] = cfg(repoPath, None)
 
   test("Mode 1: HEAD at tag and clean emits exact version"):
     withFreshRepo("mode1"): repo =>
@@ -63,7 +63,7 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       assert(res.isRight, clues(res))
       val v = res.toOption.get
       assert(v.metadata.isDefined, "expected metadata")
-      val full = SemVer.Formatter.full.format(v)
+      val full = SemVer.Formatter.Full.format(v)
       assert(full.contains("dirty"), s"expected 'dirty' in $full")
 
   test("Mode 2: metadata leads with a 12-digit UTC timestamp identifier"):

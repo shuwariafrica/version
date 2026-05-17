@@ -233,17 +233,6 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
         assert(!shas.contains(featureSha), "Feature commit should NOT be in walkFirstParent result")
       finally gr.close()
 
-  test("abbreviate truncates SHA to requested length"):
-    withMinimalRepo("abbreviate"): repo =>
-      val sha = git(repo, "rev-parse", "HEAD").trim.toLowerCase
-      val gr = openTestRepository(repo)
-      try
-        val result = gr.abbreviate(CommitSha(sha), 12)
-        assert(result.isRight, s"Expected Right, got $result")
-        assertEquals(result.toOption.get.length, 12)
-        assert(sha.startsWith(result.toOption.get))
-      finally gr.close()
-
   test("loadCommit returns RawCommit for an existing sha with non-zero commitTime"):
     withMinimalRepo("loadCommit-ok"): repo =>
       val sha = git(repo, "rev-parse", "HEAD").trim.toLowerCase

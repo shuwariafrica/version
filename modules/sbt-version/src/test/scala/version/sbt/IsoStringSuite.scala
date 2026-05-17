@@ -24,7 +24,7 @@ import version.semver.SemVer
 /** Tests for [[IsoString]] serialisation round-tripping.
   *
   * Verifies that the [[IsoString]] instance for [[SemVer]] is correctly wired to
-  * [[SemVer.Formatter$.full Formatter.full]] and [[SemVer.parseUnsafe]], enabling lossless round-trip fidelity for sbt
+  * [[SemVer.Formatter$.Full Formatter.Full]] and [[SemVer.parseUnsafe]], enabling lossless round-trip fidelity for sbt
   * 2.x task caching.
   */
 final class IsoStringSuite extends FunSuite:
@@ -39,7 +39,7 @@ final class IsoStringSuite extends FunSuite:
     assertEquals(serialised, "3.2.1-beta.5+202605170145.release.0123456789abcdef.pr42.dirty")
   }
 
-  test("IsoString uses Formatter.full (preserves full SHA metadata)") {
+  test("IsoString uses Formatter.Full (preserves full SHA metadata)") {
     val sha = "abc1234567890def1234567890abc1234567890d"
     val version = SemVer.parseUnsafe(s"1.0.0+202605170145.main.$sha")
     val serialised = isoString.to(version)

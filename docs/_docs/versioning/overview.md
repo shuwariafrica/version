@@ -54,13 +54,13 @@ it appears in the rendered version string.
 For the SemVer scheme, the default `developmentVersion` writes these identifiers, in order, into the `+` build-metadata
 section:
 
-| Position | Identifier                                                   | Condition              |
-|----------|--------------------------------------------------------------|------------------------|
-| 1        | `yyyymmddhhmm` (UTC committer time)                          | Basis commit available |
-| 2        | `<branch>` (sanitised) or `detached`                         | Always                 |
-| 3        | `<short-sha>` (lowercase hex; length from `shaLength`, 7-40) | Always                 |
-| 4        | `pr<N>`                                                      | PR number supplied     |
-| 5        | `dirty`                                                      | Worktree dirty         |
+| Position | Identifier                           | Condition              |
+|----------|--------------------------------------|------------------------|
+| 1        | `yyyymmddhhmm` (UTC committer time)  | Basis commit available |
+| 2        | `<branch>` (sanitised) or `detached` | Always                 |
+| 3        | `<sha>` (lowercase hex, full length) | Always                 |
+| 4        | `pr<N>`                              | PR number supplied     |
+| 5        | `dirty`                              | Worktree dirty         |
 
 The 12-character UTC timestamp leads so that raw string comparison of two snapshots of the same base sorts them in
 commit-time order. The timestamp is the basis commit's committer time, not the build time, so re-runs are reproducible.
@@ -71,10 +71,11 @@ too volatile to be useful in a version string. Branch names are sanitised for th
 render time (lowercased; non-`[0-9a-z-]` replaced with `-`; runs of `-` collapsed; leading/trailing `-` trimmed). The
 raw branch label remains in `DevelopmentMetadata.branch` for programmatic consumers.
 
-`v.show` and the default `version` setting exclude build metadata. Set `versionFormatter := Some(SemVer.Formatter.full)`
-to include it.
+`v.show` and the default `version` setting exclude build metadata. Configure
+[`versionResolver`](../sbt/settings.md#versionresolver) with a `SemVer.Formatter.Full` (optionally with a truncated SHA
+via `.withShaLength(N)`) to include metadata in the rendered string.
 
-**Example:** `1.2.4-SNAPSHOT+202605170145.main.abcdef123456.pr42.dirty`
+**Example:** `1.2.4-SNAPSHOT+202605170145.main.1234567890ab.pr42.dirty`
 
 ## Tag Recognition
 
@@ -117,7 +118,6 @@ Customise via `.copy`:
 
 ```scala
 val config = ResolutionConfig.default[SemVer]("/path/to/repo").copy(
-  shaLength = 7,
   prNumber = Some(42),
   branchOverride = Some("feature/xyz")
 )

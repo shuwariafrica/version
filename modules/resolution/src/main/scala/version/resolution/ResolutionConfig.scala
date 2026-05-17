@@ -18,6 +18,7 @@ package version.resolution
 import scala.annotation.targetName
 
 import version.ResolvableScheme
+import version.Version
 import version.resolution.domain.CiMetadata
 
 /** Pure configuration for a version resolution run.
@@ -28,45 +29,38 @@ import version.resolution.domain.CiMetadata
   * @tparam V
   *   The version type for the scheme in use.
   */
-final case class ResolutionConfig[V] private[version] (
+final case class ResolutionConfig[V <: Version] private[version] (
   repoPath: String,
   basisCommit: String,
   prNumber: Option[Int],
   branchOverride: Option[String],
-  shaLength: Int,
   verbose: Boolean,
   tagParser: String => Option[V]
 )
 
 /** Provides factory methods and extensions for [[ResolutionConfig]]. */
 object ResolutionConfig:
-  given [V](using CanEqual[V, V]): CanEqual[ResolutionConfig[V], ResolutionConfig[V]] = CanEqual.derived
+  given [V <: Version](using CanEqual[V, V]): CanEqual[ResolutionConfig[V], ResolutionConfig[V]] = CanEqual.derived
 
-  val MinShaLength: Int = 7
-  val MaxShaLength: Int = 40
-
-  /** Validated construction. Returns `Left` if `shaLength` is outside [7, 40] or `basisCommit` is empty. */
-  def from[V](
+  /** Validated construction. Returns `Left` if `basisCommit` is empty. */
+  def from[V <: Version](
     repoPath: String,
     basisCommit: String,
     prNumber: Option[Int],
     branchOverride: Option[String],
-    shaLength: Int,
     verbose: Boolean,
     tagParser: String => Option[V]
   ): Either[ResolutionError, ResolutionConfig[V]] =
     if basisCommit.isEmpty then Left(ResolutionError.InvalidBasisCommit(basisCommit))
-    else if shaLength < MinShaLength || shaLength > MaxShaLength then Left(ResolutionError.InvalidShaLength(shaLength))
-    else Right(new ResolutionConfig(repoPath, basisCommit, prNumber, branchOverride, shaLength, verbose, tagParser))
+    else Right(new ResolutionConfig(repoPath, basisCommit, prNumber, branchOverride, verbose, tagParser))
 
   /** Default configuration for the given repository path, using the scheme's parser with `v`/`V` prefix stripping. */
-  def default[V](repoPath: String)(using scheme: ResolvableScheme[V]): ResolutionConfig[V] =
+  def default[V <: Version](repoPath: String)(using scheme: ResolvableScheme[V]): ResolutionConfig[V] =
     ResolutionConfig(
       repoPath = repoPath,
       basisCommit = "HEAD",
       prNumber = None,
       branchOverride = None,
-      shaLength = 12,
       verbose = false,
       tagParser = name =>
         val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
@@ -74,10 +68,10 @@ object ResolutionConfig:
     )
 
   /** Companion alias for the multi-parameter [[mergeWith]] extension. */
-  inline def mergeWith[V](config: ResolutionConfig[V], metadata: Option[CiMetadata]): ResolutionConfig[V] =
+  inline def mergeWith[V <: Version](config: ResolutionConfig[V], metadata: Option[CiMetadata]): ResolutionConfig[V] =
     config.mergeWith(metadata)
 
-  extension [V](config: ResolutionConfig[V])
+  extension [V <: Version](config: ResolutionConfig[V])
     /** Merge CI-detected metadata into this configuration, filling in PR number and branch override where absent. */
     @targetName("ext_mergeWith")
     inline def mergeWith(metadata: Option[CiMetadata]): ResolutionConfig[V] =

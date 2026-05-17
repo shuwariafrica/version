@@ -20,6 +20,7 @@ import scala.util.boundary
 import scala.util.boundary.break
 
 import version.ResolvableScheme
+import version.Version
 import version.resolution.domain.*
 import version.resolution.logging.Logger
 import version.resolution.logging.Verbose
@@ -27,8 +28,8 @@ import version.resolution.parsing.KeywordParser
 
 /** Version resolution engine.
   *
-  * Scheme-generic across `[V: ResolvableScheme]`: drives the standard resolution algorithm against any version type
-  * for which a [[version.ResolvableScheme ResolvableScheme]] instance exists.
+  * Scheme-generic across `[V <: Version : ResolvableScheme]`: drives the standard resolution algorithm against any
+  * version type for which a [[version.ResolvableScheme ResolvableScheme]] instance exists.
   */
 object Resolver:
 
@@ -36,7 +37,7 @@ object Resolver:
     r.left.map(ResolutionError.GitFailure.apply)
 
   /** Resolves the repository version from Git state. */
-  def resolve[V](
+  def resolve[V <: Version](
     config: ResolutionConfig[V],
     open: String => Either[GitError, GitRepository]
   )(using
@@ -53,7 +54,7 @@ object Resolver:
       finally
         repo.close()
 
-  private def doResolve[V](
+  private def doResolve[V <: Version](
     config: ResolutionConfig[V],
     repo: GitRepository
   )(using
@@ -107,12 +108,11 @@ object Resolver:
             val targetCore = calculateTarget(keywords, baseTag, versionTags)
             val fpCommits = ok(lift(repo.walkFirstParent(basis, baseTag.map(_.commit))))
             val commitCount = fpCommits.count(!_.isMerge)
-            val abbreviatedSha = ok(lift(repo.abbreviate(basis, config.shaLength)))
             val basisCommit = ok(lift(repo.loadCommit(basis)))
             val devMeta = MetadataBuilder.assemble(
               branchOverride = config.branchOverride,
               branchDetected = branchName,
-              abbreviatedSha = abbreviatedSha,
+              commitSha = Some(basis.value),
               commitCount = commitCount,
               commitTime = Some(basisCommit.commitTime),
               prNumber = config.prNumber,
@@ -124,7 +124,7 @@ object Resolver:
       end match
   end doResolve
 
-  private def extractKeywords[V](
+  private def extractKeywords[V <: Version](
     commits: IArray[RawCommit],
     mergeExclusions: Set[CommitSha]
   )(using ResolvableScheme[V]): List[Keyword] =
@@ -176,7 +176,7 @@ object Resolver:
   end buildDirectExclusions
 
   // scalafix:off
-  private def computeMergeExclusions[V](
+  private def computeMergeExclusions[V <: Version](
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
@@ -203,14 +203,14 @@ object Resolver:
   end computeMergeExclusions
   // scalafix:on
 
-  private inline def hasIgnoreMerged[V](mc: RawCommit)(using ResolvableScheme[V]): Boolean =
+  private inline def hasIgnoreMerged[V <: Version](mc: RawCommit)(using ResolvableScheme[V]): Boolean =
     KeywordParser
       .parse[V](mc.message)
       .exists:
         case Keyword.IgnoreMerged => true
         case _                    => false
 
-  private def calculateTarget[V](
+  private def calculateTarget[V <: Version](
     keywords: List[Keyword],
     baseTag: Option[Tag[V]],
     allTags: IArray[Tag[V]]

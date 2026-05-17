@@ -43,7 +43,7 @@ The plugin automatically derives and sets `version` for all projects.
 import version.semver.*
 
 // Parse
-val v = SemVer.parse("2.1.0-rc.1+build.123") // Either[ParseError, SemVer]
+val v = SemVer.parse("2.1.0-rc.1+abc1234.123") // Either[ParseError, SemVer]
 
 // Construct
 val release = SemVer(Major(1), Minor(2), Patch(3)) // 1.2.3

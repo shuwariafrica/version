@@ -263,11 +263,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       Right(RawCommit(CommitSha(hex), msg, parents, time))
   end loadCommit
 
-  def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
-    val v = id.value
-    val n = if length < 0 then 0 else if length > v.length then v.length else length
-    Right(v.substring(0, n))
-
   def close(): Unit =
     if !closed then
       closed = true

@@ -2,10 +2,11 @@
 title: Specification
 ---
 
-Formal definition of the version resolution algorithm. This document is the normative reference for implementors of
-`ResolvableScheme[V]` and for understanding the resolution engine's guarantees.
+Normative definition of the version resolution algorithm. This document is the contract that implementors of
+`ResolvableScheme[V]` must satisfy; it is also the precise statement of guarantees the resolver makes to its callers.
 
-For user-facing behaviour with SemVer, see [SemVer Behaviour](semver.md).
+For the SemVer-specific surface (recognised tags, keyword effects, rendering shape) for end users, see
+[SemVer Behaviour](semver.md).
 
 ## Scheme Contract
 
@@ -100,9 +101,10 @@ consecutive `-`, trim leading/trailing `-`, empty becomes `detached`. The raw br
 merge will land) is preferred over the source branch.
 
 Commit count: first-parent non-merge commits from base to basis. Clamped to `Int.MaxValue`. Available via
-`DevelopmentMetadata.commitCount` for custom formatters. SHA length: configurable, 7 to 40, lowercase hex. Timestamp
-uses the basis commit's committer time as recorded by Git, formatted in UTC; the resolver does not normalise skewed
-times.
+`DevelopmentMetadata.commitCount` for custom formatters. SHA: lowercase hex of the basis commit's full hash, supplied
+verbatim by the model; truncation, when desired, is applied at render time by the chosen
+[Formatter](../schemes/semver/operations.md#rendering). Timestamp uses the basis commit's committer time as recorded
+by Git, formatted in UTC; the resolver does not normalise skewed times.
 
 Sortability invariant: for two development versions sharing the same target core, lexicographic ordering of the rendered
 string preserves the chronological order of their basis commits. SemVer build metadata is ignored by SemVer 2.0.0
@@ -162,4 +164,4 @@ Given fixed repository state and configuration inputs, the derived version is de
 - Creating or mutating Git tags
 - Publishing or uploading artefacts
 - Multi-project or path-scoped tagging conventions
-- Signature verification (both backends dereference signed objects transparently)
+- Signature verification (signed objects are dereferenced transparently)

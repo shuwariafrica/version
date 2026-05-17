@@ -53,18 +53,22 @@ dirty := {
   IO.write(baseDirectory.value / "dirty.txt", "dirty")
 }
 
+def asSemVer(v: Version): SemVer = v match
+  case s: SemVer => s
+  case other     => sys.error(s"Expected SemVer, got ${other.getClass.getSimpleName}")
+
 checkFallback := check(resolvedVersion.value.show, "0.1.0-SNAPSHOT")
 
 checkConcreteTag := check(resolvedVersion.value.show, "1.0.0")
 
 checkDirtyTag := {
-  val v = resolvedVersion.value
+  val v = asSemVer(resolvedVersion.value)
   assertPrefix(v.show, "1.0.1-SNAPSHOT")
   assert(v.metadata.exists(_.identifiers.contains("dirty")), "Expected dirty in metadata")
 }
 
 checkAfterCommit := {
-  val v = resolvedVersion.value
+  val v = asSemVer(resolvedVersion.value)
   assertPrefix(v.show, "1.0.1-SNAPSHOT")
   val meta = v.metadata.get.identifiers
   assert(meta.length >= 3, s"Expected at least timestamp.branch.sha: $meta")
@@ -77,7 +81,7 @@ checkAfterCommit := {
 checkPreRelease := check(resolvedVersion.value.show, "2.0.0-rc.1")
 
 checkMetadata := {
-  val v = resolvedVersion.value
+  val v = asSemVer(resolvedVersion.value)
   assertPrefix(v.show, "0.1.0-SNAPSHOT")
   val meta = v.metadata.get.identifiers
   assert(meta.length >= 3, s"Expected at least timestamp.branch.sha: $meta")

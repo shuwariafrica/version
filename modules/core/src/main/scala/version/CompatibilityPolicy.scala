@@ -29,7 +29,7 @@ package version
   * @tparam V
   *   The version type.
   */
-trait CompatibilityPolicy[V]:
+trait CompatibilityPolicy[V <: Version]:
 
   /** Whether `v2` is considered compatible with `v1` under this policy. */
   extension (v1: V) def isCompatibleWith(v2: V): Boolean
@@ -38,6 +38,6 @@ trait CompatibilityPolicy[V]:
 object CompatibilityPolicy:
 
   /** Exact match only - versions are compatible only if equal. */
-  def strict[V](using CanEqual[V, V]): CompatibilityPolicy[V] =
+  def strict[V <: Version](using CanEqual[V, V]): CompatibilityPolicy[V] =
     new CompatibilityPolicy[V]:
       extension (v1: V) def isCompatibleWith(v2: V): Boolean = v1 == v2

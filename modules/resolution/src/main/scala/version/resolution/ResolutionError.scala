@@ -34,11 +34,6 @@ object ResolutionError:
   final case class GitFailure(cause: GitError) extends ResolutionError:
     def message: String = cause.message
 
-  /** SHA abbreviation length is outside the allowed bounds. */
-  final case class InvalidShaLength(length: Int) extends ResolutionError:
-    def message: String =
-      s"SHA length must be within [${ResolutionConfig.MinShaLength}, ${ResolutionConfig.MaxShaLength}]. Found: $length"
-
   /** Basis commit must not be empty. */
   final case class InvalidBasisCommit(value: String) extends ResolutionError:
     def message: String = s"Basis commit must not be empty. Found: '$value'"

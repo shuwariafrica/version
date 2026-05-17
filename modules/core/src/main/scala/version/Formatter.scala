@@ -13,42 +13,14 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.resolution
+package version
 
-import scala.annotation.targetName
-
-import version.ResolvableScheme
-import version.Version
-import version.resolution.logging.Logger
-import version.resolution.logging.Verbose
-
-/** Public API entry point for version resolution.
+/** Rendering strategy for a version of scheme `V`.
   *
-  * Scheme-generic: parameterised by `[V <: Version : ResolvableScheme]`.
+  * Each scheme provides its own formatter instances in its companion (for example,
+  * [[version.semver.SemVer.Formatter SemVer.Formatter.Standard]] and
+  * [[version.semver.SemVer.Formatter SemVer.Formatter.Full]]). Scheme-specific configuration (such as SHA truncation
+  * for SemVer) lives on those instances, not on this trait.
   */
-object VersionCliCore:
-
-  /** Resolves the version using contextual parameters and an explicit repository open function. */
-  @targetName("resolveContextual")
-  def resolve[V <: Version](
-    config: ResolutionConfig[V],
-    open: String => Either[GitError, GitRepository]
-  )(using
-    ResolvableScheme[V],
-    Logger,
-    Verbose
-  ): Either[ResolutionError, V] =
-    Resolver.resolve(config, open)
-
-  /** Resolves the version with all parameters explicit. */
-  @targetName("resolveExplicitAll")
-  def resolve[V <: Version](
-    config: ResolutionConfig[V],
-    open: String => Either[GitError, GitRepository],
-    logger: Logger,
-    verbose: Verbose
-  )(using ResolvableScheme[V]): Either[ResolutionError, V] =
-    given Logger = logger
-    given Verbose = verbose
-    Resolver.resolve(config, open)
-end VersionCliCore
+trait Formatter[V <: Version]:
+  def format(v: V): String

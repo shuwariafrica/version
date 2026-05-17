@@ -21,19 +21,20 @@ import munit.FunSuite
 class MetadataBuilderSuite extends FunSuite:
 
   private val sampleTime: Option[Long] = Some(1747444500L)
+  private val sampleSha: Option[String] = Some("abc1234567890abc1234567890abc1234567890a")
 
   test("assemble preserves raw branch detected name"):
     val meta = MetadataBuilder.assemble(
       branchOverride = None,
       branchDetected = Some("Feature/Auth-Fix"),
-      abbreviatedSha = "abc1234",
+      commitSha = sampleSha,
       commitCount = 5,
       commitTime = sampleTime,
       prNumber = Some(42),
       isDirty = true
     )
     assertEquals(meta.branch, Some("Feature/Auth-Fix"))
-    assertEquals(meta.commitSha, Some("abc1234"))
+    assertEquals(meta.commitSha, sampleSha)
     assertEquals(meta.commitCount, Some(5))
     assertEquals(meta.commitTime, sampleTime)
     assertEquals(meta.prNumber, Some(42))
@@ -43,7 +44,7 @@ class MetadataBuilderSuite extends FunSuite:
     val meta = MetadataBuilder.assemble(
       branchOverride = Some("override-branch"),
       branchDetected = Some("detected-branch"),
-      abbreviatedSha = "abc1234",
+      commitSha = sampleSha,
       commitCount = 0,
       commitTime = sampleTime,
       prNumber = None,
@@ -55,7 +56,7 @@ class MetadataBuilderSuite extends FunSuite:
     val meta = MetadataBuilder.assemble(
       branchOverride = None,
       branchDetected = None,
-      abbreviatedSha = "abc1234",
+      commitSha = sampleSha,
       commitCount = 0,
       commitTime = sampleTime,
       prNumber = None,
@@ -64,14 +65,14 @@ class MetadataBuilderSuite extends FunSuite:
     assertEquals(meta.branch, None)
 
   test("isDirty flag propagated"):
-    val clean = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = false)
-    val dirty = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = true)
+    val clean = MetadataBuilder.assemble(None, Some("main"), sampleSha, 0, sampleTime, None, isDirty = false)
+    val dirty = MetadataBuilder.assemble(None, Some("main"), sampleSha, 0, sampleTime, None, isDirty = true)
     assertEquals(clean.isDirty, false)
     assertEquals(dirty.isDirty, true)
 
   test("commitTime propagated when present and absent"):
-    val withTime = MetadataBuilder.assemble(None, Some("main"), "abc", 0, sampleTime, None, isDirty = false)
-    val withoutTime = MetadataBuilder.assemble(None, Some("main"), "abc", 0, None, None, isDirty = false)
+    val withTime = MetadataBuilder.assemble(None, Some("main"), sampleSha, 0, sampleTime, None, isDirty = false)
+    val withoutTime = MetadataBuilder.assemble(None, Some("main"), sampleSha, 0, None, None, isDirty = false)
     assertEquals(withTime.commitTime, sampleTime)
     assertEquals(withoutTime.commitTime, None)
 end MetadataBuilderSuite
