@@ -262,7 +262,10 @@ jobs:
         uses: coursier/cache-action@v8
 
       - name: Execute sbt Scripted Tests
-        run: project/scripts/run-sbt.sh "sbt-version/scripted"
+        # Scripted tests run the plugin against synthetic fixtures; the workflow's CI env must not leak in.
+        run: |
+          unset GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_EVENT_NAME GITHUB_REPOSITORY GITHUB_RUN_ID GITHUB_ACTIONS CI
+          project/scripts/run-sbt.sh "sbt-version/scripted"
 
   static_analysis:
     name: Static Analysis

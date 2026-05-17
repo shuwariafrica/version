@@ -53,7 +53,13 @@ done
 
 # SBT_PROPS is consumed up-front by `read -ra extra_args` and forwarded as sbt
 # argv; the container does not need it as an env var as well.
-for env_var in TERM CI GITHUB_TOKEN GITHUB_REPOSITORY GITHUB_REF GITHUB_REF_NAME GITHUB_SHA GITHUB_ACTIONS GITHUB_WORKSPACE SBT_OPTS; do
+for env_var in \
+  TERM CI SBT_OPTS GITHUB_TOKEN GITHUB_WORKSPACE \
+  GITHUB_ACTIONS GITHUB_EVENT_NAME \
+  GITHUB_REPOSITORY GITHUB_REPOSITORY_OWNER \
+  GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_SHA \
+  GITHUB_RUN_ID GITHUB_RUN_NUMBER GITHUB_SERVER_URL
+do
   if [[ -n "${!env_var:-}" ]]; then
     docker_args+=(-e "$env_var")
   fi
