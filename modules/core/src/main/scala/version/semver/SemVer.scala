@@ -34,7 +34,8 @@ final case class SemVer(
   patch: Patch,
   preRelease: Option[PreRelease],
   metadata: Option[Metadata]
-)
+) extends Version:
+  override def show: String = SemVer.Formatter.Standard.format(this)
 
 /** Provides factory methods, type class instances, and extensions for [[SemVer]]. */
 object SemVer:
@@ -153,18 +154,14 @@ object SemVer:
 
   // --- Formatter ---
 
-  /** Configurable rendering strategy for [[SemVer]] values.
-    *
-    * Two instances are provided:
-    *   - [[Formatter$.standard standard]] - `MAJOR.MINOR.PATCH[-PRERELEASE]` (matches `v.show`)
-    *   - [[Formatter$.full full]] - includes build metadata verbatim (suitable for serialisation round-trips)
-    *
-    * Implement the trait directly for any other rendering shape.
-    */
-  trait Formatter:
-    def format(v: SemVer): String
-
+  /** Named [[version.Formatter Formatter]] instances for SemVer rendering. */
   object Formatter:
+    // Commit SHAs in build metadata are lowercase hex of full hash length (40 for SHA-1, 64 for SHA-256).
+    // The shape distinguishes them from the other emitted identifiers (12-digit timestamp, branch slug, pr<N>, dirty).
+    private inline def isShaIdentifier(id: String): Boolean =
+      (id.length == 40 || id.length == 64) &&
+        id.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
+
     // Append into a caller-supplied StringBuilder to elide per-call intermediate Strings.
     private inline def appendCore(sb: StringBuilder, v: SemVer): Unit =
       sb.append(v.major.value).append('.').append(v.minor.value).append('.').append(v.patch.value): Unit
@@ -172,20 +169,56 @@ object SemVer:
     private inline def appendPreRelease(sb: StringBuilder, v: SemVer): Unit =
       v.preRelease.foreach(pr => sb.append('-').append(pr.show): Unit)
 
-    /** Standard rendering without build metadata. Same output as `v.show`. */
-    val standard: Formatter = (v: SemVer) =>
-      val sb = StringBuilder(24)
-      appendCore(sb, v)
-      appendPreRelease(sb, v)
-      sb.result()
+    private def appendMetadata(sb: StringBuilder, v: SemVer, shaTrunc: Option[Int]): Unit =
+      // scalafix:off DisableSyntax.var
+      // Single traversal over identifiers; var tracks whether to emit the leading `.`.
+      v.metadata.foreach: m =>
+        sb.append('+'): Unit
+        var first = true
+        m.identifiers.foreach: id =>
+          if !first then sb.append('.'): Unit
+          first = false
+          val toAppend = shaTrunc match
+            case Some(n) if isShaIdentifier(id) => id.take(n)
+            case _                              => id
+          sb.append(toAppend): Unit
+      // scalafix:on DisableSyntax.var
 
-    /** Full rendering with verbatim build metadata. Use for serialisation round-trips. */
-    val full: Formatter = (v: SemVer) =>
-      val sb = StringBuilder(64)
-      appendCore(sb, v)
-      appendPreRelease(sb, v)
-      v.metadata.foreach(bm => sb.append('+').append(bm.show): Unit)
-      sb.result()
+    /** Renders core plus pre-release; omits build metadata. Equivalent to `v.show`. */
+    case object Standard extends version.Formatter[SemVer]:
+      def format(v: SemVer): String =
+        val sb = StringBuilder(24)
+        appendCore(sb, v)
+        appendPreRelease(sb, v)
+        sb.result()
+
+    /** Renders core plus pre-release plus build metadata. Commit SHAs are emitted verbatim; round-trips through
+      * [[SemVer$.parse SemVer.parse]] return an equal value.
+      */
+    case object Full extends version.Formatter[SemVer]:
+      def format(v: SemVer): String =
+        val sb = StringBuilder(64)
+        appendCore(sb, v)
+        appendPreRelease(sb, v)
+        appendMetadata(sb, v, None)
+        sb.result()
+
+      /** Returns a [[version.Formatter Formatter]] that truncates the commit-SHA build-metadata identifier to
+        * `length` characters. Other identifiers are emitted verbatim. `length` must be in `[7, 64]` (SHA-1 = 40,
+        * SHA-256 = 64).
+        */
+      def withShaLength(length: Int): version.Formatter[SemVer] =
+        require(length >= 7 && length <= 64, s"shaLength must be in [7, 64], got $length")
+        FullWithShaLength(length)
+    end Full
+
+    final private case class FullWithShaLength(shaLength: Int) extends version.Formatter[SemVer]:
+      def format(v: SemVer): String =
+        val sb = StringBuilder(64)
+        appendCore(sb, v)
+        appendPreRelease(sb, v)
+        appendMetadata(sb, v, Some(shaLength))
+        sb.result()
   end Formatter
 
   // --- Ordering ---
@@ -327,9 +360,9 @@ object SemVer:
       SemVer(targetCore.major, targetCore.minor, targetCore.patch, Some(PreRelease.snapshot), md)
 
     extension (v: SemVer)
-      def show: String = Formatter.standard.format(v)
       def components: IArray[Int] = IArray(v.major.value, v.minor.value, v.patch.value)
       def isFinal: Boolean = v.preRelease.isEmpty
+      override def isSnapshot: Boolean = v.preRelease.exists(_.isSnapshot)
       def core: SemVer = SemVer(v.major, v.minor, v.patch)
       def incrementComponent(index: Int): SemVer = index match
         case 0 => SemVer(v.major.increment, Minor.reset, Patch.reset)

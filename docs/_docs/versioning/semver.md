@@ -66,7 +66,7 @@ This is the *default* rendering. Whether build metadata appears in the final ver
 the [Formatter](../schemes/semver/operations.md#rendering); a custom `Formatter` can render the metadata identifiers in
 any other shape needed.
 
-**Examples** (using `SemVer.Formatter.full` to display the metadata):
+**Examples** (using `SemVer.Formatter.Full` to display the metadata):
 
 | Scenario                              | Output                                                         |
 |---------------------------------------|----------------------------------------------------------------|

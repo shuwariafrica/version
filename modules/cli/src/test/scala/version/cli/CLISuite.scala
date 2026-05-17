@@ -97,7 +97,12 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assert(parsed.nonEmpty)
     assertEquals(parsed.get.shaLength, 7)
 
-  test("sha-length upper bound accepted (40)"):
+  test("sha-length upper bound accepted (64)"):
+    val parsed = parse(Seq("--sha-length", "64"))
+    assert(parsed.nonEmpty)
+    assertEquals(parsed.get.shaLength, 64)
+
+  test("sha-length default (40) accepted"):
     val parsed = parse(Seq("--sha-length", "40"))
     assert(parsed.nonEmpty)
     assertEquals(parsed.get.shaLength, 40)
@@ -107,7 +112,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assert(parsed.isEmpty)
 
   test("sha-length above maximum fails parse"):
-    val parsed = parse(Seq("--sha-length", "41"))
+    val parsed = parse(Seq("--sha-length", "65"))
     assert(parsed.isEmpty)
 
   test("Explicit console-style marks explicit flag"):
@@ -182,7 +187,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
           basisCommit = opts.basisCommit,
           prNumber = opts.prNumber,
           branchOverride = opts.branchOverride,
-          shaLength = opts.shaLength,
           verbose = opts.verbose
         )
       val v = VersionCliCore.resolve(cfg, openRepository).toOption.getOrElse(fail("resolution failed"))
@@ -209,7 +213,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     val b = new StringBuilder
     b.append("Version:\n")
     b.append(s"  version   : ${v.show}\n")
-    b.append(s"  full      : ${SemVer.Formatter.full.format(v)}\n")
+    b.append(s"  full      : ${SemVer.Formatter.Full.format(v)}\n")
     val pre = v.preRelease.map(_.show).getOrElse("none")
     val meta = v.metadata.map(_.show).getOrElse("none")
     b.append(s"  preRelease: ${pre}\n")

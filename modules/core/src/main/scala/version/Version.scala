@@ -13,42 +13,20 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.resolution
+package version
 
-import scala.annotation.targetName
-
-import version.ResolvableScheme
-import version.Version
-import version.resolution.logging.Logger
-import version.resolution.logging.Verbose
-
-/** Public API entry point for version resolution.
+/** Family marker for any value that represents a version under some scheme.
   *
-  * Scheme-generic: parameterised by `[V <: Version : ResolvableScheme]`.
+  * The only contract carried at this layer is a canonical string representation. All other operations
+  * (parsing, ordering, component manipulation, Git-based resolution, configurable rendering) live on
+  * [[VersionScheme]], [[VersionArithmetic]], [[ResolvableScheme]], and [[Formatter]] and are dispatched
+  * by the per-scheme instance.
   */
-object VersionCliCore:
+trait Version:
+  /** Canonical string representation in the scheme's conventions. */
+  def show: String
 
-  /** Resolves the version using contextual parameters and an explicit repository open function. */
-  @targetName("resolveContextual")
-  def resolve[V <: Version](
-    config: ResolutionConfig[V],
-    open: String => Either[GitError, GitRepository]
-  )(using
-    ResolvableScheme[V],
-    Logger,
-    Verbose
-  ): Either[ResolutionError, V] =
-    Resolver.resolve(config, open)
-
-  /** Resolves the version with all parameters explicit. */
-  @targetName("resolveExplicitAll")
-  def resolve[V <: Version](
-    config: ResolutionConfig[V],
-    open: String => Either[GitError, GitRepository],
-    logger: Logger,
-    verbose: Verbose
-  )(using ResolvableScheme[V]): Either[ResolutionError, V] =
-    given Logger = logger
-    given Verbose = verbose
-    Resolver.resolve(config, open)
-end VersionCliCore
+/** Provides companion aliases for [[Version]]. */
+object Version:
+  /** Canonical-string accessor: companion alias for [[Version!.show]]. */
+  def show[V <: Version](v: V): String = v.show

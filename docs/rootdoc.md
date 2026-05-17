@@ -10,12 +10,15 @@ integration.
     - Structured pre-release ([[version.semver.PreRelease PreRelease]])
     - Build metadata ([[version.semver.Metadata Metadata]])
     - Complete version ([[version.semver.SemVer SemVer]])
-    - Configurable formatting ([[version.semver.SemVer.Formatter Formatter]])
+    - Named formatter instances ([[version.semver.SemVer.Formatter Formatter]] with `Standard` and `Full`)
 
-- **`version` ([[version]]):** Scheme-generic type class hierarchy:
-    - [[version.VersionScheme VersionScheme]] - parse, render, ordering, components
+- **`version` ([[version]]):** Scheme-generic core:
+    - [[version.Version Version]] - family marker carrying the canonical-string contract
+    - [[version.VersionScheme VersionScheme]] - parsing, ordering, components, layout
     - [[version.VersionArithmetic VersionArithmetic]] - component manipulation
     - [[version.ResolvableScheme ResolvableScheme]] - Git-based resolution contract
+    - [[version.Formatter Formatter]] - per-scheme rendering strategy
+    - [[version.VersionResolver VersionResolver]] - scheme + tag parser + formatter bundle
     - [[version.CompatibilityPolicy CompatibilityPolicy]] - API/binary compatibility
     - [[version.ComponentRole ComponentRole]] - semantic role of component positions
     - [[version.ComponentDescriptor ComponentDescriptor]] - component name and role pair

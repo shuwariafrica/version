@@ -120,8 +120,8 @@ object CliOptions:
 
     private val optShaLength = opt[Int]("sha-length")
       .action((n, c) => c.copy(shaLength = n))
-      .validate(n => if n >= 7 && n <= 40 then success else failure("sha-length must be within [7, 40]"))
-      .text("Abbreviated SHA length in build metadata (default: 40). Range: 7..40.")
+      .validate(n => if n >= 7 && n <= 64 then success else failure("sha-length must be within [7, 64]"))
+      .text("SHA length for the 'full' renderer (default: 40). Range: 7..64 (SHA-1 = 40, SHA-256 = 64).")
 
     private val optVerbose = opt[Unit]('v', "verbose")
       .action((_, c) => c.copy(verbose = true))

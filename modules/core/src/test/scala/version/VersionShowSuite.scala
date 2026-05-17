@@ -15,6 +15,7 @@
  ****************************************************************************/
 package version
 
+import version.Formatter
 import version.semver.*
 
 /** Tests for [[SemVer.Formatter]] and the scheme-canonical `show` method. */
@@ -67,7 +68,7 @@ class VersionShowSuite extends munit.FunSuite:
 
   test("Formatter.standard: same output as show") {
     val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(Metadata(List("build"))))
-    assertEquals(SemVer.Formatter.standard.format(v), v.show)
+    assertEquals(SemVer.Formatter.Standard.format(v), v.show)
   }
 
   // --- Formatter.full ---
@@ -75,21 +76,21 @@ class VersionShowSuite extends munit.FunSuite:
   test("Formatter.full: preserves complete metadata") {
     val meta = Metadata(List("build"))
     val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
-    assertEquals(SemVer.Formatter.full.format(v), "1.2.3-alpha.1+build")
+    assertEquals(SemVer.Formatter.Full.format(v), "1.2.3-alpha.1+build")
   }
 
   test("Formatter.full: preserves full SHA (no truncation)") {
     val longSha = "abcdef1234567890abcdef1234567890abcdef12"
     val meta = Metadata(List(longSha, "main"))
     val v = V(1, 0, 0).copy(metadata = Some(meta))
-    assertEquals(SemVer.Formatter.full.format(v), s"1.0.0+$longSha.main")
+    assertEquals(SemVer.Formatter.Full.format(v), s"1.0.0+$longSha.main")
   }
 
   test("Formatter.full: renders the development-version layout verbatim") {
     val meta = Metadata(List("202605170145", "main", "abcdef123456", "pr42", "dirty"))
     val v = V(2, 1, 0).copy(preRelease = Some(PreRelease.snapshot), metadata = Some(meta))
     assertEquals(
-      SemVer.Formatter.full.format(v),
+      SemVer.Formatter.Full.format(v),
       "2.1.0-SNAPSHOT+202605170145.main.abcdef123456.pr42.dirty"
     )
   }
@@ -99,14 +100,14 @@ class VersionShowSuite extends munit.FunSuite:
   test("Formatter variants compared side by side") {
     val meta = Metadata(List("build"))
     val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
-    assertEquals(SemVer.Formatter.standard.format(v), "1.2.3-alpha.1")
-    assertEquals(SemVer.Formatter.full.format(v), "1.2.3-alpha.1+build")
+    assertEquals(SemVer.Formatter.Standard.format(v), "1.2.3-alpha.1")
+    assertEquals(SemVer.Formatter.Full.format(v), "1.2.3-alpha.1+build")
   }
 
   // --- Custom Formatter ---
 
   test("Custom Formatter implementation") {
-    val vPrefix: SemVer.Formatter = (v: SemVer) => s"v${v.major.value}.${v.minor.value}.${v.patch.value}"
+    val vPrefix: Formatter[SemVer] = (v: SemVer) => s"v${v.major.value}.${v.minor.value}.${v.patch.value}"
     assertEquals(vPrefix.format(V(3, 2, 1)), "v3.2.1")
   }
 

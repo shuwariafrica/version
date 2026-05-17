@@ -36,7 +36,7 @@ object MetadataBuilder:
   def assemble(
     branchOverride: Option[String],
     branchDetected: Option[String],
-    abbreviatedSha: String,
+    commitSha: Option[String],
     commitCount: Int,
     commitTime: Option[Long],
     prNumber: Option[Int],
@@ -44,7 +44,7 @@ object MetadataBuilder:
   ): DevelopmentMetadata =
     DevelopmentMetadata(
       branch = branchOverride.orElse(branchDetected),
-      commitSha = Some(abbreviatedSha),
+      commitSha = commitSha,
       commitCount = Some(commitCount),
       commitTime = commitTime,
       prNumber = prNumber,

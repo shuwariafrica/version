@@ -45,7 +45,7 @@ object DevelopmentMetadata:
   * @tparam V
   *   The version type.
   */
-trait ResolvableScheme[V] extends VersionArithmetic[V]:
+trait ResolvableScheme[V <: Version] extends VersionArithmetic[V]:
 
   /** Keyword aliases mapping to component indices (e.g., `"breaking" -> 0`).
     *
@@ -68,8 +68,15 @@ trait ResolvableScheme[V] extends VersionArithmetic[V]:
 
   /** Promote a development version to its release core. */
   extension (v: V) def promoteToRelease: V
+
+  /** Whether the value represents an in-development (snapshot) state in the scheme's vocabulary.
+    *
+    * Default `false`. Schemes whose model carries an explicit snapshot concept (e.g., SemVer's `SNAPSHOT` pre-release
+    * classifier) override this.
+    */
+  extension (v: V) def isSnapshot: Boolean = false
 end ResolvableScheme
 
 object ResolvableScheme:
   /** Summons the contextual [[ResolvableScheme]] instance. */
-  inline def apply[V](using rs: ResolvableScheme[V]): ResolvableScheme[V] = rs
+  inline def apply[V <: Version](using rs: ResolvableScheme[V]): ResolvableScheme[V] = rs

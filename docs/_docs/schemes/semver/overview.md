@@ -59,7 +59,7 @@ v.as[Beta]          // 1.2.3-beta.1
 
 // Rendering
 v.show                          // "1.2.3-alpha.1"
-SemVer.Formatter.full.format(v) // "1.2.3-alpha.1+build.456"
+SemVer.Formatter.Full.format(v) // "1.2.3-alpha.1+build.456"
 ```
 
 Supports JVM and Scala Native.

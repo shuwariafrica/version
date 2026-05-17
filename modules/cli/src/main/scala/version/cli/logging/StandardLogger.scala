@@ -91,14 +91,14 @@ final class StandardLogger(
 
   /** Format a version with appropriate colours based on its type. */
   private inline def formatVersion(version: SemVer): String =
-    val versionStr = SemVer.Formatter.full.format(version)
+    val versionStr = SemVer.Formatter.Full.format(version)
     if version.preRelease.isEmpty then colourConfig.colourise(versionStr, AnsiColours.Green)
     else if version.snapshot then colourConfig.colourise(versionStr, AnsiColours.Red)
     else colourConfig.colourise(versionStr, AnsiColours.Yellow)
 
   /** Output a version to stdout with appropriate formatting. */
   def outputVersion(version: SemVer): Unit =
-    val formatted = if colourConfig.isCI then SemVer.Formatter.full.format(version) else formatVersion(version)
+    val formatted = if colourConfig.isCI then SemVer.Formatter.Full.format(version) else formatVersion(version)
     println(formatted)
 
   private inline def levelPrefix(level: LogLevel): String = level match

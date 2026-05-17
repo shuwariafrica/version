@@ -19,13 +19,23 @@ import sbt.SettingKey
 import sbt.settingKey
 import sjsonnew.IsoString
 
-import version.resolution.ResolutionConfig
-
 /** Auto-imported types and settings for the version sbt plugin.
   *
   * All members are automatically available in `build.sbt` when the plugin is enabled.
   */
 object VersionPluginImports:
+
+  /** Marker type for any value the plugin resolves to. */
+  type Version = version.Version
+
+  /** Bundled scheme + tag parser + formatter. */
+  type VersionResolver[V <: version.Version] = version.VersionResolver[V]
+
+  /** Companion of [[VersionResolver]] for `withDefaults[V]` and combinators. */
+  val VersionResolver: version.VersionResolver.type = version.VersionResolver
+
+  /** Rendering strategy for a version of scheme `V`. */
+  type Formatter[V <: version.Version] = version.Formatter[V]
 
   /** Alias for [[version.semver.SemVer]] to enable unqualified use in build definitions. */
   type SemVer = version.semver.SemVer
@@ -33,17 +43,11 @@ object VersionPluginImports:
   /** Companion object for [[SemVer]], providing factory methods and type class instances. */
   val SemVer: version.semver.SemVer.type = version.semver.SemVer
 
-  /** Alias for [[version.VersionError]] to enable unqualified use in build definitions. */
+  /** Alias for [[version.errors.VersionError]] to enable unqualified use in build definitions. */
   type VersionError = version.errors.VersionError
 
   /** Companion object for [[VersionError]], providing error case classes. */
   val VersionError: version.errors.VersionError.type = version.errors.VersionError
-
-  /** Alias for [[version.resolution.ResolutionConfig]] pinned to SemVer. */
-  type VersionConfig = ResolutionConfig[version.semver.SemVer]
-
-  /** Companion object for [[version.resolution.ResolutionConfig ResolutionConfig]]. */
-  val VersionConfig: ResolutionConfig.type = ResolutionConfig
 
   /** Alias for [[version.semver.PreRelease]] to enable unqualified use in build definitions. */
   type PreRelease = version.semver.PreRelease
@@ -51,18 +55,15 @@ object VersionPluginImports:
   /** Companion object for [[PreRelease]], providing factory methods and the [[PreRelease.Resolver]] type. */
   val PreRelease: version.semver.PreRelease.type = version.semver.PreRelease
 
-  /** Type alias for tag parser functions. */
-  type TagParser = String => Option[version.semver.SemVer]
-
   // --- sjsonnew IsoString instances for sbt 2.x task caching ---
 
   /** [[sjsonnew.IsoString IsoString]] instance for [[SemVer]] enabling sbt 2.x task caching.
     *
-    * Uses [[SemVer.Formatter$.full Formatter.full]] for serialisation and [[SemVer.parseUnsafe]] for deserialisation.
-    * Used exclusively for sbt's internal cache serialisation, not for user-facing version strings.
+    * Uses [[SemVer.Formatter$.Full Formatter.Full]] for serialisation and [[SemVer.parseUnsafe]] for
+    * deserialisation. Used exclusively for sbt's internal cache serialisation, not for user-facing version strings.
     */
   given IsoString[version.semver.SemVer] = IsoString.iso(
-    version.semver.SemVer.Formatter.full.format,
+    version.semver.SemVer.Formatter.Full.format,
     version.semver.SemVer.parseUnsafe
   )
 
@@ -73,30 +74,28 @@ object VersionPluginImports:
   val versionBranchOverride: SettingKey[Option[String]] =
     settingKey("Optional branch override used when deriving build metadata.")
 
-  /** Tag parser function for converting Git tag names to [[SemVer]] values.
+  /** Bundle of scheme, tag parser, and rendering formatter for version resolution.
     *
-    * The default strips `v`/`V` prefixes and parses via [[SemVer$.parse SemVer.parse]]. Override to support
-    * non-standard tag formats:
+    * The default is `VersionResolver.withDefaults[SemVer]` (SemVer scheme, `v`/`V`-stripping tag parser, no rendering
+    * formatter so `Keys.version` falls back to canonical `v.show`).
+    *
+    * Customise via the builder methods:
     * {{{
-    * versionTagParser := name =>
-    *   SemVer.parse(name.stripPrefix("release-")).toOption
+    * versionResolver := VersionResolver.withDefaults[SemVer]
+    *   .withFormatter(SemVer.Formatter.Full.withShaLength(7))
     * }}}
     */
-  val versionTagParser: SettingKey[TagParser] =
-    settingKey("Tag parser for converting Git tag names to SemVer values. Defaults to v-prefix stripping.")
+  val versionResolver: SettingKey[VersionResolver[? <: Version]] =
+    settingKey("Version resolver bundle (scheme + tag parser + formatter).")
 
-  /** Optional [[SemVer.Formatter]] for customising the `version` setting output.
+  /** The resolved version for the current repository state.
     *
-    * When `None`, uses `v.show` (standard SemVer format, excludes build metadata).
+    * Typed against the [[Version]] marker. Pattern-match to recover scheme-specific accessors:
+    * {{{
+    * resolvedVersion.value match
+    *   case v: SemVer => s"${v.major.value}.${v.minor.value}.${v.patch.value}"
+    * }}}
     */
-  val versionFormatter: SettingKey[Option[SemVer.Formatter]] =
-    settingKey("Optional SemVer.Formatter for customising the version string. Defaults to standard (v.show).")
-
-  /** The resolved [[SemVer]] for the current repository state.
-    *
-    * Includes full 40-character SHA in build metadata for maximum flexibility. Use [[SemVer.Formatter]] for custom
-    * rendering.
-    */
-  val resolvedVersion: SettingKey[SemVer] =
-    settingKey("Resolved semantic version for the current repository state.")
+  val resolvedVersion: SettingKey[Version] =
+    settingKey("Resolved version for the current repository state.")
 end VersionPluginImports

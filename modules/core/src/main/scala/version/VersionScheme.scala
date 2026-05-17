@@ -30,7 +30,7 @@ import version.errors.VersionError
   * @tparam V
   *   The version type.
   */
-trait VersionScheme[V]:
+trait VersionScheme[V <: Version]:
 
   /** Canonical scheme identifier (e.g., "semver", "dotnet-official"). */
   def name: String
@@ -54,9 +54,6 @@ trait VersionScheme[V]:
   /** Ordering relation for this scheme. Plain `def`, not `given` - see trait documentation. */
   def ordering: Ordering[V]
 
-  /** Canonical string representation. */
-  extension (v: V) def show: String
-
   /** Numeric core components in scheme order.
     *
     * Pre-release and metadata state is NOT represented here - use [[isFinal]], [[core]], or scheme-specific typed
@@ -76,4 +73,4 @@ end VersionScheme
 
 object VersionScheme:
   /** Summons the contextual [[VersionScheme]] instance. */
-  inline def apply[V](using vs: VersionScheme[V]): VersionScheme[V] = vs
+  inline def apply[V <: Version](using vs: VersionScheme[V]): VersionScheme[V] = vs

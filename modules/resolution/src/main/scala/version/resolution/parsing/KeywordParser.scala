@@ -17,6 +17,7 @@ package version.resolution.parsing
 
 import version.ComponentRole
 import version.ResolvableScheme
+import version.Version
 import version.resolution.domain.Keyword
 import version.resolution.domain.Keyword.*
 
@@ -168,7 +169,7 @@ object KeywordParser:
     val interestingChars: Set[Char]
   )
 
-  private def buildContext[V](scheme: ResolvableScheme[V]): KeywordContext =
+  private def buildContext[V <: Version](scheme: ResolvableScheme[V]): KeywordContext =
     val aliases = scheme.keywordAliases
     val fixIndices = scheme.layout.zipWithIndex.collect { case (d, i) if d.role == ComponentRole.Fix => i }.toSet
     val kwChars = aliases.keys.map(_.head).toSet
@@ -178,7 +179,7 @@ object KeywordParser:
   // --- public API ---
 
   /** Extracts keywords from a commit message using scheme-derived keyword aliases. */
-  def parse[V](message: String)(using scheme: ResolvableScheme[V]): List[Keyword] =
+  def parse[V <: Version](message: String)(using scheme: ResolvableScheme[V]): List[Keyword] =
     val ctx = buildContext(scheme)
     val lines = message.split('\n')
     var acc = List.empty[Keyword]

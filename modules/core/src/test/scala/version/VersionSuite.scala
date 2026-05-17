@@ -257,7 +257,7 @@ class VersionSuite extends munit.FunSuite:
     }
 
     // Specific check for the metadata case ensuring they are adjacent/equivalent in precedence
-    val fmt = SemVer.Formatter.full
+    val fmt = SemVer.Formatter.Full
     val baseIndex = sorted.indexWhere(v => fmt.format(v) == "1.0.0")
     val metaIndex = sorted.indexWhere(v => fmt.format(v) == "1.0.0+build.123")
     assert(baseIndex >= 0 && metaIndex >= 0)

@@ -20,6 +20,7 @@ import sbt.util.Logger
 
 import java.nio.file.Files
 
+import version.ResolvableScheme
 import version.resolution.ResolutionConfig
 import version.resolution.domain.CiProvider
 import version.sbt.VersionPlugin.internal
@@ -63,22 +64,22 @@ class VersionPluginSpec extends FunSuite:
     assertEquals(internal.defaultVerbose(Map.empty), false)
   }
 
-  test("resolveVersion returns fallback version when not in a Git repository") {
+  test("resolveVersion returns the scheme's empty-metadata development version when not in a Git repository") {
     val repo = Files.createTempDirectory("version-plugin-resolve-")
     try
       val cfg = ResolutionConfig.default[SemVer](repo.toString)
-      val result = internal.resolveVersion(cfg, testLogger)
-      assertEquals(result, internal.fallbackVersion)
+      val scheme = summon[ResolvableScheme[SemVer]]
+      val result = internal.resolveVersion(cfg, testLogger, scheme)
       assertEquals(result.show, "0.1.0-SNAPSHOT")
     finally Filesystem.removeRecursive(repo)
   }
 
-  test("resolveVersion wraps other resolution failures in MessageOnlyException") {
+  test("resolveVersion handles non-existent paths gracefully") {
     val nonExistentRepo = Files.createTempDirectory("version-plugin-").resolve("does-not-exist")
     val cfg = ResolutionConfig.default[SemVer](nonExistentRepo.toString)
-    // RepositoryNotFound for non-existent path is still handled gracefully
-    val result = internal.resolveVersion(cfg, testLogger)
-    assertEquals(result, internal.fallbackVersion)
+    val scheme = summon[ResolvableScheme[SemVer]]
+    val result = internal.resolveVersion(cfg, testLogger, scheme)
+    assertEquals(result.show, "0.1.0-SNAPSHOT")
   }
 
 end VersionPluginSpec

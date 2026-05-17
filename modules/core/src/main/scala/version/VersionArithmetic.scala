@@ -25,7 +25,7 @@ import version.errors.VersionError
   * @tparam V
   *   The version type.
   */
-trait VersionArithmetic[V] extends VersionScheme[V]:
+trait VersionArithmetic[V <: Version] extends VersionScheme[V]:
 
   /** Advance the version by incrementing the component at the given index.
     *
@@ -54,4 +54,4 @@ end VersionArithmetic
 
 object VersionArithmetic:
   /** Summons the contextual [[VersionArithmetic]] instance. */
-  inline def apply[V](using va: VersionArithmetic[V]): VersionArithmetic[V] = va
+  inline def apply[V <: Version](using va: VersionArithmetic[V]): VersionArithmetic[V] = va
