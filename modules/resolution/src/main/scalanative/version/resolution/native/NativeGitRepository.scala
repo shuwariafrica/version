@@ -43,10 +43,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val msg = git_error_message(err)
       if msg == null then "unknown error" else fromCString(msg)
 
-  // FFI buffer slots are at function entry so each lowers to a static alloca:
-  // release-fast's inliner only hoists entry-block allocas to the caller's
-  // entry. `resolve` and `open` keep theirs inside `Zone:` since both run
-  // once per resolver invocation.
+  // Declare FFI buffer slots at function entry: only entry-block allocas get hoisted by release-fast's inliner.
 
   def head: Either[GitError, Option[CommitSha]] =
     val refOut = stackalloc[Ptr[Byte]](1)
@@ -172,10 +169,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           git_revwalk_free(walk)
           Left(GitError.BackendFailure(lastError))
         else
-          // Hotpath: a mutable HashSet of the underlying String values keeps
-          // the inner per-commit lookup at amortised O(1) and avoids the
-          // immutable Set node allocation that the previous implementation
-          // paid for every visited commit.
+          // Use a mutable HashSet over the underlying String values: amortised O(1) lookup without per-commit persistent-Set node allocation.
           val remaining = mutable.HashSet.from(tagCommits.iterator.map(_.value))
           val found = mutable.HashSet.empty[String]
           var walkRc = git_revwalk_next(oidBuf, walk)
@@ -242,6 +236,11 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     end if
   end doWalk
 
+  def loadCommit(sha: CommitSha): Either[GitError, RawCommit] =
+    val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
+    hexToOid(sha.value, oidBuf)
+    loadCommit(oidBuf)
+
   private def loadCommit(oid: Ptr[Byte]): Either[GitError, RawCommit] =
     val commitOut = stackalloc[Ptr[Byte]](1)
     val lookupRc = git_commit_lookup(commitOut, repo, oid)
@@ -252,9 +251,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val msg = fromCString(git_commit_message(commit))
       val time = git_commit_time(commit)
       val parentCount = git_commit_parentcount(commit).toInt
-      // Hotpath: parentCount is known up-front, so a fixed Array[CommitSha]
-      // sized exactly to the count beats IArray.newBuilder, whose closure
-      // construction shows up as Lambda$ heap allocation in IR.
+      // Allocate the exact-sized Array directly: skips the closure allocation IArray.newBuilder emits as a Lambda$ in the NIR.
       val parentArr = new Array[CommitSha](parentCount)
       var p = 0
       while p < parentCount do
@@ -289,13 +286,9 @@ object NativeGitRepository:
   import LibGit2.*
   import LibGit2Constants.*
 
-  // libgit2 emits OIDs as lowercase ASCII hex (the upstream git_oid_fmt_substr
-  // helper writes from the constant table "0123456789abcdef"); we replicate
-  // that contract directly here, reading the raw 20 SHA-1 bytes via Ptr[Byte]
-  // and writing 40 chars into a single Array[Char] for one String allocation.
-  // Bypasses the previous chain of 41-byte stackalloc, memset, FFI call to
-  // git_oid_tostr, fromCString's UTF-8 charset decode, and a redundant
-  // .toLowerCase pass on already-lowercase output.
+  // Direct byte-to-hex into a single Array[Char]: one String allocation, skipping
+  // the git_oid_tostr FFI + fromCString UTF-8 decode + .toLowerCase chain. libgit2's
+  // git_oid_fmt_substr already writes the same lowercase table "0123456789abcdef".
   private inline def oidToHex(oid: Ptr[Byte]): String =
     val chars = new Array[Char](GIT_OID_SHA1_HEXSIZE)
     var i = 0

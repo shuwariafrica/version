@@ -32,20 +32,17 @@ final class IsoStringSuite extends FunSuite:
   private val isoString = summon[IsoString[SemVer]]
 
   test("IsoString round-trips compound version with pre-release and metadata") {
-    // Comprehensive test covering core + pre-release + metadata
-    val version = SemVer.parseUnsafe("3.2.1-beta.5+branchrelease.commits99.sha0123456789abcdef.dirty")
+    val version = SemVer.parseUnsafe("3.2.1-beta.5+202605170145.release.0123456789abcdef.pr42.dirty")
     val serialised = isoString.to(version)
     val deserialised = isoString.from(serialised)
     assertEquals(deserialised, version)
-    // Verify Formatter.full preserves complete metadata (not truncated)
-    assertEquals(serialised, "3.2.1-beta.5+branchrelease.commits99.sha0123456789abcdef.dirty")
+    assertEquals(serialised, "3.2.1-beta.5+202605170145.release.0123456789abcdef.pr42.dirty")
   }
 
   test("IsoString uses Formatter.full (preserves full SHA metadata)") {
     val sha = "abc1234567890def1234567890abc1234567890d"
-    val version = SemVer.parseUnsafe(s"1.0.0+sha$sha")
+    val version = SemVer.parseUnsafe(s"1.0.0+202605170145.main.$sha")
     val serialised = isoString.to(version)
-    // Formatter.full should preserve the full SHA, not truncate to 7 chars
     assert(serialised.contains(sha), clues(serialised))
   }
 

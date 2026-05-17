@@ -27,8 +27,8 @@ import version.resolution.parsing.KeywordParser
 
 /** Version resolution engine.
   *
-  * Implements the algorithm from the version resolution specification. Scheme-generic: parameterised by
-  * `[V: ResolvableScheme]`.
+  * Scheme-generic across `[V: ResolvableScheme]`: drives the standard resolution algorithm against any version type
+  * for which a [[version.ResolvableScheme ResolvableScheme]] instance exists.
   */
 object Resolver:
 
@@ -108,11 +108,13 @@ object Resolver:
             val fpCommits = ok(lift(repo.walkFirstParent(basis, baseTag.map(_.commit))))
             val commitCount = fpCommits.count(!_.isMerge)
             val abbreviatedSha = ok(lift(repo.abbreviate(basis, config.shaLength)))
+            val basisCommit = ok(lift(repo.loadCommit(basis)))
             val devMeta = MetadataBuilder.assemble(
               branchOverride = config.branchOverride,
               branchDetected = branchName,
               abbreviatedSha = abbreviatedSha,
               commitCount = commitCount,
+              commitTime = Some(basisCommit.commitTime),
               prNumber = config.prNumber,
               isDirty = isDirty
             )
@@ -178,10 +180,7 @@ object Resolver:
     commits: IArray[RawCommit],
     repo: GitRepository
   )(using ResolvableScheme[V]): Either[ResolutionError, Set[CommitSha]] =
-    // Hotpath: a mutable.HashSet absorbs every walked commit in O(1)
-    // amortised, returned as an immutable Set at the end. The previous
-    // implementation rebuilt a persistent immutable Set via `++` per merge
-    // parent, allocating tree nodes proportional to the walk size.
+    // Use a mutable HashSet then freeze: avoids the persistent-Set tree-node allocation a `++=` chain would incur per commit.
     boundary:
       val exclusions = mutable.HashSet.empty[CommitSha]
       var i = 0

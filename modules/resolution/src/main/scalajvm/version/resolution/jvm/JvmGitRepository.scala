@@ -167,6 +167,17 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
       case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.nn))
       case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.nn))
 
+  def loadCommit(sha: CommitSha): Either[GitError, RawCommit] =
+    try
+      Using.resource(new RevWalk(repo)): rw =>
+        val oid = ObjectId.fromString(sha.value)
+        val commit = rw.parseCommit(oid)
+        Right(toRawCommit(commit))
+    catch
+      case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.nn.name))
+      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.nn))
+      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.nn))
+
   def abbreviate(id: CommitSha, length: Int): Either[GitError, String] =
     try
       val oid = ObjectId.fromString(id.value)

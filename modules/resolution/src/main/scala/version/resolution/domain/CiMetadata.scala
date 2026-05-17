@@ -76,8 +76,11 @@ object CiMetadata:
   given CanEqual[CiMetadata, CiMetadata] = CanEqual.derived
 
   private def selectBranchOverride(ci: CiMetadata): Option[String] =
+    // PR builds: the target branch (where the merge lands) is the stable, informative identifier.
+    // The PR's source branch is often noisy (`copilot/...`, `dependabot/...`) and is communicated
+    // separately via [[inferPullRequestNumber]].
     ci.pullRequest
-      .flatMap(pr => pr.sourceRef.orElse(ci.branch).orElse(pr.targetRef))
+      .flatMap(pr => pr.targetRef.orElse(ci.branch).orElse(pr.sourceRef))
       .orElse(ci.branch)
 
   extension (ci: CiMetadata)

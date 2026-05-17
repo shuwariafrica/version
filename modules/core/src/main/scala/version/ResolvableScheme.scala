@@ -20,11 +20,15 @@ package version
   * This is a pure data aggregate carrying information from the resolution engine to a scheme's
   * [[ResolvableScheme.developmentVersion]] implementation. The scheme uses this to construct a development version in
   * its own format (e.g., SemVer uses `-SNAPSHOT+metadata`).
+  *
+  * `commitTime` carries the basis commit's committer time in seconds since the Unix epoch (UTC). The scheme may render
+  * this in a sortable form so that snapshots of the same base sort chronologically as raw strings.
   */
 final case class DevelopmentMetadata(
   branch: Option[String],
   commitSha: Option[String],
   commitCount: Option[Int],
+  commitTime: Option[Long],
   prNumber: Option[Int],
   isDirty: Boolean
 )

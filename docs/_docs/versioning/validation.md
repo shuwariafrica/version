@@ -118,4 +118,4 @@ Highest core wins; others ignored
 | Pre-release `3.1.0-rc.2` highest | `3.0.0` | Ignored (B)      |
 | No base, repo final `4.3.0`      | `4.3.0` | Ignored (C)      |
 | Partial core                     | `1.2`   | Ignored (E)      |
-| Multiple: `1.5.0`, `1.6.0`       |  -        | `1.6.0` wins (F) |
+| Multiple: `1.5.0`, `1.6.0`       | -       | `1.6.0` wins (F) |

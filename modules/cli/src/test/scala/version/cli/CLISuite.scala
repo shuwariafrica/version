@@ -209,7 +209,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     val b = new StringBuilder
     b.append("Version:\n")
     b.append(s"  version   : ${v.show}\n")
-    b.append(s"  extended  : ${SemVer.Formatter.extended.format(v)}\n")
+    b.append(s"  full      : ${SemVer.Formatter.full.format(v)}\n")
     val pre = v.preRelease.map(_.show).getOrElse("none")
     val meta = v.metadata.map(_.show).getOrElse("none")
     b.append(s"  preRelease: ${pre}\n")

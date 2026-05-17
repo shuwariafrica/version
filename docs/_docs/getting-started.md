@@ -2,18 +2,19 @@
 title: Getting Started
 ---
 
-A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build integration.
+A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build
+integration.
 
 ---
 
 ## Modules
 
-| Module               | Platforms   | Description                                |
-|----------------------|-------------|--------------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations         |
-| `version-resolution` | JVM, Native | Automatic version derivation from Git      |
-| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases)    |
-| `sbt-version`        | sbt 2.x     | Build integration                          |
+| Module               | Platforms   | Description                             |
+|----------------------|-------------|-----------------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations      |
+| `version-resolution` | JVM, Native | Automatic version derivation from Git   |
+| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
+| `sbt-version`        | sbt 2.x     | Build integration                       |
 
 ```scala
 // Core library

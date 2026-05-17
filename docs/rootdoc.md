@@ -1,9 +1,11 @@
-A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build integration.
+A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build
+integration.
 
 ## API Structure
 
 - **`version.semver` ([[version.semver]]):** SemVer 2.0.0 model:
-    - Version components ([[version.semver.Major Major]], [[version.semver.Minor Minor]], [[version.semver.Patch Patch]])
+    - Version
+      components ([[version.semver.Major Major]], [[version.semver.Minor Minor]], [[version.semver.Patch Patch]])
     - Pre-release classifiers ([[version.semver.PreReleaseClassifier PreReleaseClassifier]])
     - Structured pre-release ([[version.semver.PreRelease PreRelease]])
     - Build metadata ([[version.semver.Metadata Metadata]])

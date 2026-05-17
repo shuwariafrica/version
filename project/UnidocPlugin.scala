@@ -19,7 +19,7 @@ object VersionUnidocPlugin extends AutoPlugin:
     val documentationSourceLinks = settingKey[String]("Source link configuration for Scaladoc")
     val documentationFooter = settingKey[String]("Footer text for documentation")
     val generateUnidoc = taskKey[File]("Generate unified API documentation with static site")
-    val preprocessDocs = taskKey[File]("Run mdoc over the prose pages and the repo-root README; copy site assets")
+    val preprocessDocs = taskKey[File]("Run mdoc over the prose pages and the README source; copy site assets")
     val scalaNativeVersion = settingKey[String]("Version of Scala Native used to build the project")
 
   private val renderedReadme = Def.setting((ThisProject / target).value / "readme" / "README.md")
@@ -56,15 +56,16 @@ object VersionUnidocPlugin extends AutoPlugin:
     siteRoot
   }
 
-  // Render the repo-root README via mdoc to `renderedReadme.value`. Output
-  // sits outside the dottydoc siteroot so it is never picked up as a doc
-  // page. The release workflow consumes the file to commit it back to main.
-  // Def.taskDyn so the --in/--out args compose from task-time settings
-  // before the InputTask is constructed.
+  // Render the README source under the docs project to `renderedReadme.value`. The repo-root
+  // README is the rendered output (committed by the release workflow); keeping the source
+  // separate is what stops rendering replacing its own placeholders on the next release.
+  // Output sits outside the dottydoc siteroot so it is never picked up as a doc page.
+  // Def.taskDyn lets the --in/--out args compose from task-time settings before mdoc's
+  // InputTask is constructed.
   private val processReadme: Def.Initialize[Task[File]] = Def.taskDyn {
-    val rootReadme = (LocalRootProject / baseDirectory).value / "README.md"
+    val sourceReadme = (ThisProject / baseDirectory).value / "README.md"
     val readmeOut = renderedReadme.value
-    val args = s" --in ${rootReadme.getAbsolutePath} --out ${readmeOut.getAbsolutePath}"
+    val args = s" --in ${sourceReadme.getAbsolutePath} --out ${readmeOut.getAbsolutePath}"
     Def.task {
       val _ = (Compile / mdoc).toTask(args).value
       readmeOut

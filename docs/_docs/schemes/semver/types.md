@@ -4,7 +4,7 @@ title: Types
 
 ### Component Types
 
-#### [[version.semver.Major Major]]
+#### `Major`
 
 The major version number. Must be non-negative.
 
@@ -28,7 +28,7 @@ Major.minimum // Major(0)
 Major.reset // Major(0)
 ```
 
-#### [[version.semver.Minor Minor]]
+#### `Minor`
 
 The minor version number. Must be non-negative.
 
@@ -39,7 +39,7 @@ minor.increment // Minor(6)
 Minor.reset // Minor(0)
 ```
 
-#### [[version.semver.Patch Patch]]
+#### `Patch`
 
 The patch version number. Must be non-negative.
 
@@ -50,7 +50,7 @@ patch.increment // Patch(4)
 Patch.reset // Patch(0)
 ```
 
-#### [[version.semver.PreReleaseNumber]]
+#### `PreReleaseNumber`
 
 The pre-release version number. Must be positive (>= 1).
 
@@ -67,7 +67,7 @@ prn.increment // PreReleaseNumber(2)
 
 ### Pre-release Types
 
-#### [[version.semver.PreReleaseClassifier]]
+#### `PreReleaseClassifier`
 
 An enumeration of constrained classifiers with defined precedence (lowest to highest):
 
@@ -100,7 +100,7 @@ PreReleaseClassifier.fromAlias("foo") // None
   case PreReleaseClassifier(c) => c // Beta
 ```
 
-#### [[version.semver.PreRelease]]
+#### `PreRelease`
 
 Combines a classifier with an optional version number:
 
@@ -132,7 +132,7 @@ pr.isAlpha // true
 
 ---
 
-### [[version.semver.Metadata]]
+### `Metadata`
 
 Build metadata identifiers. Each must match `[0-9A-Za-z-]+`.
 
@@ -147,14 +147,14 @@ Metadata.from(List("")) // Left(InvalidMetadata(...))
 Metadata.from(List("a@b")) // Left(InvalidMetadata(...))
 
 // Access
-val bm = Metadata(List("sha", "abc123"))
-bm.identifiers // List("sha", "abc123")
-bm.show // "+sha.abc123"
+val bm = Metadata(List("build", "456"))
+bm.identifiers // List("build", "456")
+bm.show // "build.456"
 ```
 
 ---
 
-### [[version.semver.SemVer SemVer]]
+### `SemVer`
 
 The complete SemVer 2.0.0 representation:
 

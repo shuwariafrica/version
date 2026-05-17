@@ -35,21 +35,21 @@ sbt check       # Verify formatting compliance
 
 ### Module Structure
 
-| Module | Scope | Dependencies |
-|--------|-------|-------------|
-| `version` | Version model | boilerplate |
+| Module               | Scope              | Dependencies                          |
+|----------------------|--------------------|---------------------------------------|
+| `version`            | Version model      | boilerplate                           |
 | `version-resolution` | Version derivation | version, JGit (JVM), libgit2 (Native) |
-| `version-cli` | CLI application | version-resolution, scopt |
-| `sbt-version` | sbt plugin | version-resolution |
-| `version-testkit` | Test utilities | (no external dependencies) |
+| `version-cli`        | CLI application    | version-resolution, scopt             |
+| `sbt-version`        | sbt plugin         | version-resolution                    |
+| `version-testkit`    | Test utilities     | (no external dependencies)            |
 
 ### Version Resolution
 
 The resolution engine in `version-resolution` follows the [Specification](versioning/specification.md). Key components:
 
-- [[version.resolution.parsing.KeywordParser KeywordParser]] - extracts directives from commit messages
-- [[version.resolution.TargetVersionCalculator TargetVersionCalculator]] - computes target version from keywords
-- [[version.resolution.Resolver Resolver]] - orchestrates the full resolution workflow
+- `KeywordParser` - extracts directives from commit messages
+- `TargetVersionCalculator` - computes target version from keywords
+- `Resolver` - orchestrates the full resolution workflow
 
 Per-platform Git backends:
 
@@ -68,7 +68,8 @@ Per-platform Git backends:
 
 ## Specification Changes
 
-The [Specification](versioning/specification.md) is normative. If code contradicts the specification, the specification wins. Changes to version resolution behaviour require:
+The [Specification](versioning/specification.md) is normative. If code contradicts the specification, the specification
+wins. Changes to version resolution behaviour require:
 
 1. Specification update with rationale
 2. Implementation changes
@@ -79,4 +80,5 @@ The [Specification](versioning/specification.md) is normative. If code contradic
 
 ## Licence
 
-By contributing, you agree that your contributions will be licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
+By contributing, you agree that your contributions will be licensed under
+the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).

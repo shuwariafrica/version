@@ -17,59 +17,38 @@ package version.resolution
 
 import version.DevelopmentMetadata
 
-// scalafix:off
 /** Assembles [[DevelopmentMetadata]] from pre-gathered resolution values.
   *
   * Pure function - no Git dependency. The resolver gathers the values via [[GitRepository]], then passes them here for
-  * assembly.
+  * assembly. The branch name is preserved verbatim (no sanitisation) so consumers see the actual Git ref; rendering
+  * adjustments belong to the chosen [[version.VersionScheme VersionScheme]].
   */
 object MetadataBuilder:
 
   /** Assemble development metadata from pre-gathered values.
     *
-    * Branch normalisation: lowercase, replace non-`[0-9a-z-]` with `-`, collapse consecutive `-`, trim leading/trailing
-    * `-`, empty becomes `"detached"`.
+    * `branchOverride` takes precedence over `branchDetected`. `None` for both means HEAD is detached or the branch was
+    * otherwise unavailable; the scheme decides how to render that.
+    *
+    * `commitTime` is seconds since the Unix epoch (UTC). Pass `None` when no basis commit is available (e.g., an
+    * unborn HEAD), otherwise pass the basis commit's committer time.
     */
   def assemble(
     branchOverride: Option[String],
     branchDetected: Option[String],
     abbreviatedSha: String,
     commitCount: Int,
+    commitTime: Option[Long],
     prNumber: Option[Int],
     isDirty: Boolean
   ): DevelopmentMetadata =
-    val branch = branchOverride
-      .map(normalise)
-      .orElse(branchDetected.map(normalise))
-      .getOrElse("detached")
     DevelopmentMetadata(
-      branch = Some(branch),
+      branch = branchOverride.orElse(branchDetected),
       commitSha = Some(abbreviatedSha),
       commitCount = Some(commitCount),
+      commitTime = commitTime,
       prNumber = prNumber,
       isDirty = isDirty
     )
 
-  /** Branch normalisation per spec ss7. */
-  private[resolution] def normalise(name: String): String =
-    // Hotpath: single-pass normalisation avoids regex/replaceAll intermediate string allocations.
-    val lower = name.toLowerCase
-    val sb = new StringBuilder(lower.length)
-    var prevHyphen = false
-    lower.foreach { ch =>
-      val ok = (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-'
-      if ok then
-        if ch == '-' then
-          if !prevHyphen then
-            sb.append('-'); prevHyphen = true
-        else
-          sb.append(ch); prevHyphen = false
-      else if !prevHyphen then
-        sb.append('-'); prevHyphen = true
-    }
-    var s = sb.result()
-    s = s.dropWhile(_ == '-')
-    s = s.reverse.dropWhile(_ == '-').reverse
-    if s.isEmpty then "detached" else s
 end MetadataBuilder
-// scalafix:on

@@ -67,8 +67,11 @@ checkAfterCommit := {
   val v = resolvedVersion.value
   assertPrefix(v.show, "1.0.1-SNAPSHOT")
   val meta = v.metadata.get.identifiers
-  assert(meta.exists(_.startsWith("commits")), s"Expected commits: $meta")
-  assert(meta.exists(_.startsWith("sha")), s"Expected sha: $meta")
+  assert(meta.length >= 3, s"Expected at least timestamp.branch.sha: $meta")
+  val head = meta.head
+  assert(head.length == 12 && head.forall(_.isDigit), s"Expected timestamp identifier first: $meta")
+  val shaId = meta(2)
+  assert(shaId.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')), s"Expected hex sha: $meta")
 }
 
 checkPreRelease := check(resolvedVersion.value.show, "2.0.0-rc.1")
@@ -77,7 +80,10 @@ checkMetadata := {
   val v = resolvedVersion.value
   assertPrefix(v.show, "0.1.0-SNAPSHOT")
   val meta = v.metadata.get.identifiers
-  assert(meta.exists(_.startsWith("branch")), s"Expected branch: $meta")
-  assert(meta.exists(_.startsWith("commits")), s"Expected commits: $meta")
-  assert(meta.exists(_.startsWith("sha")), s"Expected sha: $meta")
+  assert(meta.length >= 3, s"Expected at least timestamp.branch.sha: $meta")
+  val head = meta.head
+  assert(head.length == 12 && head.forall(_.isDigit), s"Expected timestamp identifier first: $meta")
+  assert(meta(1) == "main", s"Expected branch 'main' at position 2: $meta")
+  val shaId = meta(2)
+  assert(shaId.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')), s"Expected hex sha: $meta")
 }

@@ -66,6 +66,17 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       val full = SemVer.Formatter.full.format(v)
       assert(full.contains("dirty"), s"expected 'dirty' in $full")
 
+  test("Mode 2: metadata leads with a 12-digit UTC timestamp identifier"):
+    withFreshRepo("mode2-timestamp"): repo =>
+      checkout(repo, "v1.0.0")
+      Files.writeString(repo.resolve("dirty.txt"), "dirty"): Unit
+      val res = VersionCliCore.resolve(cfg(repo.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val ids = res.toOption.get.metadata.map(_.identifiers).getOrElse(Nil)
+      val leading = ids.headOption.getOrElse(fail(s"metadata empty: $ids"))
+      assert(leading.length == 12, s"leading identifier '$leading' is not 12 chars: $ids")
+      assert(leading.forall(_.isDigit), s"leading identifier '$leading' is not all digits: $ids")
+
   test("No tags anywhere: default target is 0.1.0"):
     withFreshRepo("no-tags"): _ =>
       // Use the initMinimalRepo which has no tags

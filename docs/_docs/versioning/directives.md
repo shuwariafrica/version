@@ -43,7 +43,8 @@ version: ignore: <sha>..<sha>             # Exclude range (inclusive)
 version: ignore-merged                    # Exclude all merged branch commits
 ```
 
-**SHA prefixes**: Must be at least 7 hexadecimal characters. Invalid SHA references (too short, non-hex characters, incomplete ranges) are silently ignored.
+**SHA prefixes**: Must be at least 7 hexadecimal characters. Invalid SHA references (too short, non-hex characters,
+incomplete ranges) are silently ignored.
 
 **Use cases**:
 
@@ -79,7 +80,8 @@ feature: Add caching support       -> Minor increment
 feat: Add logging                  -> Minor increment
 ```
 
-`fix:` and `patch:` shorthands are recognised for Conventional Commits compatibility but have no effect - patch increment is already the default behaviour.
+`fix:` and `patch:` shorthands are recognised for Conventional Commits compatibility but have no effect - patch
+increment is already the default behaviour.
 
 **Requirement**: Non-empty text after the colon.
 

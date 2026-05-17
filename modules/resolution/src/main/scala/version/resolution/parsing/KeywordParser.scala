@@ -21,13 +21,13 @@ import version.resolution.domain.Keyword
 import version.resolution.domain.Keyword.*
 
 // scalafix:off
-// Hotpath: single-pass character-level scanning with no intermediate allocations.
-// Avoids split/regex/Iterator chains that would allocate per-line during resolution.
+// Index-arithmetic scan: avoids the per-line allocations a split/regex/Iterator pipeline would incur.
 
 /** Commit message keyword parser for version resolution.
   *
-  * Extracts version control keywords from commit messages following the specification. Keyword-to-component-index
-  * mapping is derived from the scheme's [[version.ResolvableScheme.keywordAliases keywordAliases]].
+  * Extracts directives like `version: minor`, `target: 2.0.0`, `breaking: ...`, and ignore variants. The mapping from
+  * keyword text to scheme-component index is supplied via
+  * [[version.ResolvableScheme.keywordAliases keywordAliases]].
   */
 object KeywordParser:
 
