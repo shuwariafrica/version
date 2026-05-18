@@ -1,8 +1,10 @@
 # version
 
-A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build integration.
+A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
+build integration.
 
-Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary. Scala.js axis is deferred pending upstream sbt 2.x support.
+Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary. Scala.js axis is deferred pending upstream sbt
+2.x support.
 
 ## Overview
 
@@ -36,12 +38,12 @@ The plugin automatically derives and sets `version` for all projects.
 ### Library
 
 ```scala
-//> using dep "africa.shuwari::version::0.7.0+15-46366051+20260517-0255"
+//> using dep "africa.shuwari::version::0.7.0"
 
 import version.semver.*
 
 // Parse
-val v = SemVer.parse("2.1.0-rc.1+build.123") // Either[ParseError, SemVer]
+val v = SemVer.parse("2.1.0-rc.1+abc1234.123") // Either[ParseError, SemVer]
 
 // Construct
 val release = SemVer(Major(1), Minor(2), Patch(3)) // 1.2.3
@@ -73,12 +75,12 @@ fix: Handle edge case               # Patch increment
 
 ## Modules
 
-| Module               | Platforms   | Description                                |
-|----------------------|-------------|--------------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations         |
-| `version-resolution` | JVM, Native | Git-based version derivation               |
-| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases)    |
-| `sbt-version`        | sbt 2.x     | Build integration                          |
+| Module               | Platforms   | Description                             |
+|----------------------|-------------|-----------------------------------------|
+| `version`            | JVM, Native | Version model, parsing, operations      |
+| `version-resolution` | JVM, Native | Git-based version derivation            |
+| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
+| `sbt-version`        | sbt 2.x     | Build integration                       |
 
 ## Licence
 
