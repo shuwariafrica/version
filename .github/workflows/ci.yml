@@ -6,6 +6,7 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
 
 permissions:
   contents: read
@@ -340,13 +341,13 @@ jobs:
           touch "$site_dir/.nojekyll"
 
       - name: Upload Pages Artefact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: actions/upload-pages-artifact@v5
         with:
           path: ${{ steps.build-site.outputs.site_dir }}
 
       - name: Upload Rendered README
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         uses: actions/upload-artifact@v7
         with:
           name: readme
@@ -384,3 +385,28 @@ jobs:
 
       - name: Submit Dependency Graph
         uses: scalacenter/sbt-dependency-submission@v3
+
+  dispatch_release:
+    name: Dispatch Release
+    # On tag-push only, after every quality gate passes, hand off to release.yml
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - test_jvm
+      - test_native
+      - verify_linux_static_portability
+      - test_sbt_scripted
+      - static_analysis
+      - docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch release.yml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${{ github.ref_name }}" \
+            -f ci_run_id="${{ github.run_id }}"

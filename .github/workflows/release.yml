@@ -2,8 +2,11 @@ name: "Release"
 
 on:
   workflow_dispatch:
-  push:
-    tags: [ v* ]
+    inputs:
+      ci_run_id:
+        description: "CI run that verified and produced the binaries to release; must be on the same tag as this workflow dispatch"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,47 +24,45 @@ env:
     -XX:ReservedCodeCacheSize=512M
 
 jobs:
-  await_ci:
-    name: Await CI Run
+  verify_ci_run:
+    name: Verify CI Run
+    # Sanity-check the dispatcher's inputs before any publish step runs
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: read
-    outputs:
-      run_id: ${{ steps.resolve.outputs.run_id }}
     steps:
-      - name: Resolve CI Run
-        id: resolve
+      - name: Verify Run Provenance and Artefacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mapfile -t run_ids < <(gh run list \
-            --repo "${{ github.repository }}" \
-            --workflow CI \
-            --commit "${{ github.sha }}" \
-            --status success \
-            --limit 5 \
-            --json databaseId --jq '.[].databaseId')
-          run_id=""
-          # Reject success runs that somehow shipped no native archives.
-          for id in "${run_ids[@]}"; do
-            count=$(gh api "repos/${{ github.repository }}/actions/runs/$id/artifacts" \
-              --jq '[.artifacts[] | select(.name | startswith("binary-"))] | length')
-            if [[ "$count" -gt 0 ]]; then
-              run_id="$id"
-              break
-            fi
-          done
-          if [[ -z "$run_id" ]]; then
-            echo "::error::No successful CI run with binary-* artefacts found for ${{ github.sha }}. Push the commit to main and let CI complete before tagging."
+          run_json=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.ci_run_id }}")
+          conclusion=$(echo "$run_json" | jq -r '.conclusion')
+          head_branch=$(echo "$run_json" | jq -r '.head_branch')
+          head_sha=$(echo "$run_json" | jq -r '.head_sha')
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error::CI run ${{ inputs.ci_run_id }} conclusion is '$conclusion', expected 'success'."
             exit 1
           fi
-          echo "Resolved CI run: $run_id"
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          if [[ "$head_branch" != "${{ github.ref_name }}" ]]; then
+            echo "::error::CI run ${{ inputs.ci_run_id }} ran on '$head_branch', expected '${{ github.ref_name }}'."
+            exit 1
+          fi
+          if [[ "$head_sha" != "${{ github.sha }}" ]]; then
+            echo "::error::CI run ${{ inputs.ci_run_id }} ran on sha '$head_sha', expected '${{ github.sha }}'."
+            exit 1
+          fi
+          binary_count=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.ci_run_id }}/artifacts" \
+            --jq '[.artifacts[] | select(.name | startswith("binary-"))] | length')
+          if [[ "$binary_count" -eq 0 ]]; then
+            echo "::error::CI run ${{ inputs.ci_run_id }} produced no binary-* artefacts."
+            exit 1
+          fi
+          echo "Verified CI run ${{ inputs.ci_run_id }} (binary-* count: $binary_count)"
 
   publish_binaries:
     name: Publish Release Binaries
-    needs: await_ci
+    needs: verify_ci_run
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -74,13 +75,13 @@ jobs:
           path: archives
           pattern: binary-*
           merge-multiple: true
-          run-id: ${{ needs.await_ci.outputs.run_id }}
+          run-id: ${{ inputs.ci_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify Binaries Downloaded
         run: |
           if [[ -z "$(ls -A archives 2>/dev/null)" ]]; then
-            echo "::error::CI run ${{ needs.await_ci.outputs.run_id }} produced no binary-* artefacts."
+            echo "::error::CI run ${{ inputs.ci_run_id }} produced no binary-* artefacts."
             exit 1
           fi
           ls -la archives/
@@ -108,7 +109,7 @@ jobs:
 
   publish_maven:
     name: Publish Maven Artefacts
-    needs: await_ci
+    needs: verify_ci_run
     # `container:` rather than run-sbt.sh so crazy-max/ghaction-import-gpg and
     # sbt share one filesystem; avoids bind-mounting the host's ~/.gnupg (with
     # its gpg-agent socket) into a separate `docker run`.
@@ -154,7 +155,7 @@ jobs:
 
   docs_stage:
     name: Stage Documentation Artefacts
-    needs: await_ci
+    needs: verify_ci_run
     # actions/deploy-pages reads only from the current run's artefact scope,
     # so cross-workflow consumption requires download + re-upload here.
     runs-on: ubuntu-24.04
@@ -167,7 +168,7 @@ jobs:
         with:
           name: github-pages
           path: pages-download
-          run-id: ${{ needs.await_ci.outputs.run_id }}
+          run-id: ${{ inputs.ci_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract Pages Artefact
@@ -187,7 +188,7 @@ jobs:
         with:
           name: readme
           path: readme-download
-          run-id: ${{ needs.await_ci.outputs.run_id }}
+          run-id: ${{ inputs.ci_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Re-Upload Rendered README
