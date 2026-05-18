@@ -57,10 +57,11 @@ val `version-cli` =
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(BuildInfoPlugin)
     .settings(unitTestSettings)
-    .settings(publishSettings)
+    .settings(licenseSettings)
+    .settings(manifestSettings)
+    .settings(publish / skip := true)
     .settings(libraryDependencies += Libraries.scopt)
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
-    .settings(publish / skip := true)
     .settings(buildInfoSettings)
     .jvmPlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
@@ -163,12 +164,16 @@ def formattingSettings =
     scalafmtPrintDiff := true
   )
 
+def licenseSettings = headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
+
+def manifestSettings = packageOptions += Package.ManifestAttributes(
+  "Specification-Title" -> name.value,
+  "Specification-Version" -> Keys.version.value,
+  "Specification-Vendor" -> organizationName.value
+)
+
 def publishSettings = List(
-  packageOptions += Package.ManifestAttributes(
-    "Specification-Title" -> name.value,
-    "Specification-Version" -> Keys.version.value,
-    "Specification-Vendor" -> organizationName.value
-  ),
+  manifestSettings,
   publishTo := {
     if (Keys.version.value.toLowerCase.contains("snapshot"))
       Some("central-snapshots".at("https://central.sonatype.com/repository/maven-snapshots/"))
@@ -178,8 +183,6 @@ def publishSettings = List(
   publishMavenStyle := true,
   licenseSettings
 )
-
-def licenseSettings = headerLicense := Some(HeaderLicense.ALv2("2023-2026", "Shuwari Africa Ltd.", HeaderLicenseStyle.Detailed))
 
 def buildInfoSettings = List(
   buildInfoKeys := List[BuildInfoKey](name, Keys.version),
