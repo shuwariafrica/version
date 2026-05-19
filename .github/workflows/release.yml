@@ -92,9 +92,16 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Mint Release Bot Token
+        id: release-bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - name: Upload to GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
         run: |
           gh release view "${{ github.ref_name }}" --repo "${{ github.repository }}" >/dev/null 2>&1 || \
             gh release create "${{ github.ref_name }}" \
@@ -226,12 +233,20 @@ jobs:
           name: readme
           path: readme
 
+      - name: Mint Release Bot Token
+        id: release-bot
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
       - name: Update README on Main
         if: ${{ !contains(github.ref_name, '-') }}
         uses: actions/github-script@v8
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         with:
+          github-token: ${{ steps.release-bot.outputs.token }}
           script: |
             const fs = require('fs');
             const rendered = fs.readFileSync('readme/README.md', 'utf8');
@@ -257,7 +272,7 @@ jobs:
 
       - name: Finalise GitHub Release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.release-bot.outputs.token }}
         run: |
           prerelease_flag=""
           if [[ "${{ github.ref_name }}" == *-* ]]; then
