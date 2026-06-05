@@ -154,7 +154,7 @@ jobs:
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          winget install --id GnuPG.GnuPG -e --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --scope machine
+          winget install --id GnuPG.GnuPG -e --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --scope machine --override "/S"
           $gpg = Get-ChildItem "C:\Program Files\GnuPG\bin\gpg.exe", "C:\Program Files (x86)\GnuPG\bin\gpg.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $gpg) { throw "native gpg.exe not found after winget install" }
           "VERSION_GPG=$($gpg.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
