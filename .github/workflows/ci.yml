@@ -154,14 +154,15 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: |
-          # Strip mingw/msys/git from PATH to avoid resolving Git-for-Windows gpg and hanging.
-          $env:PATH = "C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\ProgramData\chocolatey\bin"
-          choco install gnupg -y --no-progress
-          $gpg = Get-ChildItem `
-            "C:\Program Files\GnuPG\bin\gpg.exe", `
-            "C:\Program Files (x86)\GnuPG\bin\gpg.exe" `
-            -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $gpg) { throw "native gpg.exe not found after install" }
+          # gnupg.org's Windows build is an NSIS installer that is ALSO a valid
+          # 7z archive. Extracting it
+          $file = "gnupg-w32-2.5.20_20260513.exe"
+          $url  = "https://gnupg.org/ftp/gcrypt/binary/$file"
+          $dest = "C:\gnupg"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\$file"
+          7z x "$env:RUNNER_TEMP\$file" "-o$dest" -y | Out-Null
+          $gpg = Get-ChildItem $dest -Recurse -Filter gpg.exe | Select-Object -First 1
+          if (-not $gpg) { throw "gpg.exe not found after extraction" }
           "VERSION_GPG=$($gpg.FullName)" | Out-File $env:GITHUB_ENV  -Append -Encoding utf8
           Split-Path $gpg.FullName       | Out-File $env:GITHUB_PATH -Append -Encoding utf8
           & $gpg.FullName --version | Select-Object -First 1
