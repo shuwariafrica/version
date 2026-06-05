@@ -154,13 +154,12 @@ jobs:
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $false
-          winget install --id GnuPG.GnuPG -e --source winget --silent --accept-package-agreements --accept-source-agreements
-          $gpg = Get-ChildItem "C:\Program Files\GnuPG\bin\gpg.exe","C:\Program Files (x86)\GnuPG\bin\gpg.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          winget install --id GnuPG.GnuPG -e --source winget --silent --accept-package-agreements --accept-source-agreements --disable-interactivity --scope machine
+          $gpg = Get-ChildItem "C:\Program Files\GnuPG\bin\gpg.exe", "C:\Program Files (x86)\GnuPG\bin\gpg.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $gpg) { throw "native gpg.exe not found after winget install" }
           "VERSION_GPG=$($gpg.FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           Split-Path $gpg.FullName | Out-File $env:GITHUB_PATH -Append -Encoding utf8
           & $gpg.FullName --version | Select-Object -First 1
-
       - name: Execute Unit Tests
         shell: bash
         run: project/scripts/run-sbt.sh "version-native/test"
