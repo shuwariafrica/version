@@ -22,7 +22,6 @@ import version.semver.PreReleaseClassifier.*
 /** Tests the ergonomic API provided by the extension methods in [[SemVer$ SemVer]]. */
 class VersionOperationsSuite extends munit.FunSuite:
 
-  // --- Fixtures ---
   private val V1_2_3 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
   private val V0_1_0 = SemVer(Major.fromUnsafe(0), Minor.fromUnsafe(1), Patch.fromUnsafe(0))
   private val V1_2_3_D1 = V1_2_3.copy(preRelease = Some(PreRelease.dev(PreReleaseNumber.fromUnsafe(1))))
@@ -34,8 +33,6 @@ class VersionOperationsSuite extends munit.FunSuite:
   private val TestMetadata = Metadata(List("build123"))
   private val V1_2_3_Meta = V1_2_3.copy(metadata = Some(TestMetadata))
   private val V1_2_3_RC1_Meta = V1_2_3_RC1.copy(metadata = Some(TestMetadata))
-
-  // --- Status Checks ---
 
   test("stable (major > 0 and not snapshot)") {
     assert(V1_2_3.stable)
@@ -62,8 +59,6 @@ class VersionOperationsSuite extends munit.FunSuite:
     assert(!V1_2_3_A5.preRelease.get.isBeta)
   }
 
-  // --- Version Bumping (next[F] for core components) ---
-
   test("next[Major]") {
     val expected = SemVer(Major.fromUnsafe(2), Minor.reset, Patch.reset)
     assertEquals(V1_2_3.next[Major], expected)
@@ -84,8 +79,6 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(V1_2_3_A5.next[Minor], expected)
     assertEquals(V1_2_3_RC1_Meta.next[Minor], expected)
   }
-
-  // --- Version Bumping (next[C] for pre-release classifiers) ---
 
   test("next[C] on final version starts pre-release cycle") {
     val expectedA1 = V1_2_3.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.reset)))
@@ -144,16 +137,12 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(V1_2_3_Snap.next[Alpha], V1_2_4_A1)
   }
 
-  // --- Core Extraction ---
-
   test("core returns version without pre-release or metadata") {
     assertEquals(V1_2_3.core, V1_2_3)
     assertEquals(V1_2_3_A5.core, V1_2_3)
     assertEquals(V1_2_3_Meta.core, V1_2_3)
     assertEquals(V1_2_3_RC1_Meta.core, V1_2_3)
   }
-
-  // --- Typed Pre-Release Operations (as[C]) ---
 
   test("as[C] sets classifier with default number") {
     val expectedA1 = V1_2_3.copy(preRelease = Some(PreRelease.alpha(PreReleaseNumber.reset)))
@@ -190,8 +179,6 @@ class VersionOperationsSuite extends munit.FunSuite:
     assert(base.as[Alpha](5).exists(_.metadata.isEmpty))
   }
 
-  // --- SemVer Parsing ---
-
   test("SemVer.parse") {
     assertEquals(SemVer.parse("1.2.3"), Right(V1_2_3))
     assertEquals(SemVer.parse("1.2.3-rc.1+build123"), Right(V1_2_3_RC1_Meta))
@@ -203,8 +190,6 @@ class VersionOperationsSuite extends munit.FunSuite:
     assertEquals(SemVer.parseUnsafe("1.2.3-rc.1+build123"), V1_2_3_RC1_Meta)
     intercept[errors.ParseError](SemVer.parseUnsafe("invalid"))
   }
-
-  // --- PreRelease isDev extension ---
 
   test("PreRelease.isDev") {
     val dev1 = PreRelease.dev(PreReleaseNumber.fromUnsafe(1))

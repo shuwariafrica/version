@@ -130,10 +130,11 @@ version: ignore-merged              Exclude merged branch commits (also [ignore-
 target: <version-string>            Target directive (parsed via scheme.parse)
 ```
 
-Matching is case-insensitive, tolerates whitespace around the colon, and requires word-boundary alignment. The bracketed
-form fires only when the whole bracket content is a single keyword, boundary-aligned on both sides. A bracketed colon
-directive (`[version: major]`, `[target: 2.0.0]`) is not a bracket directive but is still recognised by its colon form
-and counted exactly once - never twice; prose (`[skip ci]`) is ignored.
+Matching is case-insensitive, tolerates whitespace around the colon, and requires word-boundary alignment. A bracket is
+a directive when its trimmed content is exactly one bare keyword, or begins with a colon directive (`[version: major]`,
+`[target: 2.0.0]`, `[breaking: <text>]`); it then counts exactly once. Brackets are boundary-aligned on both sides. A
+bracket whose content is neither is opaque prose (`[skip ci]`, `[see version: major]`), so a directive embedded
+mid-content does not match.
 
 ## Target Validation
 

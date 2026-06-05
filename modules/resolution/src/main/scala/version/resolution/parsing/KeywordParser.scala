@@ -32,8 +32,6 @@ import version.resolution.domain.Keyword.*
   */
 object KeywordParser:
 
-  // --- character predicates ---
-
   private transparent inline def isSpace(c: Char): Boolean =
     c == ' ' || c == '\t' || c == '\r' || c == '\n'
 
@@ -42,8 +40,6 @@ object KeywordParser:
 
   private transparent inline def eqIc(a: Char, b: Char): Boolean =
     a == b || a.toLower == b.toLower
-
-  // --- low-level scanning utilities ---
 
   private def skipSpaces(s: String, i0: Int): Int =
     var i = i0
@@ -160,8 +156,6 @@ object KeywordParser:
         else (None, i0)
       case None => (None, i0)
 
-  // --- Keyword context derived from scheme ---
-
   /** Precomputed keyword context from a scheme's aliases and layout. */
   final private class KeywordContext(
     val aliases: Map[String, Int],
@@ -175,8 +169,6 @@ object KeywordParser:
     val kwChars = aliases.keys.map(_.head).toSet
     val interestingChars = kwChars ++ Set('v', 't', '[') // version:, target:, and '[' bracketed directives
     new KeywordContext(aliases, fixIndices, interestingChars)
-
-  // --- public API ---
 
   /** Extracts keywords from a commit message using scheme-derived keyword aliases. */
   def parse[V <: Version](message: String)(using scheme: ResolvableScheme[V]): List[Keyword] =
@@ -195,7 +187,6 @@ object KeywordParser:
     var out = List.empty[Keyword]
     val n = line.length
     while i < n do
-      // Try standalone shorthands: <alias>: <non-empty-text>
       val matched = tryStandaloneShorthand(line, i, ctx)
       if matched.isDefined then
         val (kw, nextI) = matched.get
@@ -228,7 +219,6 @@ object KeywordParser:
               out = out :+ IgnoreMerged
               i = j1
             case _ =>
-              // Check if the word is a known alias (version: major, version: breaking, etc.)
               ctx.aliases.get(lower) match
                 case Some(idx) =>
                   val j2 = afterColon(line, j1)
@@ -301,14 +291,24 @@ object KeywordParser:
     while j < n && isSpace(s.charAt(j)) do j += 1
     j < n && s.charAt(j) != '\n'
 
-  /** Try matching a bracketed bare directive `[<token>]` at position `i` (which is `[`).
+  /** Whether a colon directive (`version:`, `target:`, or a `<keyword>:` shorthand) begins at the first
+    * non-space character of `s`.
+    */
+  private def startsWithDirectiveHead(s: String, ctx: KeywordContext): Boolean =
+    val p = skipSpaces(s, 0)
+    def headAt(kw: String): Boolean = startsWithKW(s, p, kw) && afterColon(s, p + kw.length) != -1
+    headAt("version") || headAt("target") || ctx.aliases.keysIterator.exists(headAt)
+
+  /** Try matching a bracketed directive `[...]` at position `i` (which is `[`).
     *
     * Fires only when the bracket is word-boundary aligned on both sides (so an embedded `foo[breaking]bar`
-    * is not matched, matching the discipline `startsWithKW` enforces for the colon forms) and its whole
-    * trimmed content is one known bare keyword or ignore meta - so colon compounds (`[version: major]`,
-    * `[target: 2.0.0]`) fall through to the colon paths and match exactly once, and prose (`[skip ci]`,
-    * `[WIP]`) is left alone. The keyword is `None` for fix-role no-ops. Returns the keyword and the
-    * position past `]`, or `None` to decline.
+    * is left alone). A bracket whose trimmed content is one bare keyword or ignore meta emits it directly. A
+    * bracket led by a colon directive (`[version: major]`, `[breaking: drop]`) declines so the colon
+    * machinery parses that leading directive exactly once. Any other bracket is prose, consumed whole as a
+    * no-op so a directive embedded mid-content (`[see version: major]`) does not leak through the
+    * surrounding-text scan. The keyword is `None` for fix-role no-ops and for prose; the result is `None`
+    * only when the bracket is unaligned, unterminated, or a leading colon directive is left to the colon
+    * machinery.
     */
   private def tryBracketDirective(line: String, i: Int, ctx: KeywordContext): Option[(Option[Keyword], Int)] =
     if !wordBoundaryBefore(line, i) then None
@@ -317,15 +317,17 @@ object KeywordParser:
       if close < 0 then None
       else if close + 1 < line.length && isWordChar(line.charAt(close + 1)) then None
       else
-        val content = line.substring(i + 1, close).trim.toLowerCase
-        val keyword: Option[Option[Keyword]] =
-          if content == "ignore" then Some(Some(IgnoreSelf))
-          else if content == "ignore-merged" then Some(Some(IgnoreMerged))
-          else
-            ctx.aliases.get(content) match
-              case Some(idx) => Some(if ctx.fixIndices.contains(idx) then None else Some(ComponentBump(idx)))
-              case None      => None
-        keyword.map(k => (k, close + 1))
+        val inner = line.substring(i + 1, close)
+        val content = inner.trim.toLowerCase
+        if content == "ignore" then Some((Some(IgnoreSelf), close + 1))
+        else if content == "ignore-merged" then Some((Some(IgnoreMerged), close + 1))
+        else
+          ctx.aliases.get(content) match
+            case Some(idx) =>
+              Some((if ctx.fixIndices.contains(idx) then None else Some(ComponentBump(idx)), close + 1))
+            case None =>
+              if startsWithDirectiveHead(inner, ctx) then None
+              else Some((None, close + 1))
 
 end KeywordParser
 // scalafix:on

@@ -130,8 +130,6 @@ object CLI:
       )
       .mergeWith(metadata)
 
-  // --- Show (current / target) ---
-
   private def runShow(
     resolver: VersionResolver[? <: Version],
     sc: ShowConfig,
@@ -225,8 +223,6 @@ object CLI:
       b.append(s"  base      : ${renderCanonical(rel.version)} (${rel.tag}, released ${Utc.dateTime(rel.releaseTime)} UTC)$sep"))
     b.result()
 
-  // --- List (release history) ---
-
   private def runList(
     resolver: VersionResolver[? <: Version],
     opts: CliOptions,
@@ -297,8 +293,6 @@ object CLI:
   private def stripVPrefix(s: String): String =
     if s.startsWith("v") || s.startsWith("V") then s.drop(1) else s
 
-  // --- Mutating (bump / target <version>) ---
-
   private def runBump(
     resolver: VersionResolver[? <: Version],
     opts: CliOptions,
@@ -357,8 +351,6 @@ object CLI:
                     logger.error(renderGitError(e))
                     1
         finally repo.close()
-
-  // --- Tag ---
 
   private def runTag(
     resolver: VersionResolver[? <: Version],

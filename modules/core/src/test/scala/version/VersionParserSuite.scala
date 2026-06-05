@@ -28,15 +28,11 @@ class VersionParserSuite extends munit.FunSuite:
 
   private def PRN(i: Int) = PreReleaseNumber.fromUnsafe(i)
 
-  // --- Basic Parsing (M.m.p) ---
-
   test("Parse valid basic versions") {
     assertEquals(SemVer.parse("1.2.3"), Right(V(1, 2, 3)))
     assertEquals(SemVer.parse("0.0.1"), Right(V(0, 0, 1)))
     assertEquals(SemVer.parse("10.99.1000"), Right(V(10, 99, 1000)))
   }
-
-  // --- Pre-Release Parsing (Default Resolver) ---
 
   test("Parse standard dot-separated pre-release formats") {
     val expectedA1 = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))))
@@ -60,8 +56,6 @@ class VersionParserSuite extends munit.FunSuite:
     assertEquals(SemVer.parse("1.0.0-m5"), Right(V(1, 0, 0).copy(preRelease = Some(PreRelease.milestone(PRN(5))))))
   }
 
-  // --- Build Metadata Parsing ---
-
   test("Parse build metadata") {
     val meta1 = Metadata(List("build123"))
     val meta2 = Metadata(List("20250825", "sha-abc"))
@@ -77,8 +71,6 @@ class VersionParserSuite extends munit.FunSuite:
     )
     assertEquals(SemVer.parse("1.2.3-alpha.1+meta"), Right(expected))
   }
-
-  // --- Invalid Formats (Structural/SemVer Rules) ---
 
   test("Reject invalid structural formats") {
     val invalid = List("1", "1.2", "1.2.", "a.b.c", "1.2.3-", "1.2.3+", "1.2.3-+")
@@ -132,8 +124,6 @@ class VersionParserSuite extends munit.FunSuite:
     assertEquals(SemVer.parse("1.0.0+build..sha"), Left(InvalidVersionFormat("1.0.0+build..sha")))
   }
 
-  // --- Invalid Content (Overflow/Resolver Constraints) ---
-
   test("Reject integer overflows (InvalidNumericField)") {
     val overflow = (BigInt(Int.MaxValue) + 1).toString
     val inputM = s"$overflow.0.0"
@@ -160,8 +150,6 @@ class VersionParserSuite extends munit.FunSuite:
     assertEquals(SemVer.parse("1.0.0-alpha.1.5"), Left(UnrecognisedIdentifier(List("alpha", "1", "5"))))
   }
 
-  // --- Custom Resolver Test ---
-
   test("Parser utilizes a custom contextual resolver") {
     // Define a custom resolver that maps "dev" to Snapshot and rejects everything else.
     given customResolver: PreRelease.Resolver = new PreRelease.Resolver:
@@ -176,8 +164,6 @@ class VersionParserSuite extends munit.FunSuite:
     // Should fail because the custom resolver rejects "alpha.1"
     assertEquals(SemVer.parse("1.0.0-alpha.1"), Left(UnrecognisedIdentifier(List("alpha", "1"))))
   }
-
-  // --- Leading v/V Prefix Tests (Spec Section 3.1) ---
 
   test("Parse version with leading lowercase 'v' prefix") {
     assertEquals(SemVer.parse("v1.2.3"), Right(V(1, 2, 3)))
@@ -219,8 +205,6 @@ class VersionParserSuite extends munit.FunSuite:
     assertEquals(SemVer.parse("Va.b.c"), Left(InvalidVersionFormat("Va.b.c")))
   }
 
-  // --- Dev Classifier Tests ---
-
   test("Parse Dev pre-release classifier") {
     val expected = V(1, 0, 0).copy(preRelease = Some(PreRelease.dev(PRN(1))))
     assertEquals(SemVer.parse("1.0.0-dev.1"), Right(expected))
@@ -236,8 +220,6 @@ class VersionParserSuite extends munit.FunSuite:
     assertEquals(SemVer.parse("1.0.0-DEV.5"), Right(expected))
     assertEquals(SemVer.parse("1.0.0-Dev.5"), Right(expected))
   }
-
-  // --- All Classifier Aliases (Comprehensive) ---
 
   test("Parse all classifier canonical forms") {
     val versions = List(
@@ -296,8 +278,6 @@ class VersionParserSuite extends munit.FunSuite:
       assertEquals(result.toOption.get.preRelease, Some(expectedPr), s"Wrong pre-release for: $input")
     }
   }
-
-  // --- Edge Cases ---
 
   test("Parse maximum integer values") {
     val max = Int.MaxValue.toString

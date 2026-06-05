@@ -26,8 +26,6 @@ class VersionShowSuite extends munit.FunSuite:
 
   private def PRN(i: Int) = PreReleaseNumber.fromUnsafe(i)
 
-  // --- show (VersionScheme canonical) ---
-
   test("show: core version only") {
     assertEquals(V(1, 2, 3).show, "1.2.3")
   }
@@ -64,14 +62,10 @@ class VersionShowSuite extends munit.FunSuite:
     assertEquals(V(1, 0, 0).copy(preRelease = Some(PreRelease.snapshot)).show, "1.0.0-SNAPSHOT")
   }
 
-  // --- Formatter.standard ---
-
   test("Formatter.standard: same output as show") {
     val v = V(1, 0, 0).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(Metadata(List("build"))))
     assertEquals(SemVer.Formatter.Standard.format(v), v.show)
   }
-
-  // --- Formatter.full ---
 
   test("Formatter.full: preserves complete metadata") {
     val meta = Metadata(List("build"))
@@ -95,16 +89,12 @@ class VersionShowSuite extends munit.FunSuite:
     )
   }
 
-  // --- Explicit variant selection ---
-
   test("Formatter variants compared side by side") {
     val meta = Metadata(List("build"))
     val v = V(1, 2, 3).copy(preRelease = Some(PreRelease.alpha(PRN(1))), metadata = Some(meta))
     assertEquals(SemVer.Formatter.Standard.format(v), "1.2.3-alpha.1")
     assertEquals(SemVer.Formatter.Full.format(v), "1.2.3-alpha.1+build")
   }
-
-  // --- Custom Formatter ---
 
   test("Custom Formatter implementation") {
     val vPrefix: Formatter[SemVer] = (v: SemVer) => s"v${v.major.value}.${v.minor.value}.${v.patch.value}"

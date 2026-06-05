@@ -33,8 +33,6 @@ final case class CliOptions(
   command: CommandConfig
 ) derives CanEqual
 
-// --- Commands ---
-
 /** Which version a show command reports. */
 enum ShowKind derives CanEqual:
   case Current, Target
@@ -62,8 +60,6 @@ final case class TagConfig(version: Option[String], message: Option[String], noS
 /** List the release history (annotated version tags), newest first, with optional scheme-generic filters. */
 final case class ListConfig(limit: Option[Int], finalOnly: Boolean, since: Option[String], until: Option[String], details: Boolean)
     extends CommandConfig derives CanEqual
-
-// --- Output model ---
 
 enum SinkKind derives CanEqual:
   case Console, Raw, Json

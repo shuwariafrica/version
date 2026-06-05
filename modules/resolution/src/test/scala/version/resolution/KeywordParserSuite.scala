@@ -27,8 +27,6 @@ class KeywordParserSuite extends FunSuite:
 
   private def parse(msg: String): List[Keyword] = KeywordParser.parse[SemVer](msg)
 
-  // --- Relative increments ---
-
   test("version: major produces ComponentBump(0)"):
     assertEquals(parse("version: major"), List(ComponentBump(0)))
 
@@ -50,8 +48,6 @@ class KeywordParserSuite extends FunSuite:
   test("version: fix is a no-op (fix-role default)"):
     assertEquals(parse("version: fix"), Nil)
 
-  // --- Absolute sets ---
-
   test("version: major: 3 produces ComponentSet(0, 3)"):
     assertEquals(parse("version: major: 3"), List(ComponentSet(0, 3)))
 
@@ -63,8 +59,6 @@ class KeywordParserSuite extends FunSuite:
 
   test("version: fix: 7 produces ComponentSet(2, 7)"):
     assertEquals(parse("version: fix: 7"), List(ComponentSet(2, 7)))
-
-  // --- Standalone shorthands ---
 
   test("breaking: text produces ComponentBump(0)"):
     assertEquals(parse("breaking: Remove deprecated API"), List(ComponentBump(0)))
@@ -82,15 +76,11 @@ class KeywordParserSuite extends FunSuite:
     assertEquals(parse("breaking:"), Nil)
     assertEquals(parse("feat:"), Nil)
 
-  // --- Target directive ---
-
   test("target: 2.0.0 produces TargetSet"):
     assertEquals(parse("target: 2.0.0"), List(TargetSet("2.0.0")))
 
   test("target: v2.0.0 produces TargetSet with v prefix"):
     assertEquals(parse("target: v2.0.0"), List(TargetSet("v2.0.0")))
-
-  // --- Ignore directives ---
 
   test("version: ignore produces IgnoreSelf"):
     assertEquals(parse("version: ignore"), List(IgnoreSelf))
@@ -109,19 +99,13 @@ class KeywordParserSuite extends FunSuite:
     val result = parse("version: ignore: abc1234..def5678")
     assertEquals(result, List(IgnoreRange("abc1234", "def5678")))
 
-  // --- Case insensitivity ---
-
   test("keywords are case-insensitive"):
     assertEquals(parse("VERSION: MAJOR"), List(ComponentBump(0)))
     assertEquals(parse("Version: Minor"), List(ComponentBump(1)))
 
-  // --- Word boundary alignment ---
-
   test("keywords must be word-boundary aligned"):
     assertEquals(parse("reversion: 1.0.0"), Nil)
     assertEquals(parse("retarget: 2.0.0"), Nil)
-
-  // --- Multiple keywords per message ---
 
   test("multiple keywords across lines"):
     val msg = "version: major\nversion: minor"
@@ -129,17 +113,11 @@ class KeywordParserSuite extends FunSuite:
     assert(result.contains(ComponentBump(0)))
     assert(result.contains(ComponentBump(1)))
 
-  // --- Unrecognised words ---
-
   test("unrecognised word after version: is silently ignored"):
     assertEquals(parse("version: majorx"), Nil)
 
-  // --- Negative absolute values ---
-
   test("negative absolute value is silently ignored"):
     assertEquals(parse("version: major: -1"), Nil)
-
-  // --- Bracketed directives ---
 
   test("[breaking] produces ComponentBump(0)"):
     assertEquals(parse("[breaking] Remove deprecated API"), List(ComponentBump(0)))
@@ -199,4 +177,52 @@ class KeywordParserSuite extends FunSuite:
 
   test("standalone shorthand is boundary-aligned, not a substring"):
     assertEquals(parse("prefixbreaking: text"), Nil)
+
+  test("[core][breaking] fires the second bracket"):
+    assertEquals(parse("[core][breaking] Text"), List(ComponentBump(0)))
+
+  test("adjacent brackets each fire"):
+    assertEquals(parse("[major][minor]"), List(ComponentBump(0), ComponentBump(1)))
+    assertEquals(parse("[fix][breaking]"), List(ComponentBump(0)))
+    assertEquals(parse("[ignore][feat]"), List(IgnoreSelf, ComponentBump(1)))
+
+  test("empty or whitespace bracket then a directive"):
+    assertEquals(parse("[][breaking]"), List(ComponentBump(0)))
+    assertEquals(parse("[ ][breaking]"), List(ComponentBump(0)))
+
+  test("stray brackets before, after, or doubled"):
+    assertEquals(parse("][breaking]"), List(ComponentBump(0)))
+    assertEquals(parse("[breaking]["), List(ComponentBump(0)))
+    assertEquals(parse("[major]]"), List(ComponentBump(0)))
+
+  test("a shorthand inside a bracket fires once"):
+    assertEquals(parse("[breaking: drop the legacy API]"), List(ComponentBump(0)))
+    assertEquals(parse("[feat: add caching]"), List(ComponentBump(1)))
+
+  test("a bracket wrapping a mid-content directive is opaque"):
+    assertEquals(parse("[see version: major]"), Nil)
+    assertEquals(parse("[foo version: major]"), Nil)
+
+  test("a bracket led by a directive fires, ignoring trailing prose"):
+    assertEquals(parse("[version: major rollout]"), List(ComponentBump(0)))
+
+  test("a directive after an opaque bracket still fires"):
+    assertEquals(parse("[foo] version: major"), List(ComponentBump(0)))
+
+  test("a word after the close defeats self-containment"):
+    assertEquals(parse("[see version: major]x"), List(ComponentBump(0)))
+
+  test("hyphen-glued brackets are not directives"):
+    assertEquals(parse("-[breaking]"), Nil)
+    assertEquals(parse("[breaking]-x"), Nil)
+
+  test("a non-word, non-hyphen neighbour after the close is permitted"):
+    assertEquals(parse("[breaking].more"), List(ComponentBump(0)))
+
+  test("non-ASCII in the content is not a keyword; after the close is tolerated"):
+    assertEquals(parse("[breáking]"), Nil)
+    assertEquals(parse("[breaking] 修正"), List(ComponentBump(0)))
+
+  test("a trailing carriage return does not block a bracket"):
+    assertEquals(parse("[breaking]\r"), List(ComponentBump(0)))
 end KeywordParserSuite

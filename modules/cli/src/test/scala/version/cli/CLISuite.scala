@@ -33,8 +33,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
   private def command(args: String*): CommandConfig =
     parse(args*).getOrElse(fail(s"parse failed: ${args.mkString(" ")}")).command
 
-  // --- Command parsing ---
-
   test("default command is show-current"):
     command() match
       case ShowConfig(ShowKind.Current, _, _, _) => ()
@@ -68,8 +66,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       TagConfig(Some("1.2.3"), Some("Cut 1.2.3"), noSign = true, dryRun = true)
     )
 
-  // --- Global flags ---
-
   test("sha-length bounds"):
     assertEquals(parse("--sha-length", "7").get.shaLength, 7)
     assertEquals(parse("--sha-length", "64").get.shaLength, 64)
@@ -93,8 +89,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     command("current", "--console-style", "compact") match
       case ShowConfig(ShowKind.Current, _, ConsoleStyle.Compact, true) => ()
       case other                                                       => fail(s"got $other")
-
-  // --- End-to-end via CLI.run ---
 
   test("bump --no-sign creates an empty commit carrying the directive"):
     withFreshRepo("cli-bump"): repo =>
@@ -130,8 +124,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
   test("show current resolves and exits zero"):
     withFreshRepo("cli-show"): repo =>
       assertEquals(CLI.run(Array("--repository", repo.toString, "--emit", "raw")), 0)
-
-  // --- list command ---
 
   test("list with no flags is a ListConfig"):
     assertEquals(command("list"), ListConfig(None, finalOnly = false, None, None, details = false))
@@ -194,8 +186,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       assertEquals(code, 0)
       assert(output.contains("2.0.0") && output.contains("1.0.1"), clues(output))
       assert(!output.contains("4.3.0") && !output.contains("1.0.0"), clues(output))
-
-  // --- End-to-end signing (signed by default) ---
 
   private val gpgHome: Option[String] = GpgKeyring.home
 

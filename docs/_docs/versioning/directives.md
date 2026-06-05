@@ -19,9 +19,10 @@ version: <keyword>     # explicit
 
 So `version: breaking`, `breaking: drop the legacy API`, and `[breaking]` all request the same bump, and a directive may
 sit within surrounding text (`[breaking] drop the legacy API`). `breaking:` with no text is ignored. A bracket is a
-directive only when its content is a single keyword, boundary-aligned on both sides, so prose (`[skip ci]`) and embedded
-brackets (`foo[breaking]bar`) are left alone; bracketing a directive such as `[version: major]` is counted once, never
-twice.
+directive when a directive leads its content - a bare keyword (`[breaking]`) or any colon form (`[version: major]`,
+`[breaking: drop the legacy API]`) - and counts once. Brackets are boundary-aligned on both sides, so embedded brackets
+(`foo[breaking]bar`) are left alone, and a bracket that does not lead with a directive is prose (`[skip ci]`,
+`[see version: major]`) and is ignored.
 
 ## Absolute set
 

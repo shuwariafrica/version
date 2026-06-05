@@ -29,8 +29,6 @@ class VersionSuite extends munit.FunSuite:
 
   extension [A](list: List[A]) private def shuffle: List[A] = Random.shuffle(list)
 
-  // --- PreReleaseClassifier Tests ---
-
   test("PreReleaseClassifier Ordering (Precedence)") {
     // Defined order: Dev < Milestone < Alpha < Beta < ReleaseCandidate < Snapshot
     val expectedOrder = List(Dev, Milestone, Alpha, Beta, ReleaseCandidate, Snapshot)
@@ -79,8 +77,6 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(ReleaseCandidate.aliases, List("rc", "cr"))
     assertEquals(Snapshot.aliases, List("SNAPSHOT"))
   }
-
-  // --- PreRelease Tests ---
 
   private val N1 = PreReleaseNumber.fromUnsafe(1)
   private val N5 = PreReleaseNumber.fromUnsafe(5)
@@ -143,13 +139,9 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(expectedOrder.shuffle.sorted, expectedOrder)
   }
 
-  // --- SemVer Tests ---
-
   private val V1_0_0 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(0), Patch.fromUnsafe(0))
   private val V1_2_3 = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
   private val V2_0_0 = SemVer(Major.fromUnsafe(2), Minor.fromUnsafe(0), Patch.fromUnsafe(0))
-
-  // --- SemVer Factory Overloads ---
 
   test("SemVer.apply(major, minor, patch) creates a final release") {
     val v = SemVer(Major.fromUnsafe(1), Minor.fromUnsafe(2), Patch.fromUnsafe(3))
@@ -186,8 +178,6 @@ class VersionSuite extends munit.FunSuite:
     assertEquals(v.preRelease, pr)
     assertEquals(v.metadata, meta)
   }
-
-  // --- SemVer Ordering (SemVer Precedence) ---
 
   test("SemVer Ordering (Core Components)") {
     assert(V1_0_0 < V1_2_3)

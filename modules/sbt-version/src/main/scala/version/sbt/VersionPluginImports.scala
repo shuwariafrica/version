@@ -55,8 +55,6 @@ object VersionPluginImports:
   /** Companion object for [[PreRelease]], providing factory methods and the [[PreRelease.Resolver]] type. */
   val PreRelease: version.semver.PreRelease.type = version.semver.PreRelease
 
-  // --- sjsonnew IsoString instances for sbt 2.x task caching ---
-
   /** [[sjsonnew.IsoString IsoString]] instance for [[SemVer]] enabling sbt 2.x task caching.
     *
     * Uses [[SemVer.Formatter$.Full Formatter.Full]] for serialisation and [[SemVer.parseUnsafe]] for

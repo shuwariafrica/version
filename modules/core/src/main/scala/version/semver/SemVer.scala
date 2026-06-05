@@ -40,8 +40,6 @@ final case class SemVer(
 /** Provides factory methods, type class instances, and extensions for [[SemVer]]. */
 object SemVer:
 
-  // --- Type Classes for SemVer-Specific Operations ---
-
   /** Describes how to bump a version given a specific component type `F`.
     *
     * Enables the generic `version.next[F]` operation.
@@ -120,8 +118,6 @@ object SemVer:
     given PreReleaseClass[Snapshot]:
       def classifier: PreReleaseClassifier = PreReleaseClassifier.Snapshot
 
-  // --- Overloaded Constructors ---
-
   inline def apply(major: Major, minor: Minor, patch: Patch): SemVer =
     SemVer(major, minor, patch, None, None)
 
@@ -137,8 +133,6 @@ object SemVer:
   inline def apply(major: Major, minor: Minor, patch: Patch, preRelease: PreRelease, metadata: Metadata): SemVer =
     SemVer(major, minor, patch, Some(preRelease), Some(metadata))
 
-  // --- Parsing ---
-
   private[version] inline def fromParsed(p: Parser.ParsedVersion): SemVer =
     SemVer(p.major, p.minor, p.patch, p.preRelease, p.metadata)
 
@@ -151,8 +145,6 @@ object SemVer:
     parse(input) match
       case Right(v) => v
       case Left(e)  => throw e // scalafix:ok
-
-  // --- Formatter ---
 
   /** Named [[version.Formatter Formatter]] instances for SemVer rendering. */
   object Formatter:
@@ -221,8 +213,6 @@ object SemVer:
         sb.result()
   end Formatter
 
-  // --- Ordering ---
-
   given Ordering[SemVer]:
     def compare(x: SemVer, y: SemVer): Int =
       val compareNumbers =
@@ -240,8 +230,6 @@ object SemVer:
         case n => n
 
   given CanEqual[SemVer, SemVer] = CanEqual.derived
-
-  // --- Development-version timestamp formatting ---
 
   /** Sanitise an arbitrary branch label for use as a SemVer build-metadata identifier.
     *
@@ -275,8 +263,6 @@ object SemVer:
     if trimmed.isEmpty then "detached" else trimmed
     // scalafix:on DisableSyntax.var
   end sanitiseBranchIdentifier
-
-  // --- given ResolvableScheme[SemVer] ---
 
   given ResolvableScheme[SemVer] with
     def name: String = "semver"
@@ -337,8 +323,6 @@ object SemVer:
       def defaultBump: SemVer = SemVer(v.major, v.minor, v.patch.increment)
       def promoteToRelease: SemVer = v.copy(preRelease = None, metadata = None)
   end given
-
-  // --- Multi-Parameter Extension Companion Alias ---
 
   inline def as[C](v: SemVer, n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, SemVer] =
     v.as[C](n)

@@ -1,9 +1,5 @@
 #include <git2.h>
 
-/* --------------------------------------------------------------------------
- * working-tree dirty count
- * -------------------------------------------------------------------------- */
-
 /**
  * Returns the number of working-tree status entries representing a deviation from HEAD
  * (modified, untracked, or new index entries; ignored files are excluded). Returns 0 when
@@ -32,10 +28,6 @@ int version_resolution_git_workdir_dirty_count(git_repository* repo) {
     git_status_list_free(list);
     return (int)count;
 }
-
-/* --------------------------------------------------------------------------
- * git_error message accessor
- * -------------------------------------------------------------------------- */
 
 /* Read the message field from a git_error; NULL if err is NULL. The shim
  * keeps the git_error struct shape out of the Scala FFI surface. */
