@@ -37,6 +37,8 @@ object TestRepoBuilder:
     run(repoDir, "config", "advice.detachedHead", "false")
     run(repoDir, "config", "commit.gpgsign", "false")
     run(repoDir, "config", "tag.gpgsign", "false")
+    // Neutralise any inherited global user.signingkey so signing-key resolution is hermetic.
+    run(repoDir, "config", "user.signingkey", "")
     runIgnoreError(repoDir, "config", "gpg.sign", "false")
     runIgnoreError(repoDir, "config", "gpg.format", "openpgp")
     run(repoDir, "config", "core.editor", "true")

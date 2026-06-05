@@ -45,6 +45,11 @@ object GitError:
   final case class ObjectNotFound(id: String) extends GitError:
     def message: String = s"Object not found: $id"
 
+  /** GPG signing of a commit or tag failed. */
+  final case class SigningFailure(detail: String) extends GitError:
+    def message: String = detail
+
   /** Catch-all for unexpected backend failures. */
   final case class BackendFailure(detail: String) extends GitError:
     def message: String = detail
+end GitError

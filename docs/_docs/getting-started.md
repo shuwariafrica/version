@@ -63,6 +63,7 @@ The resolution engine and sbt plugin derive versions from Git state:
 - [Version Schemes](schemes/overview.md) - the version model
 - [Automatic Versioning](versioning/overview.md) - Git-based version derivation
 - [sbt Plugin](sbt/overview.md) - build integration
+- [Command-Line Tool](cli/overview.md) - the `version` binary
 
 ---
 

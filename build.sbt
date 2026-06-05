@@ -1,7 +1,7 @@
 scalaVersion := Libraries.scala3.revision
 organization := "africa.shuwari"
 description := "Simple utilities and data structures for the management of application versioning."
-homepage := Some(url("https://github.com/shuwariafrica/version"))
+homepage := Some(url("https://dev.shuwari.africa/version/docs/"))
 startYear := Some(2023)
 semanticdbEnabled := true
 scmInfo := ScmInfo(
@@ -42,12 +42,19 @@ val `version-resolution` =
     .settings(noticeMappingSettings)
     .jvmPlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
-      settings = Seq(libraryDependencies += Libraries.jgit)
+      settings = Seq(
+        libraryDependencies += Libraries.jgit,
+        Test / fork := true,
+        Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-jvm").getAbsolutePath
+      )
     )
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(NativePlatformPlugin.nativeSettings *).enablePlugins(Libgit2Build)
+      configure = (p: Project) =>
+        p.settings(NativePlatformPlugin.nativeSettings *)
+          .enablePlugins(Libgit2Build)
+          .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-native").getAbsolutePath)
     )
 
 val `version-cli` =
@@ -65,12 +72,19 @@ val `version-cli` =
     .settings(buildInfoSettings)
     .jvmPlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
-      settings = Seq(run / fork := true)
+      settings = Seq(
+        run / fork := true,
+        Test / fork := true,
+        Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-jvm").getAbsolutePath
+      )
     )
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
-      configure = (p: Project) => p.settings(NativePlatformPlugin.applicationSettings *).enablePlugins(Libgit2Build, ActionsPublish)
+      configure = (p: Project) =>
+        p.settings(NativePlatformPlugin.applicationSettings *)
+          .enablePlugins(Libgit2Build, ActionsPublish)
+          .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-native").getAbsolutePath)
     )
 
 val `sbt-version` =

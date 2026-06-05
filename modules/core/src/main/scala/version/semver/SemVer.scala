@@ -276,46 +276,6 @@ object SemVer:
     // scalafix:on DisableSyntax.var
   end sanitiseBranchIdentifier
 
-  /** Render an epoch-seconds (UTC) timestamp as a 12-character `yyyymmddhhmm` identifier.
-    *
-    * The fixed width keeps lexicographic ordering aligned with chronological ordering for snapshots of the same base.
-    * Conversion uses Howard Hinnant's civil-from-days algorithm so no `java.time` dependency is required (Scala Native
-    * does not ship the full `java.time` package).
-    */
-  private[version] def formatUtcTimestamp(epochSeconds: Long): String =
-    val secondsPerDay = 86400L
-    val days = Math.floorDiv(epochSeconds, secondsPerDay)
-    val secondsOfDay = Math.floorMod(epochSeconds, secondsPerDay).toInt
-    val z = days + 719468L
-    val era = if z >= 0 then z / 146097L else (z - 146096L) / 146097L
-    val doe = (z - era * 146097L).toInt
-    val yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
-    val baseYear = yoe + era * 400L
-    val doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-    val mp = (5 * doy + 2) / 153
-    val day = doy - (153 * mp + 2) / 5 + 1
-    val month = if mp < 10 then mp + 3 else mp - 9
-    val year = if month <= 2 then baseYear + 1 else baseYear
-    val hour = secondsOfDay / 3600
-    val minute = (secondsOfDay % 3600) / 60
-    val sb = StringBuilder(12)
-    appendYear(sb, year)
-    appendPad2(sb, month)
-    appendPad2(sb, day)
-    appendPad2(sb, hour)
-    appendPad2(sb, minute)
-    sb.result()
-
-  private inline def appendPad2(sb: StringBuilder, n: Int): Unit =
-    if n < 10 then sb.append('0').append(n): Unit else sb.append(n): Unit
-
-  private inline def appendYear(sb: StringBuilder, y: Long): Unit =
-    if y < 0 then sb.append(y): Unit
-    else if y < 10 then sb.append("000").append(y): Unit
-    else if y < 100 then sb.append("00").append(y): Unit
-    else if y < 1000 then sb.append('0').append(y): Unit
-    else sb.append(y): Unit
-
   // --- given ResolvableScheme[SemVer] ---
 
   given ResolvableScheme[SemVer] with
@@ -350,7 +310,7 @@ object SemVer:
       // chronologically. Tail-conditional flags (`pr<N>`, `dirty`) trail.
       val branchId = meta.branch.map(SemVer.sanitiseBranchIdentifier).getOrElse("detached")
       val ids = List(
-        meta.commitTime.map(SemVer.formatUtcTimestamp),
+        meta.commitTime.map(Utc.compact),
         Some(branchId),
         meta.commitSha,
         meta.prNumber.map(n => s"pr${Math.max(0, n)}"),

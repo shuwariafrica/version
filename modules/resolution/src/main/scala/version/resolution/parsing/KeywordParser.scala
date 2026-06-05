@@ -173,7 +173,7 @@ object KeywordParser:
     val aliases = scheme.keywordAliases
     val fixIndices = scheme.layout.zipWithIndex.collect { case (d, i) if d.role == ComponentRole.Fix => i }.toSet
     val kwChars = aliases.keys.map(_.head).toSet
-    val interestingChars = kwChars ++ Set('v', 't') // version:, target: always interesting
+    val interestingChars = kwChars ++ Set('v', 't', '[') // version:, target:, and '[' bracketed directives
     new KeywordContext(aliases, fixIndices, interestingChars)
 
   // --- public API ---
@@ -256,6 +256,12 @@ object KeywordParser:
             out = out :+ TargetSet(raw)
           i = j1
         else i += 1
+      else if line.charAt(i) == '[' then
+        tryBracketDirective(line, i, ctx) match
+          case Some((kwOpt, nextI)) =>
+            kwOpt.foreach(k => out = out :+ k)
+            i = nextI
+          case None => i += 1
       else
         // Advance to next interesting character for faster scanning
         var j = i + 1
@@ -294,6 +300,32 @@ object KeywordParser:
     val n = s.length
     while j < n && isSpace(s.charAt(j)) do j += 1
     j < n && s.charAt(j) != '\n'
+
+  /** Try matching a bracketed bare directive `[<token>]` at position `i` (which is `[`).
+    *
+    * Fires only when the bracket is word-boundary aligned on both sides (so an embedded `foo[breaking]bar`
+    * is not matched, matching the discipline `startsWithKW` enforces for the colon forms) and its whole
+    * trimmed content is one known bare keyword or ignore meta - so colon compounds (`[version: major]`,
+    * `[target: 2.0.0]`) fall through to the colon paths and match exactly once, and prose (`[skip ci]`,
+    * `[WIP]`) is left alone. The keyword is `None` for fix-role no-ops. Returns the keyword and the
+    * position past `]`, or `None` to decline.
+    */
+  private def tryBracketDirective(line: String, i: Int, ctx: KeywordContext): Option[(Option[Keyword], Int)] =
+    if !wordBoundaryBefore(line, i) then None
+    else
+      val close = line.indexOf(']', i + 1)
+      if close < 0 then None
+      else if close + 1 < line.length && isWordChar(line.charAt(close + 1)) then None
+      else
+        val content = line.substring(i + 1, close).trim.toLowerCase
+        val keyword: Option[Option[Keyword]] =
+          if content == "ignore" then Some(Some(IgnoreSelf))
+          else if content == "ignore-merged" then Some(Some(IgnoreMerged))
+          else
+            ctx.aliases.get(content) match
+              case Some(idx) => Some(if ctx.fixIndices.contains(idx) then None else Some(ComponentBump(idx)))
+              case None      => None
+        keyword.map(k => (k, close + 1))
 
 end KeywordParser
 // scalafix:on

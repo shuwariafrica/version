@@ -18,6 +18,17 @@ package version.resolution.native
 import scala.scalanative.unsafe.*
 import scala.scalanative.unsigned.*
 
+/** libgit2 `git_buf` data-return struct: `{ char *ptr; size_t reserved; size_t size; }`. `_1` is the content pointer
+  * (NUL-terminated), `_3` its length; memory is released via `git_buf_dispose`.
+  */
+private[native] type GitBuf = CStruct3[CString, CSize, CSize]
+
+/** libgit2 `git_time`: `{ git_time_t time; int offset; char sign; }`. `_1` is seconds since the Unix epoch. */
+private[native] type GitTime = CStruct3[CLongLong, CInt, CChar]
+
+/** libgit2 `git_signature`: `{ char *name; char *email; git_time when; }`. `_3._1` is the action's epoch seconds. */
+private[native] type GitSignature = CStruct3[CString, CString, GitTime]
+
 /** libgit2 constants used by [[LibGit2]] and [[NativeGitRepository]].
   *
   * Held separately from the `@extern` object so the values can be `inline val` literal-typed constants; the
@@ -71,8 +82,10 @@ private[native] object LibGit2:
   def git_reference_next(out: Ptr[Ptr[Byte]], iter: Ptr[Byte]): CInt = extern
   def git_reference_iterator_free(iter: Ptr[Byte]): Unit = extern
   def git_reference_shorthand(ref: Ptr[Byte]): CString = extern
+  def git_reference_lookup(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], name: CString): CInt = extern
   def git_reference_peel(out: Ptr[Ptr[Byte]], ref: Ptr[Byte], targetType: CInt): CInt = extern
   def git_reference_free(ref: Ptr[Byte]): Unit = extern
+  def git_reference_set_target(out: Ptr[Ptr[Byte]], ref: Ptr[Byte], id: Ptr[Byte], logMessage: CString): CInt = extern
 
   def git_commit_lookup(out: Ptr[Ptr[Byte]], repo: Ptr[Byte], oid: Ptr[Byte]): CInt = extern
   def git_commit_parentcount(commit: Ptr[Byte]): CUnsignedInt = extern
@@ -93,6 +106,62 @@ private[native] object LibGit2:
   // Graph
   def git_graph_descendant_of(repo: Ptr[Byte], commit: Ptr[Byte], ancestor: Ptr[Byte]): CInt = extern
 
+  // Signatures
+  def git_signature_new(out: Ptr[Ptr[Byte]], name: CString, email: CString, time: CLongLong, offset: CInt): CInt = extern
+  def git_signature_free(sig: Ptr[Byte]): Unit = extern
+
+  // Commit and tag creation
+  def git_commit_tree(out: Ptr[Ptr[Byte]], commit: Ptr[Byte]): CInt = extern
+  def git_tree_free(tree: Ptr[Byte]): Unit = extern
+  def git_commit_create(
+    id: Ptr[Byte],
+    repo: Ptr[Byte],
+    updateRef: CString,
+    author: Ptr[Byte],
+    committer: Ptr[Byte],
+    messageEncoding: CString,
+    message: CString,
+    tree: Ptr[Byte],
+    parentCount: CSize,
+    parents: Ptr[Ptr[Byte]]): CInt = extern
+  def git_tag_create(
+    oid: Ptr[Byte],
+    repo: Ptr[Byte],
+    tagName: CString,
+    target: Ptr[Byte],
+    tagger: Ptr[Byte],
+    message: CString,
+    force: CInt): CInt = extern
+  def git_tag_create_from_buffer(oid: Ptr[Byte], repo: Ptr[Byte], buffer: CString, force: CInt): CInt = extern
+  def git_tag_tagger(tag: Ptr[Byte]): Ptr[GitSignature] = extern
+
+  // Signing primitives. git_commit_create_buffer writes the unsigned commit content into a git_buf; the caller signs
+  // that content and embeds the signature via git_commit_create_with_signature (which writes the object but does NOT
+  // advance any reference - the branch is moved separately via git_reference_set_target).
+  def git_commit_create_buffer(
+    out: Ptr[GitBuf],
+    repo: Ptr[Byte],
+    author: Ptr[Byte],
+    committer: Ptr[Byte],
+    messageEncoding: CString,
+    message: CString,
+    tree: Ptr[Byte],
+    parentCount: CSize,
+    parents: Ptr[Ptr[Byte]]): CInt = extern
+  def git_commit_create_with_signature(
+    id: Ptr[Byte],
+    repo: Ptr[Byte],
+    commitContent: CString,
+    signature: CString,
+    signatureField: CString): CInt = extern
+  def git_buf_dispose(buf: Ptr[GitBuf]): Unit = extern
+
+  // Config. git_config_get_string yields a pointer into config memory valid only on a
+  // snapshot; on a live config it errors, so we snapshot, read, then free.
+  def git_repository_config_snapshot(out: Ptr[Ptr[Byte]], repo: Ptr[Byte]): CInt = extern
+  def git_config_get_string(out: Ptr[CString], cfg: Ptr[Byte], name: CString): CInt = extern
+  def git_config_free(cfg: Ptr[Byte]): Unit = extern
+
   // Errors
   def git_error_last(): Ptr[Byte] = extern
 
@@ -107,9 +176,5 @@ private[native] object LibGit2:
   // a C shim avoids declaring the struct shape on the Scala side.
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
-
-  // TODO(scala-native#4908): remove once the fix ships.
-  @name("version_resolution_fix_main_thread_stack_limit")
-  def fix_main_thread_stack_limit(): CInt = extern
 
 end LibGit2

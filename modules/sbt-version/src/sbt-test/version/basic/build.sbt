@@ -57,9 +57,15 @@ def asSemVer(v: Version): SemVer = v match
   case s: SemVer => s
   case other     => sys.error(s"Expected SemVer, got ${other.getClass.getSimpleName}")
 
-checkFallback := check(resolvedVersion.value.show, "0.1.0-SNAPSHOT")
+checkFallback := {
+  check(resolvedVersion.value.show, "0.1.0-SNAPSHOT")
+  check(versionTarget.value.show, "0.1.0")
+}
 
-checkConcreteTag := check(resolvedVersion.value.show, "1.0.0")
+checkConcreteTag := {
+  check(resolvedVersion.value.show, "1.0.0")
+  check(versionTarget.value.show, "1.0.0")
+}
 
 checkDirtyTag := {
   val v = asSemVer(resolvedVersion.value)
@@ -76,9 +82,13 @@ checkAfterCommit := {
   assert(head.length == 12 && head.forall(_.isDigit), s"Expected timestamp identifier first: $meta")
   val shaId = meta(2)
   assert(shaId.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')), s"Expected hex sha: $meta")
+  check(versionTarget.value.show, "1.0.1")
 }
 
-checkPreRelease := check(resolvedVersion.value.show, "2.0.0-rc.1")
+checkPreRelease := {
+  check(resolvedVersion.value.show, "2.0.0-rc.1")
+  check(versionTarget.value.show, "2.0.0-rc.1")
+}
 
 checkMetadata := {
   val v = asSemVer(resolvedVersion.value)

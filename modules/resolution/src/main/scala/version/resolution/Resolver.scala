@@ -36,21 +36,53 @@ object Resolver:
   private inline def lift[A](r: Either[GitError, A]): Either[ResolutionError, A] =
     r.left.map(ResolutionError.GitFailure.apply)
 
-  /** Resolves the repository version from Git state. */
-  def resolve[V <: Version](
+  /** Resolves the repository version from Git state, returning the resolved version together with
+    * the target it was derived from and the resolution mode.
+    */
+  def resolveAll[V <: Version](
     config: ResolutionConfig[V],
     open: String => Either[GitError, GitRepository]
   )(using
     scheme: ResolvableScheme[V],
     logger: Logger,
     v: Verbose
-  ): Either[ResolutionError, V] =
+  ): Either[ResolutionError, ResolutionResult[V]] =
     given Ordering[V] = scheme.ordering
     logger.verbose(s"Begin resolution repoPath=${config.repoPath}, basisCommit=${config.basisCommit}", "Resolver")
 
     lift(open(config.repoPath)).flatMap: repo =>
       try
         doResolve(config, repo)
+      finally
+        repo.close()
+
+  /** Resolves the repository version from Git state. Thin wrapper over [[resolveAll]]. */
+  def resolve[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository]
+  )(using
+    ResolvableScheme[V],
+    Logger,
+    Verbose
+  ): Either[ResolutionError, V] =
+    resolveAll(config, open).map(_.resolved)
+
+  /** Lists the full release history: every annotated version tag the scheme parses, paired with the commit it points
+    * to, ordered ascending by version.
+    */
+  def releaseHistory[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository]
+  )(using
+    scheme: ResolvableScheme[V],
+    logger: Logger,
+    v: Verbose
+  ): Either[ResolutionError, List[Release[V]]] =
+    given Ordering[V] = scheme.ordering
+    logger.verbose(s"Listing release history repoPath=${config.repoPath}", "Resolver")
+    lift(open(config.repoPath)).flatMap: repo =>
+      try
+        doReleaseHistory(config, repo)
       finally
         repo.close()
 
@@ -62,7 +94,7 @@ object Resolver:
     logger: Logger,
     verbose: Verbose,
     ord: Ordering[V]
-  ): Either[ResolutionError, V] =
+  ): Either[ResolutionError, ResolutionResult[V]] =
     boundary:
       def ok[A](e: Either[ResolutionError, A]): A = e match
         case Right(v)    => v
@@ -72,7 +104,8 @@ object Resolver:
         case None =>
           if config.basisCommit != "HEAD" then break(Left(ResolutionError.GitFailure(GitError.RevisionNotFound(config.basisCommit))))
           logger.verbose("Empty repository - returning initial version", "Resolver")
-          Right(scheme.initialVersion)
+          val initial = scheme.initialVersion
+          Right(ResolutionResult(initial, initial, ResolutionMode.Concrete, None, None))
 
         case Some(headSha) =>
           val basis =
@@ -95,8 +128,12 @@ object Resolver:
           val tagsOnBasis = reachableTags.filter(_.commit == basis)
           val highestOnBasis = tagsOnBasis.sorted.lastOption
           if highestOnBasis.isDefined && isClean then
-            logger.verbose(s"Mode 1: HEAD tagged with ${highestOnBasis.get.version.show} and clean", "Resolver")
-            Right(highestOnBasis.get.version)
+            val taggedTag = highestOnBasis.get
+            val tagged = taggedTag.version
+            val basisCommit = ok(lift(repo.loadCommit(basis)))
+            logger.verbose(s"Mode 1: HEAD tagged with ${tagged.show} and clean", "Resolver")
+            val release = Release(tagged, taggedTag.name, ok(lift(repo.loadTagger(taggedTag.name))), basisCommit)
+            Right(ResolutionResult(tagged, tagged, ResolutionMode.Concrete, Some(basisCommit), Some(release)))
           else
             val isDirty = !isClean
             val baseTag = reachableTags.sorted.lastOption
@@ -119,10 +156,32 @@ object Resolver:
               isDirty = isDirty
             )
             logger.verbose(s"Metadata assembled: $devMeta", "Resolver")
-            Right(scheme.developmentVersion(targetCore, devMeta))
+            val resolved = scheme.developmentVersion(targetCore, devMeta)
+            val base =
+              baseTag.map(bt => Release(bt.version, bt.name, ok(lift(repo.loadTagger(bt.name))), ok(lift(repo.loadCommit(bt.commit)))))
+            Right(ResolutionResult(resolved, targetCore, ResolutionMode.Development, Some(basisCommit), base))
           end if
       end match
   end doResolve
+
+  private def doReleaseHistory[V <: Version](
+    config: ResolutionConfig[V],
+    repo: GitRepository
+  )(using ord: Ordering[V]): Either[ResolutionError, List[Release[V]]] =
+    boundary:
+      def ok[A](e: Either[ResolutionError, A]): A = e match
+        case Right(value) => value
+        case Left(error)  => break(Left(error))
+
+      val releases = ok(lift(repo.tags)).toList
+        .filter(_.kind == TagKind.Annotated)
+        .flatMap(rt =>
+          config
+            .tagParser(rt.name)
+            .map(version => Release(version, rt.name, ok(lift(repo.loadTagger(rt.name))), ok(lift(repo.loadCommit(rt.commit))))))
+        .sorted
+      Right(releases)
+  end doReleaseHistory
 
   private def extractKeywords[V <: Version](
     commits: IArray[RawCommit],
@@ -227,11 +286,12 @@ object Resolver:
 
     val allTagsList = allTags.toList
     val allRepoFinals = allTagsList.filter(_.version.isFinal)
+    val highestRepo = allTagsList.sorted.lastOption
 
     val validTarget = TargetVersionCalculator.selectValidTarget(
       targets = targets,
       highestReachable = baseTag,
-      highestRepo = allTagsList.sorted.lastOption,
+      highestRepo = highestRepo,
       allRepoFinals = allRepoFinals,
       isHeadOnFinalTag = false
     )
@@ -243,7 +303,6 @@ object Resolver:
           logger.verbose(s"Derived target: ${derived.show}", "Resolver")
           derived
         case None =>
-          val highestRepo = allTagsList.sorted.lastOption
           val fallback = highestRepo match
             case Some(h) => h.version.core.incrementComponent(0)
             case None    => scheme.initialVersion.core

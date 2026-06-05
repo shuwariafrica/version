@@ -138,4 +138,65 @@ class KeywordParserSuite extends FunSuite:
 
   test("negative absolute value is silently ignored"):
     assertEquals(parse("version: major: -1"), Nil)
+
+  // --- Bracketed directives ---
+
+  test("[breaking] produces ComponentBump(0)"):
+    assertEquals(parse("[breaking] Remove deprecated API"), List(ComponentBump(0)))
+
+  test("[feat] produces ComponentBump(1)"):
+    assertEquals(parse("[feat] add caching"), List(ComponentBump(1)))
+
+  test("[major] bare bracketed keyword produces ComponentBump(0)"):
+    assertEquals(parse("[major]"), List(ComponentBump(0)))
+
+  test("[minor] produces ComponentBump(1)"):
+    assertEquals(parse("[minor] add helper"), List(ComponentBump(1)))
+
+  test("[fix] is a no-op (fix-role default)"):
+    assertEquals(parse("[fix] correct typo"), Nil)
+
+  test("[ignore] produces IgnoreSelf"):
+    assertEquals(parse("[ignore] docs only"), List(IgnoreSelf))
+
+  test("[ignore-merged] produces IgnoreMerged"):
+    assertEquals(parse("[ignore-merged]"), List(IgnoreMerged))
+
+  test("bracketed inner whitespace is tolerated"):
+    assertEquals(parse("[ breaking ]"), List(ComponentBump(0)))
+
+  test("[breaking] is case-insensitive"):
+    assertEquals(parse("[BREAKING]"), List(ComponentBump(0)))
+
+  test("[version: major] yields exactly one keyword (no double-count)"):
+    assertEquals(parse("[version: major]"), List(ComponentBump(0)))
+
+  test("[version: major: 3] yields exactly one ComponentSet (no double-count)"):
+    assertEquals(parse("[version: major: 3]"), List(ComponentSet(0, 3)))
+
+  test("[target: 2.0.0] yields exactly one TargetSet (no double-count)"):
+    assertEquals(parse("[target: 2.0.0]"), List(TargetSet("2.0.0")))
+
+  test("bracketed prose and non-keywords are ignored"):
+    assertEquals(parse("[skip ci]"), Nil)
+    assertEquals(parse("[ci skip]"), Nil)
+    assertEquals(parse("[WIP]"), Nil)
+    assertEquals(parse("[JIRA-123] fix login"), Nil)
+    assertEquals(parse("[major refactor]"), Nil)
+
+  test("unterminated bracket is ignored"):
+    assertEquals(parse("[breaking but no close"), Nil)
+
+  test("embedded brackets are not matched (boundary alignment)"):
+    assertEquals(parse("somebracketin[breaking]inline"), Nil)
+    assertEquals(parse("foo[breaking]"), Nil)
+    assertEquals(parse("[breaking]bar"), Nil)
+
+  test("bracket directive permits a non-word char after the close"):
+    assertEquals(parse("Remove old API [breaking]."), List(ComponentBump(0)))
+    assertEquals(parse("[breaking], and more"), List(ComponentBump(0)))
+    assertEquals(parse("done [feat]"), List(ComponentBump(1)))
+
+  test("standalone shorthand is boundary-aligned, not a substring"):
+    assertEquals(parse("prefixbreaking: text"), Nil)
 end KeywordParserSuite

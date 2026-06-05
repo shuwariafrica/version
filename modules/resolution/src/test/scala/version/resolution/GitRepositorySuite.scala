@@ -270,4 +270,53 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
         assert(mergeCommit.get.isMerge)
         assert(mergeCommit.get.parentIds.length == 2)
       finally gr.close()
+
+  test("createCommit creates an empty commit on HEAD carrying the message"):
+    withMinimalRepo("createCommit"): repo =>
+      val gr = openTestRepository(repo)
+      try
+        val parent = gr.head.toOption.flatten.getOrElse(fail("no HEAD"))
+        val author = AuthorSignature("Author", "author@example.com", 1700000000L, 0)
+        val result = gr.createCommit("version: minor", author, sign = false)
+        assert(result.isRight, clues(result))
+        val sha = result.toOption.get
+        assertEquals(gr.head.toOption.flatten, Some(sha))
+        val loaded = gr.loadCommit(sha).toOption.getOrElse(fail("loadCommit failed"))
+        assertEquals(loaded.message.trim, "version: minor")
+        assertEquals(loaded.parentIds.map(_.value).toList, List(parent.value))
+        assert(git(repo, "diff", "--name-only", parent.value, sha.value).trim.isEmpty, "commit should change no files")
+      finally gr.close()
+
+  test("createTag creates an annotated tag at the target"):
+    withMinimalRepo("createTag"): repo =>
+      val gr = openTestRepository(repo)
+      try
+        val target = gr.head.toOption.flatten.getOrElse(fail("no HEAD"))
+        val tagger = AuthorSignature("Tagger", "tagger@example.com", 1700000000L, 0)
+        val result = gr.createTag("v9.9.9", target, "Release 9.9.9", tagger, sign = false)
+        assert(result.isRight, clues(result))
+        val tags = gr.tags.toOption.getOrElse(fail("tags failed"))
+        val created = tags.find(_.name == "v9.9.9").getOrElse(fail(s"tag not found in ${tags.map(_.name).toList}"))
+        assertEquals(created.kind, TagKind.Annotated)
+        assertEquals(created.commit.value, target.value)
+        assertEquals(git(repo, "for-each-ref", "--format=%(contents:subject)", "refs/tags/v9.9.9").trim, "Release 9.9.9")
+        assertEquals(gr.loadTagger("v9.9.9"), Right(1700000000L), "loadTagger should return the tag's tagger time")
+      finally gr.close()
+
+  test("signingKey returns the configured user.signingkey"):
+    withMinimalRepo("signingKey"): repo =>
+      git(repo, "config", "user.signingkey", "DEADBEEFCAFE"): Unit
+      val gr = openTestRepository(repo)
+      try assertEquals(gr.signingKey.toOption.flatten, Some("DEADBEEFCAFE"))
+      finally gr.close()
+
+  test("defaultSignature reads the configured identity"):
+    withMinimalRepo("defaultSignature"): repo =>
+      val gr = openTestRepository(repo)
+      try
+        val sig = gr.defaultSignature.toOption.getOrElse(fail("defaultSignature failed"))
+        assertEquals(sig.name, "Test")
+        assertEquals(sig.email, "test@example.com")
+        assert(sig.whenEpochSeconds > 0L, s"expected positive time, got ${sig.whenEpochSeconds}")
+      finally gr.close()
 end GitRepositorySuite

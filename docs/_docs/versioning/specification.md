@@ -121,15 +121,19 @@ The keyword grammar:
 ```
 version: <keyword>                  Relative increment
 version: <keyword>: <N>             Absolute set (non-negative integer)
-version: ignore                     Exclude this commit
+[<keyword>]                         Bracketed form of version: <keyword>
+version: ignore                     Exclude this commit (also [ignore])
 version: ignore: <sha>[, <sha>...]  Exclude commits by SHA prefix (>= 7 hex chars)
 version: ignore: <sha>..<sha>       Exclude range (inclusive, positional)
-version: ignore-merged              Exclude merged branch commits
+version: ignore-merged              Exclude merged branch commits (also [ignore-merged])
 <keyword>: <non-empty text>         Standalone shorthand
 target: <version-string>            Target directive (parsed via scheme.parse)
 ```
 
-Matching is case-insensitive with word-boundary alignment.
+Matching is case-insensitive, tolerates whitespace around the colon, and requires word-boundary alignment. The bracketed
+form fires only when the whole bracket content is a single keyword, boundary-aligned on both sides. A bracketed colon
+directive (`[version: major]`, `[target: 2.0.0]`) is not a bracket directive but is still recognised by its colon form
+and counted exactly once - never twice; prose (`[skip ci]`) is ignored.
 
 ## Target Validation
 
@@ -158,10 +162,3 @@ Equality is permitted against non-final cores only. See [Target Validation](vali
 ## Determinism
 
 Given fixed repository state and configuration inputs, the derived version is deterministic and idempotent.
-
-## Out of Scope
-
-- Creating or mutating Git tags
-- Publishing or uploading artefacts
-- Multi-project or path-scoped tagging conventions
-- Signature verification (signed objects are dereferenced transparently)

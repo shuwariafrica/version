@@ -18,205 +18,204 @@ package version.cli
 import munit.FunSuite
 
 import java.nio.file.Files
-import java.nio.file.Path
 
-import version.resolution.ResolutionConfig
-import version.resolution.VersionCliCore
-import version.resolution.openRepository
-import version.semver.*
+import version.testkit.GpgKeyring
+import version.testkit.Process
 
 final class CLISuite extends FunSuite with TestRepoSupport:
 
   override val munitTimeout: scala.concurrent.duration.Duration =
     scala.concurrent.duration.Duration(120, "s")
 
-  private def normalize(o: CliOptions): CliOptions = o.command match
-    case rc: ResolveConfig =>
-      val style = if rc.consoleStyleExplicit then rc.consoleStyle else if o.ci then ConsoleStyle.Compact else rc.consoleStyle
-      val sinks1 = if rc.sinks.isEmpty then List(OutputSink(SinkKind.Console, None)) else rc.sinks
-      val sinks2 = sinks1.foldLeft(List.empty[OutputSink]) { (acc, s) =>
-        if s.destination.isEmpty && acc.exists(o => o.kind == s.kind && o.destination.isEmpty) then acc else acc :+ s
-      }
-      o.copy(command = rc.copy(sinks = sinks2, consoleStyle = style))
-    case _ => o
+  private def parse(args: String*): Option[CliOptions] =
+    scopt.OParser.parse(CliOptions.parser, args, CliOptions.default)
 
-  private def parse(args: Seq[String]): Option[CliOptions] =
-    scopt.OParser.parse(CliOptions.parser, args, CliOptions.default).map(normalize)
+  private def command(args: String*): CommandConfig =
+    parse(args*).getOrElse(fail(s"parse failed: ${args.mkString(" ")}")).command
 
-  private def asResolve(o: CliOptions): ResolveConfig = o.command match
-    case r: ResolveConfig => r
-    case other            => fail(s"Expected ResolveConfig got $other")
+  // --- Command parsing ---
 
-  test("Default parse: console sink pretty style"):
-    val opts = parse(Nil).getOrElse(fail("parse failed"))
-    val rc = asResolve(opts)
-    assertEquals(rc.sinks, List(OutputSink(SinkKind.Console, None)))
-    assertEquals(rc.consoleStyle, ConsoleStyle.Pretty)
+  test("default command is show-current"):
+    command() match
+      case ShowConfig(ShowKind.Current, _, _, _) => ()
+      case other                                 => fail(s"expected ShowConfig(Current), got $other")
 
-  test("CI default switches to compact style"):
-    val opts = parse(Seq("--ci")).getOrElse(fail("parse failed"))
-    val rc = asResolve(opts)
-    assertEquals(rc.consoleStyle, ConsoleStyle.Compact)
+  test("current is show-current"):
+    command("current") match
+      case ShowConfig(ShowKind.Current, _, _, _) => ()
+      case other                                 => fail(s"got $other")
 
-  test("Explicit console-style overrides CI override"):
-    val opts = parse(Seq("--ci", "--console-style", "pretty")).getOrElse(fail("parse failed"))
-    val rc = asResolve(opts)
-    assertEquals(rc.consoleStyle, ConsoleStyle.Pretty)
+  test("target with no argument is show-target"):
+    command("target") match
+      case ShowConfig(ShowKind.Target, _, _, _) => ()
+      case other                                => fail(s"got $other")
 
-  test("Multiple emit sinks with file targets"):
-    val tmp = Files.createTempDirectory("version-cli-emits-")
-    val jsonPath = tmp.resolve("ver.json")
-    val opts = parse(
-      Seq(
-        "--emit",
-        "console",
-        "--emit",
-        "raw",
-        "--emit",
-        s"json=$jsonPath"
-      )).getOrElse(fail("parse failed"))
-    val rc = asResolve(opts)
-    assert(rc.sinks.exists(_.kind == SinkKind.Console))
-    assert(rc.sinks.exists(_.kind == SinkKind.Raw))
-    assert(rc.sinks.contains(OutputSink(SinkKind.Json, Some(jsonPath))))
+  test("target with a version is a target-set commit"):
+    assertEquals(command("target", "2.0.0"), TargetSetConfig("2.0.0", noSign = false, dryRun = false))
 
-  test("Invalid sink spec fails parse"):
-    val parsed = parse(Seq("--emit", "bogus"))
-    assert(parsed.isEmpty)
+  test("bump requires a keyword"):
+    assert(parse("bump").isEmpty, "bump with no keyword should fail to parse")
 
-  test("Invalid console style fails parse"):
-    val parsed = parse(Seq("--console-style", "fancy"))
-    assert(parsed.isEmpty)
+  test("bump with keyword and flags"):
+    assertEquals(command("bump", "minor", "--no-sign", "--dry-run"), BumpConfig("minor", noSign = true, dryRun = true))
 
-  test("Empty emit path fails parse"):
-    val parsed = parse(Seq("--emit", "json="))
-    assert(parsed.isEmpty)
+  test("tag with no argument"):
+    assertEquals(command("tag"), TagConfig(None, None, noSign = false, dryRun = false))
 
-  test("sha-length lower bound accepted (7)"):
-    val parsed = parse(Seq("--sha-length", "7"))
-    assert(parsed.nonEmpty)
-    assertEquals(parsed.get.shaLength, 7)
+  test("tag with version, message, no-sign, dry-run"):
+    assertEquals(
+      command("tag", "1.2.3", "-m", "Cut 1.2.3", "--no-sign", "--dry-run"),
+      TagConfig(Some("1.2.3"), Some("Cut 1.2.3"), noSign = true, dryRun = true)
+    )
 
-  test("sha-length upper bound accepted (64)"):
-    val parsed = parse(Seq("--sha-length", "64"))
-    assert(parsed.nonEmpty)
-    assertEquals(parsed.get.shaLength, 64)
+  // --- Global flags ---
 
-  test("sha-length default (40) accepted"):
-    val parsed = parse(Seq("--sha-length", "40"))
-    assert(parsed.nonEmpty)
-    assertEquals(parsed.get.shaLength, 40)
+  test("sha-length bounds"):
+    assertEquals(parse("--sha-length", "7").get.shaLength, 7)
+    assertEquals(parse("--sha-length", "64").get.shaLength, 64)
+    assert(parse("--sha-length", "6").isEmpty)
+    assert(parse("--sha-length", "65").isEmpty)
 
-  test("sha-length below minimum fails parse"):
-    val parsed = parse(Seq("--sha-length", "6"))
-    assert(parsed.isEmpty)
+  test("emit sinks parse onto the show command"):
+    val json = Files.createTempDirectory("cli-emit-").resolve("v.json")
+    command("--emit", "raw", "--emit", s"json=$json") match
+      case ShowConfig(_, sinks, _, _) =>
+        assert(sinks.exists(_.kind == SinkKind.Raw))
+        assert(sinks.contains(OutputSink(SinkKind.Json, Some(json))))
+      case other => fail(s"got $other")
 
-  test("sha-length above maximum fails parse"):
-    val parsed = parse(Seq("--sha-length", "65"))
-    assert(parsed.isEmpty)
+  test("invalid sink, style, and empty path fail parse"):
+    assert(parse("--emit", "bogus").isEmpty)
+    assert(parse("--console-style", "fancy").isEmpty)
+    assert(parse("--emit", "json=").isEmpty)
 
-  test("Explicit console-style marks explicit flag"):
-    val parsed = parse(Seq("--console-style", "compact")).getOrElse(fail("parse failed"))
-    val rc = asResolve(parsed)
-    assert(rc.consoleStyleExplicit)
-    assertEquals(rc.consoleStyle, ConsoleStyle.Compact)
+  test("a global flag applies after a subcommand (scopt keeps root options matchable)"):
+    command("current", "--console-style", "compact") match
+      case ShowConfig(ShowKind.Current, _, ConsoleStyle.Compact, true) => ()
+      case other                                                       => fail(s"got $other")
 
-  test("Only json emit does not inject console sink"):
-    val tmp = Files.createTempDirectory("version-cli-json-only-")
-    val jsonPath = tmp.resolve("ver.json")
-    val parsed = parse(Seq("--emit", s"json=$jsonPath")).getOrElse(fail("parse failed"))
-    val rc = asResolve(parsed)
-    assertEquals(rc.sinks.map(_.kind), List(SinkKind.Json))
+  // --- End-to-end via CLI.run ---
 
-  test("Duplicate raw sinks with different file destinations are preserved"):
-    val tmp = Files.createTempDirectory("version-cli-raw-dupe-")
-    val p1 = tmp.resolve("a.txt")
-    val p2 = tmp.resolve("b.txt")
-    val parsed = parse(Seq("--emit", s"raw=$p1", "--emit", s"raw=$p2")).getOrElse(fail("parse failed"))
-    val rc = asResolve(parsed)
-    val raws = rc.sinks.filter(_.kind == SinkKind.Raw)
-    assertEquals(raws.size, 2)
-    assert(raws.exists(_.destination.contains(p1)))
-    assert(raws.exists(_.destination.contains(p2)))
+  test("bump --no-sign creates an empty commit carrying the directive"):
+    withFreshRepo("cli-bump"): repo =>
+      val before = git(repo, "rev-parse", "HEAD").trim
+      assertEquals(CLI.run(Array("bump", "minor", "--no-sign", "--repository", repo.toString)), 0)
+      val after = git(repo, "rev-parse", "HEAD").trim
+      assertNotEquals(after, before)
+      assert(git(repo, "log", "-1", "--format=%B").contains("version: minor"))
+      assert(git(repo, "diff", "--name-only", s"$before..$after").trim.isEmpty, "commit should change no files")
 
-  test("Repository option sets repository path"):
-    val tmp = Files.createTempDirectory("version-cli-repo-")
-    val parsed = parse(Seq("--repository", tmp.toString)).getOrElse(fail("parse failed"))
-    assertEquals(parsed.repository, tmp)
+  test("bump rejects an unknown keyword"):
+    withFreshRepo("cli-bump-bad"): repo =>
+      assertEquals(CLI.run(Array("bump", "bogus", "--no-sign", "--repository", repo.toString)), 1)
 
-  test("Parse release command placeholder with flags"):
-    val parsed = scopt.OParser
-      .parse(
-        CliOptions.parser,
-        Seq("release", "--tag-prefix", "v", "--push", "--annotate"),
-        CliOptions.default
-      )
-      .getOrElse(fail("parse failed"))
-    parsed.command match
-      case r: ReleaseConfig =>
-        assertEquals(r.tagPrefix, Some("v"))
-        assert(r.push)
-        assert(r.annotate)
-      case other => fail(s"Expected ReleaseConfig got $other")
+  test("a mutating command without a signing key and without --no-sign is refused"):
+    withFreshRepo("cli-nosign-required"): repo =>
+      val before = git(repo, "rev-parse", "HEAD").trim
+      assertEquals(CLI.run(Array("bump", "minor", "--repository", repo.toString)), 1)
+      assertEquals(git(repo, "rev-parse", "HEAD").trim, before, "no commit should be created")
 
-  test("Dedupe identical console sinks without destinations"):
-    val opts = parse(Seq("--emit", "console", "--emit", "console")).getOrElse(fail("parse failed"))
-    val rc = asResolve(opts)
-    val consoles = rc.sinks.filter(_.kind == SinkKind.Console)
-    assertEquals(consoles.size, 1)
+  test("--dry-run performs no mutation"):
+    withFreshRepo("cli-dryrun"): repo =>
+      val before = git(repo, "rev-parse", "HEAD").trim
+      assertEquals(CLI.run(Array("bump", "minor", "--no-sign", "--dry-run", "--repository", repo.toString)), 0)
+      assertEquals(git(repo, "rev-parse", "HEAD").trim, before, "dry-run should not commit")
 
-  test("End-to-end: resolve version and emit console/raw/json"):
-    withFreshRepo("cli-e2e"): repo =>
-      val tmpOut = Files.createTempDirectory("version-cli-out-")
-      val jsonPath = tmpOut.resolve("ver.json")
-      val args = Seq(
-        "--repository",
-        repo.toString,
-        "--emit",
-        "console",
-        "--emit",
-        "raw",
-        "--emit",
-        s"json=$jsonPath"
-      )
-      val opts = parse(args).getOrElse(fail("parse failed"))
-      val rc = asResolve(opts)
-      val cfg = ResolutionConfig
-        .default[SemVer](opts.repository.toString)
-        .copy(
-          basisCommit = opts.basisCommit,
-          prNumber = opts.prNumber,
-          branchOverride = opts.branchOverride,
-          verbose = opts.verbose
-        )
-      val v = VersionCliCore.resolve(cfg, openRepository).toOption.getOrElse(fail("resolution failed"))
-      val rendered: Map[OutputSink, String] = rc.sinks.map { s =>
-        val content = s.kind match
-          case SinkKind.Console => if rc.consoleStyle == ConsoleStyle.Pretty then consolePretty(v) else v.show
-          case SinkKind.Raw     => v.show
-          case SinkKind.Json    => SemVerJson.toJson(v)
-        s -> content
-      }.toMap
-      rc.sinks.foreach { s =>
-        s.destination.foreach { p =>
-          java.nio.file.Files.createDirectories(p.getParent)
-          java.nio.file.Files.writeString(p, rendered(s))
-        }
-      }
-      assert(Files.isRegularFile(jsonPath))
-      val rawStrs = rc.sinks.filter(_.kind == SinkKind.Raw).map(rendered)
-      assert(rawStrs.forall(_ == v.show))
-      val jsonStr = Files.readString(jsonPath)
-      assert(jsonStr.contains("\"major\""))
+  test("tag --no-sign creates an annotated tag at HEAD"):
+    withFreshRepo("cli-tag"): repo =>
+      assertEquals(CLI.run(Array("tag", "9.9.9", "--no-sign", "--repository", repo.toString)), 0)
+      assert(git(repo, "tag", "-l").linesIterator.contains("9.9.9"), "tag 9.9.9 should exist")
+      assertEquals(git(repo, "cat-file", "-t", "9.9.9").trim, "tag", "should be an annotated tag")
 
-  private def consolePretty(v: SemVer): String =
-    val b = new StringBuilder
-    b.append("Version:\n")
-    b.append(s"  version   : ${v.show}\n")
-    b.append(s"  full      : ${SemVer.Formatter.Full.format(v)}\n")
-    val pre = v.preRelease.map(_.show).getOrElse("none")
-    val meta = v.metadata.map(_.show).getOrElse("none")
-    b.append(s"  preRelease: ${pre}\n")
-    b.append(s"  metadata  : ${meta}\n")
-    b.result()
+  test("show current resolves and exits zero"):
+    withFreshRepo("cli-show"): repo =>
+      assertEquals(CLI.run(Array("--repository", repo.toString, "--emit", "raw")), 0)
+
+  // --- list command ---
+
+  test("list with no flags is a ListConfig"):
+    assertEquals(command("list"), ListConfig(None, finalOnly = false, None, None, details = false))
+
+  test("list flags populate the ListConfig"):
+    assertEquals(
+      command("list", "--limit", "5", "--final", "--since", "1.0.0", "--until", "2.0.0", "--details"),
+      ListConfig(Some(5), finalOnly = true, Some("1.0.0"), Some("2.0.0"), details = true)
+    )
+
+  test("list -n is the limit alias"):
+    assertEquals(command("list", "-n", "3"), ListConfig(Some(3), finalOnly = false, None, None, details = false))
+
+  test("options are scoped to their command"):
+    assert(parse("bump", "minor", "--limit", "5").isEmpty, "--limit is a list-only option, invalid for bump")
+    assert(parse("list", "--no-sign").isEmpty, "--no-sign is a mutating-only option, invalid for list")
+    assert(parse("list", "--limit", "5").isDefined, "--limit is valid for list")
+    assert(parse("bump", "minor", "--no-sign").isDefined, "--no-sign is valid for bump")
+
+  private def capture(args: String*): (Int, String) =
+    val out = new java.io.ByteArrayOutputStream()
+    val code = Console.withOut(out)(CLI.run(args.toArray))
+    (code, out.toString("UTF-8"))
+
+  test("list shows the annotated release history newest first, with the release date"):
+    withFreshRepo("cli-list"): repo =>
+      val (code, output) = capture("list", "--repository", repo.toString)
+      assertEquals(code, 0)
+      val lines = output.linesIterator.toList
+      assertEquals(lines.size, 6, clues(output))
+      assert(lines.head.startsWith("4.3.0 "), clues(lines.head))
+      assert(lines.last.startsWith("1.0.0 "), clues(lines.last))
+      // default line is `<version>  <release date> UTC` - one date, no tag
+      assert(lines.forall(l => l.contains(" UTC") && !l.contains("(v")), clues(output))
+
+  test("list --details adds the tag and the source-commit date"):
+    withFreshRepo("cli-list-details"): repo =>
+      val (code, output) = capture("list", "--details", "--limit", "1", "--repository", repo.toString)
+      assertEquals(code, 0)
+      val line = output.linesIterator.toList.head
+      assert(line.startsWith("4.3.0 ") && line.contains("v4.3.0"), clues(line))
+      assertEquals(line.split(" UTC", -1).length - 1, 2, clues(line)) // release date + commit date
+
+  test("list --final excludes pre-releases"):
+    withFreshRepo("cli-list-final"): repo =>
+      val (code, output) = capture("list", "--final", "--repository", repo.toString)
+      assertEquals(code, 0)
+      assertEquals(output.linesIterator.size, 4, clues(output))
+      assert(!output.contains("rc.1"), clues(output))
+
+  test("list --limit caps the number of entries"):
+    withFreshRepo("cli-list-limit"): repo =>
+      val (code, output) = capture("list", "--limit", "2", "--repository", repo.toString)
+      assertEquals(code, 0)
+      assertEquals(output.linesIterator.size, 2, clues(output))
+
+  test("list --since and --until bound the version range"):
+    withFreshRepo("cli-list-range"): repo =>
+      val (code, output) = capture("list", "--since", "1.0.1", "--until", "2.0.0", "--repository", repo.toString)
+      assertEquals(code, 0)
+      assert(output.contains("2.0.0") && output.contains("1.0.1"), clues(output))
+      assert(!output.contains("4.3.0") && !output.contains("1.0.0"), clues(output))
+
+  // --- End-to-end signing (signed by default) ---
+
+  private val gpgHome: Option[String] = GpgKeyring.home
+
+  private lazy val keyFingerprint: String = GpgKeyring.prepare(gpgHome.get)
+
+  override def afterAll(): Unit = gpgHome.foreach(GpgKeyring.killAgent)
+
+  gpgHome match
+    case None =>
+      test("CLI signing test skipped - GNUPGHOME not configured".ignore)(())
+    case Some(_) =>
+      test("bump without --no-sign produces a git-verifiable signed commit when a key is configured"):
+        withFreshRepo("cli-signed-bump"): repo =>
+          git(repo, "config", "user.signingkey", keyFingerprint): Unit
+          val before = git(repo, "rev-parse", "HEAD").trim
+          assertEquals(CLI.run(Array("bump", "patch", "--repository", repo.toString)), 0)
+          val after = git(repo, "rev-parse", "HEAD").trim
+          assertNotEquals(after, before)
+          assert(git(repo, "log", "-1", "--format=%B").contains("version: patch"))
+          val verify = Process.run(Seq("git", "verify-commit", after), repo)
+          assert(verify.successful, clues(verify.stderr))
+  end match
 end CLISuite

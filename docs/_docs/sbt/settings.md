@@ -57,6 +57,25 @@ For just the rendered string, use sbt's standard `version` setting - it already 
 
 ---
 
+### versionTarget
+
+The target release version the working tree is heading toward, typed against the `Version` marker.
+
+|          |                       |
+|----------|-----------------------|
+| **Type** | `SettingKey[Version]` |
+
+On a clean release tag this equals `resolvedVersion` - the tag itself. Otherwise it is the next release core the
+resolution computed: the version a release cut from the current state would carry, without development metadata. After a
+commit past `v1.0.0`, `resolvedVersion` renders `1.0.1-SNAPSHOT+...` while `versionTarget` renders `1.0.1`.
+
+```scala
+// Surface the next release line in a banner without the snapshot suffix
+ThisBuild / versionTarget
+```
+
+---
+
 ### versionBranchOverride
 
 Override the branch name detected from Git. Useful when CI performs detached checkouts.

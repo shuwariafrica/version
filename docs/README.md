@@ -3,8 +3,7 @@
 A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
 build integration.
 
-Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary. Scala.js axis is deferred pending upstream sbt
-2.x support.
+Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary.
 
 ## Overview
 
@@ -25,7 +24,7 @@ distances from a _previous_ one.
 
 ### sbt Plugin
 
-> **Note:** Requires sbt 2.x. Not compatible with sbt 1.x.
+> **Note:** Requires sbt 2.x.
 
 Add to `project/plugins.sbt`:
 
@@ -65,12 +64,14 @@ version: minor          # Increment minor (1.2.3 -> 1.3.0)
 version: patch          # Increment patch (1.2.3 -> 1.2.4)
 ```
 
-Standalone shorthands (requires non-empty text after colon):
+Standalone shorthands (requires non-empty text after colon), and bracketed forms:
 
 ```text
 breaking: Remove deprecated API     # Major increment
 feat: Add caching support           # Minor increment
 fix: Handle edge case               # Patch increment
+[breaking]                          # Major increment (bracketed)
+[feat]                              # Minor increment (bracketed)
 ```
 
 ## Modules

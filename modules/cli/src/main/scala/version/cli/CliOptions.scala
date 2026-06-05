@@ -20,7 +20,7 @@ import scopt.*
 import version.cli.CliError
 import version.internal.BuildInfo
 
-/** Top-level parsed CLI options (command + global flags). */
+/** Top-level parsed CLI options: the selected command plus global flags. */
 final case class CliOptions(
   repository: java.nio.file.Path,
   basisCommit: String,
@@ -34,19 +34,34 @@ final case class CliOptions(
 ) derives CanEqual
 
 // --- Commands ---
+
+/** Which version a show command reports. */
+enum ShowKind derives CanEqual:
+  case Current, Target
+
 sealed trait CommandConfig derives CanEqual
-final case class ResolveConfig(
+
+/** Show the resolved version (`Current`) or the resolution target (`Target`). */
+final case class ShowConfig(
+  what: ShowKind,
   sinks: List[OutputSink],
-  consoleStyle: ConsoleStyle, // user-selected or default placeholder
-  consoleStyleExplicit: Boolean // track if user explicitly set it
+  consoleStyle: ConsoleStyle,
+  consoleStyleExplicit: Boolean
 ) extends CommandConfig derives CanEqual
 
-// Placeholder for future commands.
-final case class ReleaseConfig(
-  tagPrefix: Option[String],
-  push: Boolean,
-  annotate: Boolean
-) extends CommandConfig derives CanEqual
+/** Commit `target: <versionString>` as an empty commit on HEAD. */
+final case class TargetSetConfig(versionString: String, noSign: Boolean, dryRun: Boolean) extends CommandConfig derives CanEqual
+
+/** Commit `version: <keyword>` as an empty commit on HEAD. */
+final case class BumpConfig(keyword: String, noSign: Boolean, dryRun: Boolean) extends CommandConfig derives CanEqual
+
+/** Create an annotated tag at HEAD; `version` defaults to the resolved version when absent. */
+final case class TagConfig(version: Option[String], message: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
+    derives CanEqual
+
+/** List the release history (annotated version tags), newest first, with optional scheme-generic filters. */
+final case class ListConfig(limit: Option[Int], finalOnly: Boolean, since: Option[String], until: Option[String], details: Boolean)
+    extends CommandConfig derives CanEqual
 
 // --- Output model ---
 
@@ -73,11 +88,8 @@ object CliOptions:
 
   given Read[java.nio.file.Path] = Read.reads(s => java.nio.file.Path.of(s))
 
-  private val defaultResolve = ResolveConfig(
-    sinks = Nil, // inject default later if empty
-    consoleStyle = ConsoleStyle.Pretty,
-    consoleStyleExplicit = false
-  )
+  private val defaultShow =
+    ShowConfig(ShowKind.Current, sinks = Nil, consoleStyle = ConsoleStyle.Pretty, consoleStyleExplicit = false)
 
   val default: CliOptions = CliOptions(
     repository = java.nio.file.Path.of(System.getProperty("user.dir")),
@@ -88,19 +100,28 @@ object CliOptions:
     verbose = false,
     ci = false,
     noColour = false,
-    command = defaultResolve
+    command = defaultShow
   )
 
-  /** Structured parser pieces for easier debugging and potential reuse. */
+  /** Builds the scopt parser. Root options are global: the resolution flags plus `--emit` / `--console-style` shaping
+    * the default `show` output. Each explicit subcommand carries its own options as scopt children - `--dry-run` /
+    * `--no-sign` on `bump` / `target` / `tag`, `--message` on `tag`, and the filters (`--limit`, `--final`, `--since`,
+    * `--until`, `--details`) on `list`. A subcommand must precede its options (scopt keeps root options matchable after
+    * the subcommand, but a command after a root option is not recognised).
+    */
   final class CliParser(builder: OParserBuilder[CliOptions]):
     import builder.*
 
-    private def updateResolve(c: CliOptions)(f: ResolveConfig => ResolveConfig): CliOptions =
+    private def updateShow(c: CliOptions)(f: ShowConfig => ShowConfig): CliOptions =
       c.command match
-        case rc: ResolveConfig => c.copy(command = f(rc))
-        case _                 => c
+        case s: ShowConfig => c.copy(command = f(s))
+        case _             => c
 
-    // Global options
+    private def updateList(c: CliOptions)(f: ListConfig => ListConfig): CliOptions =
+      c.command match
+        case l: ListConfig => c.copy(command = f(l))
+        case _             => c
+
     private val optRepository = opt[java.nio.file.Path]('r', "repository")
       .valueName("<path>")
       .action((p, c) => c.copy(repository = p))
@@ -112,7 +133,7 @@ object CliOptions:
 
     private val optPrNumber = opt[Int]("pr")
       .action((n, c) => c.copy(prNumber = Some(n)))
-      .text("Pull request number to embed in build metadata (e.g., 42 -> +pr42).")
+      .text("Pull request number to embed in build metadata.")
 
     private val optBranchOverride = opt[String]("branch-override")
       .action((s, c) => c.copy(branchOverride = Some(s)))
@@ -121,7 +142,7 @@ object CliOptions:
     private val optShaLength = opt[Int]("sha-length")
       .action((n, c) => c.copy(shaLength = n))
       .validate(n => if n >= 7 && n <= 64 then success else failure("sha-length must be within [7, 64]"))
-      .text("SHA length for the 'full' renderer (default: 40). Range: 7..64 (SHA-1 = 40, SHA-256 = 64).")
+      .text("SHA length for the 'full' renderer (default: 40). Range: 7..64.")
 
     private val optVerbose = opt[Unit]('v', "verbose")
       .action((_, c) => c.copy(verbose = true))
@@ -136,79 +157,143 @@ object CliOptions:
       .action((_, c) => c.copy(noColour = true))
       .text("Disable ANSI colours.")
 
-    // Resolve command specific (default)
     private val optEmit = opt[String]('e', "emit")
       .unbounded()
       .valueName("sink[=path]")
       .validate(spec => parseEmit(spec).left.map(_.message).map(_ => ()))
       .action { (spec, c) =>
         parseEmit(spec) match
-          case Right(snk) => updateResolve(c)(rc => rc.copy(sinks = rc.sinks :+ snk))
+          case Right(snk) => updateShow(c)(s => s.copy(sinks = s.sinks :+ snk))
           case Left(_)    => c
       }
-      .text("Add an output sink: console|raw|json optionally =<file>. Repeatable.")
+      .text("Show output sink: console|raw|json optionally =<file>. Repeatable.")
 
     private val optConsoleStyle = opt[String]("console-style")
       .valueName("pretty|compact")
       .validate(s => ConsoleStyle.fromString(s).left.map(_.message).map(_ => ()))
       .action { (s, c) =>
         ConsoleStyle.fromString(s) match
-          case Right(sty) => updateResolve(c)(rc => rc.copy(consoleStyle = sty, consoleStyleExplicit = true))
+          case Right(sty) => updateShow(c)(sc => sc.copy(consoleStyle = sty, consoleStyleExplicit = true))
           case Left(_)    => c
       }
-      .text("Console rendering style (pretty|compact). Applies if a console sink is emitted.")
+      .text("Console rendering style for show commands (pretty|compact).")
 
-    // Release command placeholder
-    private val relTagPrefix = opt[String]("tag-prefix")
-      .action { (p, c) =>
-        c.copy(
-          command = c.command match
-            case r: ReleaseConfig => r.copy(tagPrefix = Some(p))
-            case other            => other
-        )
-      }
-      .text("Tag prefix to use when creating release tags (e.g., 'v').")
-
-    private val relPush = opt[Unit]("push")
+    // Shared by the mutating commands as scoped children, so a fresh fragment is produced per command.
+    private def optDryRun = opt[Unit]("dry-run")
       .action { (_, c) =>
-        c.copy(
-          command = c.command match
-            case r: ReleaseConfig => r.copy(push = true)
-            case other            => other
-        )
+        c.copy(command = c.command match
+          case t: TargetSetConfig => t.copy(dryRun = true)
+          case b: BumpConfig      => b.copy(dryRun = true)
+          case g: TagConfig       => g.copy(dryRun = true)
+          case other              => other)
       }
-      .text("Push created tag to remote (release command).")
+      .text("Preview the command without performing it.")
 
-    private val relAnnotate = opt[Unit]("annotate")
+    private def optNoSign = opt[Unit]("no-sign")
       .action { (_, c) =>
-        c.copy(
-          command = c.command match
-            case r: ReleaseConfig => r.copy(annotate = true)
-            case other            => other
-        )
+        c.copy(command = c.command match
+          case t: TargetSetConfig => t.copy(noSign = true)
+          case b: BumpConfig      => b.copy(noSign = true)
+          case g: TagConfig       => g.copy(noSign = true)
+          case other              => other)
       }
-      .text("Create an annotated tag (release command).")
+      .text("Create the object unsigned, even when a signing key is configured.")
 
-    private val cmdRelease = cmd("release")
-      .hidden()
-      .action((_, c) => c.copy(command = ReleaseConfig(None, push = false, annotate = false)))
-      .children(relTagPrefix, relPush, relAnnotate)
+    private def optMessage = opt[String]('m', "message")
+      .action { (msg, c) =>
+        c.copy(command = c.command match
+          case g: TagConfig => g.copy(message = Some(msg))
+          case other        => other)
+      }
+      .text("Tag message (default: \"Release <version>\").")
+
+    private def optLimit = opt[Int]('n', "limit")
+      .valueName("<count>")
+      .action((n, c) => updateList(c)(_.copy(limit = Some(n))))
+      .text("Limit the list to the <count> newest entries.")
+
+    private def optFinal = opt[Unit]("final")
+      .action((_, c) => updateList(c)(_.copy(finalOnly = true)))
+      .text("List only final releases, excluding pre-releases.")
+
+    private def optSince = opt[String]("since")
+      .valueName("<version>")
+      .action((v, c) => updateList(c)(_.copy(since = Some(v))))
+      .text("List only releases at or above <version>.")
+
+    private def optUntil = opt[String]("until")
+      .valueName("<version>")
+      .action((v, c) => updateList(c)(_.copy(until = Some(v))))
+      .text("List only releases at or below <version>.")
+
+    private def optDetails = opt[Unit]("details")
+      .action((_, c) => updateList(c)(_.copy(details = true)))
+      .text("Show extended details: the tag and the source-commit date.")
+
+    private val cmdList = cmd("list")
+      .action((_, c) => c.copy(command = ListConfig(None, finalOnly = false, None, None, details = false)))
+      .text("List the release history (annotated version tags), newest first.")
+      .children(optLimit, optFinal, optSince, optUntil, optDetails)
+
+    private val cmdCurrent = cmd("current")
+      .action { (_, c) =>
+        c.command match
+          case s: ShowConfig => c.copy(command = s.copy(what = ShowKind.Current))
+          case _             => c.copy(command = defaultShow)
+      }
+      .text("Show the resolved version (the default command).")
+
+    private val cmdTarget = cmd("target")
+      .action { (_, c) =>
+        c.command match
+          case s: ShowConfig => c.copy(command = s.copy(what = ShowKind.Target))
+          case _             => c.copy(command = defaultShow.copy(what = ShowKind.Target))
+      }
+      .text("Show the resolution target; with <version>, commit a target directive.")
+      .children(
+        arg[String]("<version>")
+          .optional()
+          .action((v, c) => c.copy(command = TargetSetConfig(v, noSign = false, dryRun = false)))
+          .text("Commit `target: <version>` as an empty commit."),
+        optDryRun,
+        optNoSign
+      )
+
+    private val cmdBump = cmd("bump")
+      .action((_, c) => c.copy(command = BumpConfig("", noSign = false, dryRun = false)))
+      .text("Commit `version: <keyword>` as an empty commit.")
+      .children(
+        arg[String]("<keyword>")
+          .required()
+          .action { (k, c) =>
+            c.copy(command = c.command match
+              case b: BumpConfig => b.copy(keyword = k)
+              case _             => BumpConfig(k, noSign = false, dryRun = false))
+          }
+          .text("Bump keyword, validated against the active scheme's accepted keywords."),
+        optDryRun,
+        optNoSign
+      )
+
+    private val cmdTag = cmd("tag")
+      .action((_, c) => c.copy(command = TagConfig(None, None, noSign = false, dryRun = false)))
+      .text("Create an annotated tag at HEAD using the resolved (or given) version.")
+      .children(
+        arg[String]("<version>")
+          .optional()
+          .action { (v, c) =>
+            c.copy(command = c.command match
+              case g: TagConfig => g.copy(version = Some(v))
+              case _            => TagConfig(Some(v), None, noSign = false, dryRun = false))
+          }
+          .text("Explicit tag version (default: the resolved version)."),
+        optMessage,
+        optNoSign,
+        optDryRun
+      )
 
     private val helpFlag = help("help").text("Print this help message.")
     private val versionFlag = version("version").text("Show application version and exit.")
-
-    private val checkCfg = checkConfig { c =>
-      val c2 = c.command match
-        case rc: ResolveConfig if rc.sinks.isEmpty =>
-          c.copy(command = rc.copy(sinks = List(OutputSink(SinkKind.Console, None))))
-        case _ => c
-      val validatePaths = c2.command match
-        case rc: ResolveConfig =>
-          val invalid = rc.sinks.collect { case s @ OutputSink(_, Some(p)) if p.toString.trim.isEmpty => s }
-          if invalid.nonEmpty then failure("Empty path supplied for emit sink") else success
-        case _ => success
-      validatePaths
-    }
 
     val parser: OParser[Unit, CliOptions] = OParser.sequence(
       programName("version"),
@@ -223,17 +308,19 @@ object CliOptions:
       optNoColour,
       optEmit,
       optConsoleStyle,
-      cmdRelease,
+      cmdCurrent,
+      cmdTarget,
+      cmdBump,
+      cmdTag,
+      cmdList,
       helpFlag,
-      versionFlag,
-      checkCfg
+      versionFlag
     )
   end CliParser
 
   def parser: OParser[Unit, CliOptions] =
     val b = OParser.builder[CliOptions]
-    val p = new CliParser(b)
-    p.parser
+    new CliParser(b).parser
 
   private def parseEmit(spec: String): Either[CliError, OutputSink] =
     val split = spec.split("=", 2)
@@ -243,9 +330,5 @@ object CliOptions:
       case Array(l)                  => (l, Right(None))
     rightOptOrErr match
       case Left(err)       => Left(err)
-      case Right(rightOpt) =>
-        for
-          kind <- SinkKind.parse(left)
-          sink <- Right(OutputSink(kind, rightOpt.map(s => java.nio.file.Path.of(s))))
-        yield sink
+      case Right(rightOpt) => SinkKind.parse(left).map(kind => OutputSink(kind, rightOpt.map(java.nio.file.Path.of(_))))
 end CliOptions

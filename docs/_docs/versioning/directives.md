@@ -2,206 +2,76 @@
 title: Commit Directives
 ---
 
-## Commit Directives
+Commit messages steer version derivation. A directive is recognised anywhere in a message, case-insensitively, with
+whitespace around the colon tolerated, and must be word-boundary aligned so it is never matched inside a larger word
+(`reversion: 1.0.0` is not a directive).
 
-Control version derivation through commit message keywords.
+## Bump
 
-### Version Directive
-
-The `version:` keyword supports three forms:
-
-#### Relative Increment
-
-Bump by one:
+A bump advances a component of the version. The keywords - and which component each advances - belong to the active
+scheme; for SemVer see [Keyword Mapping](semver.md#keyword-mapping). Three equivalent forms are accepted:
 
 ```
-version: major
-version: minor
+version: <keyword>     # explicit
+<keyword>: <text>      # shorthand - requires non-empty text after the colon
+[<keyword>]            # bracketed
 ```
 
-`version: patch` and `version: fix` are recognised but have no effect (patch increment is the default).
+So `version: breaking`, `breaking: drop the legacy API`, and `[breaking]` all request the same bump, and a directive may
+sit within surrounding text (`[breaking] drop the legacy API`). `breaking:` with no text is ignored. A bracket is a
+directive only when its content is a single keyword, boundary-aligned on both sides, so prose (`[skip ci]`) and embedded
+brackets (`foo[breaking]bar`) are left alone; bracketing a directive such as `[version: major]` is counted once, never
+twice.
 
-#### Absolute Set
+## Absolute set
 
-Set to specific value:
-
-```
-version: major: 3
-version: minor: 5
-version: patch: 2
-```
-
-#### Ignore
-
-Exclude commits from version calculation:
+Set a component to a value instead of incrementing it (`version: minor: 9` yields `*.9.0`):
 
 ```
-version: ignore                           # Exclude containing commit
-version: ignore: <sha>                    # Exclude specific commit
-version: ignore: <sha>, <sha>             # Exclude multiple commits
-version: ignore: <sha>..<sha>             # Exclude range (inclusive)
-version: ignore-merged                    # Exclude all merged branch commits
+version: <keyword>: <N>     # N is a non-negative integer
 ```
 
-**SHA prefixes**: Must be at least 7 hexadecimal characters. Invalid SHA references (too short, non-hex characters,
-incomplete ranges) are silently ignored.
+## Target
 
-**Use cases**:
-
-- `version: ignore` - Documentation-only or tooling commits
-- `version: ignore: abc1234` - Exclude a specific commit by SHA prefix
-- `version: ignore-merged` - When merging a PR, ignore all incoming commits and specify your own directive
-
----
-
-### Synonyms
-
-| Component | Accepted Keywords          |
-|-----------|----------------------------|
-| Major     | `major`, `breaking`        |
-| Minor     | `minor`, `feature`, `feat` |
-| Patch     | `patch`, `fix`             |
-
-All forms are equivalent:
-
-```
-version: major      =  version: breaking
-version: minor      =  version: feature  =  version: feat
-version: patch      =  version: fix
-```
-
-### Standalone Shorthands
-
-Use bump tokens as commit prefixes:
-
-```
-breaking: Remove deprecated API    -> Major increment
-feature: Add caching support       -> Minor increment
-feat: Add logging                  -> Minor increment
-```
-
-`fix:` and `patch:` shorthands are recognised for Conventional Commits compatibility but have no effect - patch
-increment is already the default behaviour.
-
-**Requirement**: Non-empty text after the colon.
-
-**Invalid**: `breaking:`, `fix:` (no text)
-
-### Target Directive
-
-Set the target version explicitly:
+Set the resulting version explicitly, subject to [validation](validation.md):
 
 ```
 target: 2.0.0
 ```
 
-Subject to [validation rules](validation.md).
+## Ignore
 
----
-
-### Parsing Rules
-
-#### Case Insensitivity
+Exclude commits from the scan:
 
 ```
-version: MAJOR      (valid)
-VERSION: minor      (valid)
-Target: 2.0.0       (valid)
+version: ignore                     # this commit            (also [ignore])
+version: ignore: <sha>[, <sha>...]  # commits by SHA prefix   (>= 7 hex characters)
+version: ignore: <sha>..<sha>       # an inclusive range
+version: ignore-merged              # the merged-in commits   (also [ignore-merged])
 ```
 
-#### Whitespace Tolerance
+Invalid SHA references (too short, non-hex, incomplete range) are ignored. On a merge commit, `ignore-merged` drops the
+commits the branch brought in, so one consolidating directive on the merge can speak for them.
 
-```
-version:major       (valid)
-version : major     (valid)
-version:  major     (valid)
-```
+## Resolution
 
-#### Boundary Alignment
+When several directives apply across the scanned range:
 
-Keywords must be word-boundary aligned:
+1. **Ignore** removes a commit's directives entirely.
+2. **Target** wins if present - the highest surviving target.
+3. **Absolute sets** apply per component, highest value winning.
+4. **Bumps** coalesce, so duplicates count once, and the highest-precedence component wins.
+5. Otherwise the scheme's default advancement applies.
 
-```
-reversion: 1.0.0    (invalid) (substring of "reversion")
-retarget: 2.0.0     (invalid) (substring of "retarget")
-```
+Advancing a component resets every lower-precedence component as the scheme defines - for SemVer, a minor bump zeroes the
+patch.
 
-### Precedence
+## Examples
 
-1. **Ignore** - commit excluded entirely
-2. **Valid target** - highest surviving target wins
-3. **Absolute sets** - highest value per component
-4. **Relative changes** - coalesced, highest-precedence wins
-5. **Default** - based on base version
-
-### Coalescing
-
-Duplicate relative changes count as one:
-
-```
-Commit 1: version: minor
-Commit 2: feature: Add helper
-
-Result: Single minor increment
-```
-
-### Component Reset
-
-When higher-precedence components change:
-
-| Change | Resets               |
-|--------|----------------------|
-| Major  | Minor and Patch to 0 |
-| Minor  | Patch to 0           |
-| Patch  | Nothing              |
-
----
-
-### Examples
-
-| Commits                          | Base    | Result Core       |
-|----------------------------------|---------|-------------------|
-| `version: major`                 | `1.2.3` | `2.0.0`           |
-| `version: minor: 9`              | `1.2.3` | `1.9.0`           |
-| `version: minor`, `feat: X`      | `1.2.3` | `1.3.0`           |
-| `target: 2.5.0`                  | `1.2.3` | `2.5.0`           |
-| `version: ignore` on all commits | `1.2.3` | `1.2.4` (default) |
-
-#### Ignore Directive Examples
-
-##### Ignore Specific Commits
-
-When a commit's version impact should be excluded:
-
-```
-# Commit A (sha: abc1234): version: major
-# Commit B: version: ignore: abc1234
-
-Result: Commit A excluded, default patch applies
-```
-
-##### Ignore Merged Branch Commits
-
-When merging a feature branch, consolidate version control in the merge commit:
-
-```
-# Feature branch commits:
-#   - version: major
-#   - version: minor
-
-# Merge commit: version: ignore-merged
-#               feature: New consolidated feature
-
-Result: Feature branch commits excluded, merge commit's minor applies
-```
-
-##### Ignore Commit Range
-
-Exclude a range of commits from version calculation:
-
-```
-# Commits A (abc1234) through C (cde5678)
-# Merge commit: version: ignore: abc1234..cde5678
-
-Result: All commits in range excluded
-```
+| Commits                            | Base    | Result core       |
+|------------------------------------|---------|-------------------|
+| `version: major`                   | `1.2.3` | `2.0.0`           |
+| `version: minor: 9`                | `1.2.3` | `1.9.0`           |
+| `[feat]`, then `version: minor`    | `1.2.3` | `1.3.0`           |
+| `target: 2.5.0`                    | `1.2.3` | `2.5.0`           |
+| `version: ignore` on every commit  | `1.2.3` | `1.2.4` (default) |
