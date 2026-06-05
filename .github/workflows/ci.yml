@@ -154,14 +154,16 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: |
-          choco install gnupg -y --no-progress      
+          # Strip mingw/msys/git from PATH to avoid resolving Git-for-Windows gpg and hanging.
+          $env:PATH = "C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\ProgramData\chocolatey\bin"
+          choco install gnupg -y --no-progress
           $gpg = Get-ChildItem `
             "C:\Program Files\GnuPG\bin\gpg.exe", `
             "C:\Program Files (x86)\GnuPG\bin\gpg.exe" `
             -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $gpg) { throw "native gpg.exe not found after install" }
-          "VERSION_GPG=$($gpg.FullName)" | Out-File $env:GITHUB_ENV   -Append -Encoding utf8
-          Split-Path $gpg.FullName       | Out-File $env:GITHUB_PATH  -Append -Encoding utf8
+          "VERSION_GPG=$($gpg.FullName)" | Out-File $env:GITHUB_ENV  -Append -Encoding utf8
+          Split-Path $gpg.FullName       | Out-File $env:GITHUB_PATH -Append -Encoding utf8
           & $gpg.FullName --version | Select-Object -First 1
 
       - name: Execute Unit Tests
