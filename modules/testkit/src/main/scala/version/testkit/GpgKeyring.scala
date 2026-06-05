@@ -49,6 +49,9 @@ object GpgKeyring:
     try Process.run(Seq("gpgconf", "--homedir", gnupgHome, "--kill", "gpg-agent"), Paths.get(gnupgHome)): Unit
     catch case NonFatal(_) => ()
 
+  /** The gpg executable; `VERSION_GPG` pins a specific binary (e.g. a native gpg on Windows CI). */
+  private def gpgProgram: String = sys.env.get("VERSION_GPG").filter(_.nonEmpty).getOrElse("gpg")
+
   private def generateKey(gnupgHome: String): String =
     val params =
       """%no-protection
@@ -63,8 +66,8 @@ object GpgKeyring:
     val paramFile = Files.createTempFile("version-gpg-", ".params")
     try
       Files.writeString(paramFile, params): Unit
-      Process.runChecked(Seq("gpg", "--homedir", gnupgHome, "--batch", "--gen-key", paramFile.toString), Paths.get(gnupgHome)): Unit
-      val listed = Process.runChecked(Seq("gpg", "--homedir", gnupgHome, "--list-secret-keys", "--with-colons"), Paths.get(gnupgHome))
+      Process.runChecked(Seq(gpgProgram, "--homedir", gnupgHome, "--batch", "--gen-key", paramFile.toString), Paths.get(gnupgHome)): Unit
+      val listed = Process.runChecked(Seq(gpgProgram, "--homedir", gnupgHome, "--list-secret-keys", "--with-colons"), Paths.get(gnupgHome))
       listed.linesIterator
         .find(_.startsWith("fpr:"))
         .map(_.split(":", -1)(9))

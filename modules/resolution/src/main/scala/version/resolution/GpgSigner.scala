@@ -31,6 +31,12 @@ import scala.util.control.NonFatal
   */
 private[resolution] object GpgSigner:
 
+  /** The gpg executable. `VERSION_GPG` overrides the default `gpg` so environments where a bare `gpg` resolves to the
+    * wrong build - notably Windows CI, where Git ships an MSYS2 gpg that mishandles native paths - can pin a specific
+    * binary.
+    */
+  private val gpgProgram: String = sys.env.get("VERSION_GPG").filter(_.nonEmpty).getOrElse("gpg")
+
   /** Produces an ASCII-armoured detached signature over `payload`, signed with the gpg identity `keyId`.
     *
     * Trailing whitespace is stripped from the returned block: libgit2's `git_commit_create_with_signature` and JGit's
@@ -38,7 +44,7 @@ private[resolution] object GpgSigner:
     * stray blank header line; tags append the block with an explicit terminating newline at the call site instead.
     */
   def sign(payload: Array[Byte], keyId: String): Either[GitError, String] =
-    val command = Seq("gpg", "--batch", "--no-tty", "--armor", "--detach-sign", "--local-user", keyId)
+    val command = Seq(gpgProgram, "--batch", "--no-tty", "--armor", "--detach-sign", "--local-user", keyId)
     try
       val builder = new ProcessBuilder(command.asJava)
       builder.redirectError(ProcessBuilder.Redirect.INHERIT): Unit
