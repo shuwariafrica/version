@@ -53,7 +53,7 @@ final case class TargetSetConfig(versionString: String, noSign: Boolean, dryRun:
 /** Commit `version: <keyword>` as an empty commit on HEAD. */
 final case class BumpConfig(keyword: String, noSign: Boolean, dryRun: Boolean) extends CommandConfig derives CanEqual
 
-/** Create an annotated tag at HEAD; `version` defaults to the resolved version when absent. */
+/** Create an annotated tag at HEAD; `version` defaults to the target version when absent. */
 final case class TagConfig(version: Option[String], message: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
     derives CanEqual
 
@@ -231,14 +231,6 @@ object CliOptions:
       .text("List the release history (annotated version tags), newest first.")
       .children(optLimit, optFinal, optSince, optUntil, optDetails)
 
-    private val cmdCurrent = cmd("current")
-      .action { (_, c) =>
-        c.command match
-          case s: ShowConfig => c.copy(command = s.copy(what = ShowKind.Current))
-          case _             => c.copy(command = defaultShow)
-      }
-      .text("Show the resolved version (the default command).")
-
     private val cmdTarget = cmd("target")
       .action { (_, c) =>
         c.command match
@@ -273,7 +265,7 @@ object CliOptions:
 
     private val cmdTag = cmd("tag")
       .action((_, c) => c.copy(command = TagConfig(None, None, noSign = false, dryRun = false)))
-      .text("Create an annotated tag at HEAD using the resolved (or given) version.")
+      .text("Create an annotated tag at HEAD using the target (or given) version.")
       .children(
         arg[String]("<version>")
           .optional()
@@ -304,7 +296,6 @@ object CliOptions:
       optNoColour,
       optEmit,
       optConsoleStyle,
-      cmdCurrent,
       cmdTarget,
       cmdBump,
       cmdTag,

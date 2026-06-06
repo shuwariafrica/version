@@ -2,13 +2,15 @@
 title: sbt Plugin
 ---
 
+# `sbt-version` Plugin
+
 Integrates automatic version derivation into sbt builds.
 
 ```scala
 addSbtPlugin("africa.shuwari" % "sbt-version" % "@VERSION@")
 ```
 
-The plugin is auto-triggered. Once added, `ThisBuild / version` is derived from Git state automatically.
+`sbt-version` is an sbt `AutoPlugin` and is automatically enabled. Once added, `ThisBuild / version` is derived from Git state without intervention.
 
 ## Behaviour
 
@@ -64,6 +66,8 @@ versionResolver := VersionResolver.withDefaults[SemVer]
 > show version
 [info] 1.2.4-SNAPSHOT+202605170145.main.0123456789ab
 ```
+
+---
 
 ## Requirements
 

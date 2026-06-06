@@ -2,6 +2,8 @@
 title: Getting Started
 ---
 
+# Getting Started
+
 A Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and build
 integration.
 

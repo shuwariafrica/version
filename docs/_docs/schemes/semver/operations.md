@@ -1,6 +1,8 @@
 ---
-title: Operations
+title: SemVer Operations
 ---
+
+# SemVer Operations
 
 The core library provides composable operations for version manipulation and rendering.
 

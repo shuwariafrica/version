@@ -2,9 +2,13 @@
 title: Commit Directives
 ---
 
+# Version Commit Directives
+
 Commit messages steer version derivation. A directive is recognised anywhere in a message, case-insensitively, with
 whitespace around the colon tolerated, and must be word-boundary aligned so it is never matched inside a larger word
 (`reversion: 1.0.0` is not a directive).
+
+---
 
 ## Bump
 
@@ -24,6 +28,8 @@ directive when a directive leads its content - a bare keyword (`[breaking]`) or 
 (`foo[breaking]bar`) are left alone, and a bracket that does not lead with a directive is prose (`[skip ci]`,
 `[see version: major]`) and is ignored.
 
+---
+
 ## Absolute set
 
 Set a component to a value instead of incrementing it (`version: minor: 9` yields `*.9.0`):
@@ -32,6 +38,8 @@ Set a component to a value instead of incrementing it (`version: minor: 9` yield
 version: <keyword>: <N>     # N is a non-negative integer
 ```
 
+---
+
 ## Target
 
 Set the resulting version explicitly, subject to [validation](validation.md):
@@ -39,6 +47,8 @@ Set the resulting version explicitly, subject to [validation](validation.md):
 ```
 target: 2.0.0
 ```
+
+---
 
 ## Ignore
 
@@ -54,6 +64,8 @@ version: ignore-merged              # the merged-in commits   (also [ignore-merg
 Invalid SHA references (too short, non-hex, incomplete range) are ignored. On a merge commit, `ignore-merged` drops the
 commits the branch brought in, so one consolidating directive on the merge can speak for them.
 
+---
+
 ## Resolution
 
 When several directives apply across the scanned range:
@@ -66,6 +78,8 @@ When several directives apply across the scanned range:
 
 Advancing a component resets every lower-precedence component as the scheme defines - for SemVer, a minor bump zeroes the
 patch.
+
+---
 
 ## Examples
 

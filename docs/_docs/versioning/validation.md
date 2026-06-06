@@ -1,12 +1,12 @@
 ---
-title: Validation Rules
+title: Directives Validation
 ---
 
-## Validation Rules
+# Directive Validation Rules
 
 Target directives are validated to prevent version regression.
 
-### Target Directive Format
+## Target Directive Format
 
 ```
 target: MAJOR.MINOR.PATCH
@@ -16,11 +16,11 @@ Optional `v` prefix and trailing pre-release/metadata are stripped.
 
 ---
 
-### Rules
+## Rules
 
 A target directive is **ignored** if any of these conditions hold:
 
-#### A. Regression vs Reachable Final
+### A. Regression vs Reachable Final
 
 If a reachable final tag exists with core `F`:
 
@@ -37,7 +37,7 @@ target: 2.2.5  ->  ignored (equality with final)
 target: 2.2.6  ->  accepted
 ```
 
-#### B. Regression vs Reachable Pre-release
+### B. Regression vs Reachable Pre-release
 
 If the highest reachable tag is a pre-release with core `P`:
 
@@ -54,7 +54,7 @@ target: 3.0.0  ->  ignored
 target: 3.1.0  ->  accepted
 ```
 
-#### C. No Reachable Base
+### C. No Reachable Base
 
 When no tags are reachable from HEAD, validation uses repository-wide highest:
 
@@ -71,7 +71,7 @@ Repository highest: 2.0.0-rc.1
 target: 2.0.0  ->  accepted (equality with pre-release)
 ```
 
-#### D. At a Final Tag
+### D. At a Final Tag
 
 If HEAD carries a final tag with core `T`:
 
@@ -79,7 +79,7 @@ If HEAD carries a final tag with core `T`:
 target <= T  ->  ignored
 ```
 
-#### E. Malformed
+### E. Malformed
 
 Invalid targets are ignored:
 
@@ -88,7 +88,7 @@ Invalid targets are ignored:
 - Negative values: `target: 1.-1.0`
 - Overflow: `target: 999999999999.0.0`
 
-#### F. Multiple Targets
+### F. Multiple Targets
 
 If multiple valid targets survive A-E:
 
@@ -98,7 +98,7 @@ Highest core wins; others ignored
 
 ---
 
-### Equality Rule Summary
+## Equality Rule Summary
 
 | Comparison       | Equality Allowed? |
 |------------------|-------------------|
@@ -107,7 +107,7 @@ Highest core wins; others ignored
 
 ---
 
-### Examples
+## Examples
 
 | Scenario                         | Target  | Result           |
 |----------------------------------|---------|------------------|

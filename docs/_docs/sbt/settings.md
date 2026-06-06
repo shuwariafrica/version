@@ -1,12 +1,10 @@
 ---
-title: Settings
+title: Plugin Settings
 ---
 
-## Settings
+# `sbt-version` Settings
 
-Configuration for the sbt plugin.
-
-### versionResolver
+## versionResolver
 
 Bundles the scheme, tag parser, and rendering formatter into a single typed value. All three share the same `V` type
 parameter.
@@ -37,7 +35,7 @@ The bundled `formatter` controls how `version` (the standard sbt setting) is ren
 
 ---
 
-### resolvedVersion
+## resolvedVersion
 
 The resolved version for the current repository state, typed against the `Version` marker.
 
@@ -57,7 +55,7 @@ For just the rendered string, use sbt's standard `version` setting - it already 
 
 ---
 
-### versionTarget
+## versionTarget
 
 The target release version the working tree is heading toward, typed against the `Version` marker.
 
@@ -76,7 +74,7 @@ ThisBuild / versionTarget
 
 ---
 
-### versionBranchOverride
+## versionBranchOverride
 
 Override the branch name detected from Git. Useful when CI performs detached checkouts.
 
@@ -93,7 +91,7 @@ When unset, the plugin falls back to Git's current branch (if available).
 
 ---
 
-### Environment Variables
+## Environment Variables
 
 Two environment variables influence resolution:
 

@@ -1,6 +1,8 @@
 ---
-title: SemVer Behaviour
+title: SemVer Derivation
 ---
+
+# SemVer Derivation
 
 How SemVer versions are derived by the automatic versioning engine.
 

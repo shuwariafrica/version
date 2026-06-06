@@ -38,11 +38,6 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       case ShowConfig(ShowKind.Current, _, _, _) => ()
       case other                                 => fail(s"expected ShowConfig(Current), got $other")
 
-  test("current is show-current"):
-    command("current") match
-      case ShowConfig(ShowKind.Current, _, _, _) => ()
-      case other                                 => fail(s"got $other")
-
   test("target with no argument is show-target"):
     command("target") match
       case ShowConfig(ShowKind.Target, _, _, _) => ()
@@ -86,9 +81,9 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assert(parse("--emit", "json=").isEmpty)
 
   test("a global flag applies after a subcommand (scopt keeps root options matchable)"):
-    command("current", "--console-style", "compact") match
-      case ShowConfig(ShowKind.Current, _, ConsoleStyle.Compact, true) => ()
-      case other                                                       => fail(s"got $other")
+    command("target", "--console-style", "compact") match
+      case ShowConfig(ShowKind.Target, _, ConsoleStyle.Compact, true) => ()
+      case other                                                      => fail(s"got $other")
 
   test("bump --no-sign creates an empty commit carrying the directive"):
     withFreshRepo("cli-bump"): repo =>

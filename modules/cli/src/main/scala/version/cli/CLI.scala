@@ -42,7 +42,7 @@ import version.semver.SemVer
 
 /** Command-line entry point for version-cli.
   *
-  * Resolves a [[Version]] from a repository's Git state and either reports it (`current`, `target`) or records it
+  * Resolves a [[Version]] from a repository's Git state and either reports it (the resolved or `target` version) or records it
   * (`bump`, `target <version>`, `tag`). Resolution is scheme-generic via [[VersionResolver]]; today the only registered
   * scheme is SemVer, so the SemVer renderers and the JSON sink apply.
   */

@@ -20,6 +20,8 @@ distances from a _previous_ one.
 | History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3)   |
 | Intent-based (version)           | "What are we releasing next?" | `1.3.0-SNAPSHOT+...` (working toward 1.3.0) |
 
+---
+
 ## Quick Start
 
 ### sbt Plugin
@@ -82,6 +84,8 @@ fix: Handle edge case               # Patch increment
 | `version-resolution` | JVM, Native | Git-based version derivation            |
 | `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
 | `sbt-version`        | sbt 2.x     | Build integration                       |
+
+---
 
 ## Licence
 

@@ -1,8 +1,10 @@
 ---
-title: Automatic Versioning
+title: Versioning
 ---
 
-Derive semantic versions from Git repository state and commit messages.
+# Version Derivation
+
+Derive semantically correct versions from Git repository state and commit messages.
 
 ```scala
 libraryDependencies += "africa.shuwari" %%% "version-resolution" % "@VERSION@"

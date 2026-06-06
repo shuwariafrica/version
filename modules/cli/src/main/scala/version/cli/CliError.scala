@@ -38,6 +38,3 @@ object CliError:
 
   final case class EmptyEmitPath(spec: String) extends CliError:
     def message: String = s"Empty path after '=' in --emit $spec"
-
-  final case class InvalidOutputFormat(value: String) extends CliError:
-    def message: String = s"Unknown output format: $value (allowed: pretty, compact, json, yaml)"

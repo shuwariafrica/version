@@ -10,43 +10,65 @@
 Register-ArgumentCompleter -Native -CommandName version -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $flags = @(
-        '-r', '--repository',
-        '-b', '--basis-commit',
-        '--pr',
-        '--branch-override',
-        '--sha-length',
-        '-v', '--verbose',
-        '--ci',
-        '--no-colour', '--no-color',
-        '-e', '--emit',
-        '--console-style',
-        '--help', '--version'
+    $commands = @('target', 'bump', 'tag', 'list')
+    $keywords = @('breaking', 'feat', 'feature', 'fix', 'major', 'minor', 'patch')
+    $sinks    = @('console', 'raw', 'json')
+    $styles   = @('pretty', 'compact')
+    $globals  = @(
+        '-r', '--repository', '-b', '--basis-commit', '--pr', '--branch-override',
+        '--sha-length', '-v', '--verbose', '--ci', '--no-colour', '--no-color',
+        '-e', '--emit', '--console-style', '--help', '--version'
+    )
+    $perCommand = @{
+        target  = @('--dry-run', '--no-sign')
+        bump    = @('--dry-run', '--no-sign')
+        tag     = @('-m', '--message', '--no-sign', '--dry-run')
+        list    = @('-n', '--limit', '--final', '--since', '--until', '--details')
+    }
+    $valueOptions = @(
+        '-r', '--repository', '-b', '--basis-commit', '--pr', '--branch-override',
+        '--sha-length', '-m', '--message', '-n', '--limit', '--since', '--until'
     )
 
-    $sinks  = @('console', 'raw', 'json')
-    $styles = @('pretty', 'compact')
-
-    $tokens = $commandAst.CommandElements
+    # Scan the typed elements for the selected subcommand and the token left of the cursor.
+    $elements = $commandAst.CommandElements
+    $command  = $null
     $previous = ''
-    for ($i = $tokens.Count - 1; $i -ge 0; $i--) {
-        $text = $tokens[$i].Extent.Text
-        if ($text -ne $wordToComplete) { $previous = $text; break }
+    for ($i = 1; $i -lt $elements.Count; $i++) {
+        $text = $elements[$i].Extent.Text
+        if ($text -eq $wordToComplete) { continue }
+        $previous = $text
+        if ((-not $command) -and ($commands -contains $text)) { $command = $text }
     }
 
-    switch ($previous) {
-        { $_ -in @('-e', '--emit') } {
-            $sinks | Where-Object { $_ -like "$wordToComplete*" } |
-                ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
-            return
-        }
-        '--console-style' {
-            $styles | Where-Object { $_ -like "$wordToComplete*" } |
-                ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
-            return
-        }
+    $candidates = $null
+    $resultType = 'ParameterValue'
+    if ($previous -eq '-e' -or $previous -eq '--emit') {
+        $candidates = $sinks
+    }
+    elseif ($previous -eq '--console-style') {
+        $candidates = $styles
+    }
+    elseif ($valueOptions -contains $previous) {
+        return  # the previous option takes a free value (path, rev, number, message); defer to default completion
+    }
+    elseif ($wordToComplete -like '-*') {
+        $candidates = if ($command) { $perCommand[$command] + $globals } else { $globals }
+        $resultType = 'ParameterName'
+    }
+    elseif ($command -eq 'bump') {
+        $candidates = $keywords
+    }
+    elseif (-not $command) {
+        $candidates = $commands
+    }
+    else {
+        # A chosen subcommand at a free-argument position (e.g. a version string): offer its options, not files.
+        $candidates = $perCommand[$command] + $globals
+        $resultType = 'ParameterName'
     }
 
-    $flags | Where-Object { $_ -like "$wordToComplete*" } |
-        ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterName', $_) }
+    $candidates | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+        [System.Management.Automation.CompletionResult]::new($_, $_, $resultType, $_)
+    }
 }

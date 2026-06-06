@@ -1,6 +1,8 @@
 ---
-title: Specification
+title: Derivation Specification
 ---
+
+# Version Derivation Specification
 
 Normative definition of the version resolution algorithm. This document is the contract that implementors of
 `ResolvableScheme[V]` must satisfy; it is also the precise statement of guarantees the resolver makes to its callers.
@@ -29,6 +31,8 @@ algorithm calls these scheme operations:
 
 Tag parsing is configured separately via `config.tagParser: String => Option[V]`, which typically strips a `v`/`V`
 prefix and delegates to `scheme.parse`.
+
+---
 
 ## Algorithm
 
@@ -110,6 +114,8 @@ Sortability invariant: for two development versions sharing the same target core
 string preserves the chronological order of their basis commits. SemVer build metadata is ignored by SemVer 2.0.0
 precedence rules; the invariant is provided for consumers that sort raw rendered strings.
 
+---
+
 ## Keyword Resolution
 
 Keywords are resolved from `scheme.keywordAliases`: a `Map[String, Int]` mapping lowercase keyword strings to zero-based
@@ -159,6 +165,8 @@ Equality is permitted against non-final cores only. See [Target Validation](vali
 | No tags anywhere              | `scheme.initialVersion`                                                                               |
 | Shallow clone                 | Treated as no base; defaults apply                                                                    |
 | Commit count overflow         | `commitCount` clamped to `Int.MaxValue` in the model (not rendered by the default SemVer scheme)      |
+
+---
 
 ## Determinism
 

@@ -1,10 +1,16 @@
 ---
-title: Types
+title: SemVer Components
 ---
 
-### Component Types
+# SemVer Component Types
 
-#### `Major`
+The `SemVer` version scheme is made up of a number of distinct types. See the entire reference below.
+
+---
+
+## Core Version
+
+### `Major`
 
 The major version number. Must be non-negative.
 
@@ -28,7 +34,7 @@ Major.minimum // Major(0)
 Major.reset // Major(0)
 ```
 
-#### `Minor`
+### `Minor`
 
 The minor version number. Must be non-negative.
 
@@ -39,7 +45,7 @@ minor.increment // Minor(6)
 Minor.reset // Minor(0)
 ```
 
-#### `Patch`
+### `Patch`
 
 The patch version number. Must be non-negative.
 
@@ -50,7 +56,7 @@ patch.increment // Patch(4)
 Patch.reset // Patch(0)
 ```
 
-#### `PreReleaseNumber`
+### `PreReleaseNumber`
 
 The pre-release version number. Must be positive (>= 1).
 
@@ -65,9 +71,9 @@ prn.increment // PreReleaseNumber(2)
 
 ---
 
-### Pre-release Types
+## Pre-release Types
 
-#### `PreReleaseClassifier`
+### `PreReleaseClassifier`
 
 An enumeration of constrained classifiers with defined precedence (lowest to highest):
 
@@ -100,7 +106,7 @@ PreReleaseClassifier.fromAlias("foo") // None
   case PreReleaseClassifier(c) => c // Beta
 ```
 
-#### `PreRelease`
+### `PreRelease`
 
 Combines a classifier with an optional version number:
 
@@ -132,7 +138,7 @@ pr.isAlpha // true
 
 ---
 
-### `Metadata`
+## `Metadata`
 
 Build metadata identifiers. Each must match `[0-9A-Za-z-]+`.
 
@@ -154,7 +160,7 @@ bm.show // "build.456"
 
 ---
 
-### `SemVer`
+## `SemVer`
 
 The complete SemVer 2.0.0 representation:
 
@@ -180,7 +186,7 @@ v.show // "1.2.3-alpha.1"
 
 ---
 
-### Ordering
+## Ordering
 
 All types provide `Ordering` instances following SemVer precedence:
 
