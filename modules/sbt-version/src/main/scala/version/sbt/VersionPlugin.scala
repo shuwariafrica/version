@@ -27,6 +27,8 @@ import version.VersionResolver
 import version.resolution.GitError
 import version.resolution.ResolutionConfig
 import version.resolution.ResolutionError
+import version.resolution.ResolutionMode
+import version.resolution.ResolutionResult
 import version.resolution.VersionCliCore
 import version.resolution.domain.CiMetadata
 import version.resolution.environment.CiDetector
@@ -44,6 +46,7 @@ import version.semver.SemVer
   *   - `versionResolver`: bundled scheme + tag parser + formatter (default: SemVer)
   *   - `versionBranchOverride`: optional branch override for CI environments
   *   - `resolvedVersion`: resolved [[Version]] for the repository state
+  *   - `versionTarget`: target release version the working tree is heading toward
   *   - `version` (sbt built-in): rendered version string for publishing
   *   - `isSnapshot` (sbt built-in): scheme-defined snapshot state
   *
@@ -75,6 +78,10 @@ object VersionPlugin extends AutoPlugin:
         resolvedTyped.value match
           case r: internal.VersionResult[v] => r.value: Version
       ),
+      versionTarget := (
+        resolvedTyped.value match
+          case r: internal.VersionResult[v] => r.target: Version
+      ),
       Keys.version := (
         resolvedTyped.value match
           case r: internal.VersionResult[v] => internal.render(r)
@@ -102,7 +109,8 @@ object VersionPlugin extends AutoPlugin:
     final case class VersionResult[V <: Version](
       scheme: ResolvableScheme[V],
       formatter: Option[Formatter[V]],
-      value: V
+      value: V,
+      target: V
     )
 
     def render[V <: Version](r: VersionResult[V]): String =
@@ -132,31 +140,31 @@ object VersionPlugin extends AutoPlugin:
             tagParser = r.tagParser
           )
         val cfg = base.mergeWith(metadata)
-        val resolved = resolveVersion(cfg, sbtLog, r.scheme)
-        VersionResult(r.scheme, r.formatter, resolved)
+        val result = resolveResult(cfg, sbtLog, r.scheme)
+        VersionResult(r.scheme, r.formatter, result.resolved, result.target)
 
-    private[sbt] def resolveVersion[V <: Version](
+    private[sbt] def resolveResult[V <: Version](
       cfg: ResolutionConfig[V],
       sbtLog: SbtLogger,
       scheme: ResolvableScheme[V]
-    ): V =
+    ): ResolutionResult[V] =
       given ResolvableScheme[V] = scheme
       val logger = new SbtCoreLogger(sbtLog)
       sbtLog.info(s"sbt-version: resolving version from ${cfg.repoPath}")
-      VersionCliCore.resolve(cfg, openRepository, logger, Verbose(cfg.verbose)) match
+      VersionCliCore.resolveAll(cfg, openRepository, logger, Verbose(cfg.verbose)) match
         case Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(path))) =>
           val fallback = scheme.developmentVersion(
             scheme.initialVersion,
             DevelopmentMetadata(None, None, None, None, None, false)
           )
           sbtLog.info(s"sbt-version: Not a Git repository at $path, using fallback ${fallback.show}")
-          fallback
+          ResolutionResult(fallback, scheme.initialVersion, ResolutionMode.Development, None, None)
         case Left(err) =>
           sbtLog.info(s"sbt-version: Resolution error: ${err.getClass.getName} - ${err.message}")
           throw new MessageOnlyException(s"sbt-version: ${err.message}") // scalafix:ok
-        case Right(ver) =>
-          sbtLog.info(s"sbt-version: Resolved version: ${ver.show}")
-          ver
+        case Right(result) =>
+          sbtLog.info(s"sbt-version: Resolved version: ${result.resolved.show}")
+          result
   end internal
 
 end VersionPlugin

@@ -73,7 +73,7 @@ private[version] object Parser:
 
   def parse(input: String)(using resolver: PreRelease.Resolver): Either[ParseError, ParsedVersion] =
     boundary:
-      if input == null || input.isEmpty then break(Left(InvalidVersionFormat(input)))
+      if input.isEmpty then break(Left(InvalidVersionFormat(input)))
 
       val normalised =
         if input.length > 1 && (input.charAt(0) == 'v' || input.charAt(0) == 'V') then input.substring(1)

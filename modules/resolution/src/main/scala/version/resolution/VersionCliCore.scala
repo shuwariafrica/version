@@ -19,6 +19,7 @@ import scala.annotation.targetName
 
 import version.ResolvableScheme
 import version.Version
+import version.resolution.domain.Release
 import version.resolution.logging.Logger
 import version.resolution.logging.Verbose
 
@@ -51,4 +52,58 @@ object VersionCliCore:
     given Logger = logger
     given Verbose = verbose
     Resolver.resolve(config, open)
+
+  /** Resolves the version, returning the resolved version, its target, and the resolution mode,
+    * using contextual parameters and an explicit repository open function.
+    */
+  @targetName("resolveAllContextual")
+  def resolveAll[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository]
+  )(using
+    ResolvableScheme[V],
+    Logger,
+    Verbose
+  ): Either[ResolutionError, ResolutionResult[V]] =
+    Resolver.resolveAll(config, open)
+
+  /** Resolves the version, returning the resolved version, its target, and the resolution mode,
+    * with all parameters explicit.
+    */
+  @targetName("resolveAllExplicitAll")
+  def resolveAll[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository],
+    logger: Logger,
+    verbose: Verbose
+  )(using ResolvableScheme[V]): Either[ResolutionError, ResolutionResult[V]] =
+    given Logger = logger
+    given Verbose = verbose
+    Resolver.resolveAll(config, open)
+
+  /** Lists the full release history - every annotated version tag the scheme parses, paired with the commit it points
+    * to, ordered by version - using contextual parameters and an explicit repository open function.
+    */
+  @targetName("releaseHistoryContextual")
+  def releaseHistory[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository]
+  )(using
+    ResolvableScheme[V],
+    Logger,
+    Verbose
+  ): Either[ResolutionError, List[Release[V]]] =
+    Resolver.releaseHistory(config, open)
+
+  /** Lists the full release history with all parameters explicit. */
+  @targetName("releaseHistoryExplicitAll")
+  def releaseHistory[V <: Version](
+    config: ResolutionConfig[V],
+    open: String => Either[GitError, GitRepository],
+    logger: Logger,
+    verbose: Verbose
+  )(using ResolvableScheme[V]): Either[ResolutionError, List[Release[V]]] =
+    given Logger = logger
+    given Verbose = verbose
+    Resolver.releaseHistory(config, open)
 end VersionCliCore

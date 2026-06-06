@@ -29,16 +29,12 @@ trait VersionError extends RuntimeException with NoStackTrace:
 object VersionError:
   given CanEqual[VersionError, VersionError] = CanEqual.derived
 
-// --- Component Validation ---
-
 /** A version component value is outside the valid range for that component.
   *
   * Common across all versioning schemes. The [[componentName]] identifies which component failed.
   */
 final case class InvalidComponent(value: Int, componentName: String, requirement: String) extends VersionError:
   override def message: String = s"$componentName must be $requirement. Found: $value"
-
-// --- Qualifier/Pre-Release Combination ---
 
 /** Errors related to inconsistencies between a qualifier classifier and its associated number. */
 sealed trait InvalidQualifierCombination extends VersionError
@@ -53,20 +49,14 @@ final case class UnexpectedQualifierNumber(classifier: String, number: Int) exte
   override def message: String =
     s"The classifier '$classifier' cannot have a qualifier number. Found: $number"
 
-// --- Metadata ---
-
 /** Build metadata identifiers contain invalid characters or are empty. */
 final case class InvalidMetadata(identifiers: List[String]) extends VersionError:
   override def message: String =
     s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"
 
-// --- Qualifier Operation ---
-
 /** An operation requires a versioned classifier but a non-versioned one was provided. */
 final case class ClassifierNotVersioned(classifier: String) extends VersionError:
   override def message: String = s"Classifier '$classifier' is not versioned and cannot be used in this operation."
-
-// --- Parsing ---
 
 /** Base for errors that occur during the parsing of version strings. */
 sealed trait ParseError extends VersionError

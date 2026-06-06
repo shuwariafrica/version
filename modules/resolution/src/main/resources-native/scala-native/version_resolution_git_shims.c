@@ -1,9 +1,5 @@
 #include <git2.h>
 
-/* --------------------------------------------------------------------------
- * working-tree dirty count
- * -------------------------------------------------------------------------- */
-
 /**
  * Returns the number of working-tree status entries representing a deviation from HEAD
  * (modified, untracked, or new index entries; ignored files are excluded). Returns 0 when
@@ -33,68 +29,8 @@ int version_resolution_git_workdir_dirty_count(git_repository* repo) {
     return (int)count;
 }
 
-/* --------------------------------------------------------------------------
- * git_error message accessor
- * -------------------------------------------------------------------------- */
-
 /* Read the message field from a git_error; NULL if err is NULL. The shim
  * keeps the git_error struct shape out of the Scala FFI surface. */
 const char* version_resolution_git_error_message(const git_error* err) {
     return err ? err->message : NULL;
 }
-
-/* TODO(scala-native#4908): drop this section once the fix ships. */
-
-#ifdef __linux__
-
-#include <stdbool.h>
-#include <sys/resource.h>
-#include <unistd.h>
-
-/* Layout must match scala-native's ThreadInfo (nativeThreadTLS.h) through
- * isMainThread (read) and maxStackSize (write). */
-typedef struct SnThreadInfo {
-    size_t stackSize;
-    size_t maxStackSize;
-    void *stackTop;
-    void *stackBottom;
-    void *stackGuardPage;
-    bool isMainThread;
-    bool pendingStackOverflowException;
-    void *signalHandlerStack;
-    size_t signalHandlerStackSize;
-} SnThreadInfo;
-
-extern SnThreadInfo *scalanative_currentThreadInfo(void);
-
-/* Restore the main thread's maxStackSize to RLIMIT_STACK; scala-native's
- * detectStackBounds clobbers it with pthread_attr_getstack's initial-mapping
- * size on Linux. Idempotent. */
-int version_resolution_fix_main_thread_stack_limit(void) {
-    SnThreadInfo *ti = scalanative_currentThreadInfo();
-    if (ti == NULL) return 0;
-    if (!ti->isMainThread) return 0;
-
-    struct rlimit rl;
-    if (getrlimit(RLIMIT_STACK, &rl) != 0) return 0;
-    if (rl.rlim_cur == RLIM_INFINITY) return 0;
-
-    long pageSize = sysconf(_SC_PAGESIZE);
-    if (pageSize <= 0) return 0;
-
-    /* rlimit minus 4 guard pages - mirror scalanative_setupCurrentThreadInfo. */
-    if ((size_t)rl.rlim_cur <= (size_t)(4 * pageSize)) return 0;
-    size_t correctMax = (size_t)rl.rlim_cur - (size_t)(4 * pageSize);
-    if (correctMax > ti->maxStackSize) {
-        ti->maxStackSize = correctMax;
-        return 1;
-    }
-    return 0;
-}
-
-#else  /* non-Linux: pthread_attr_getstack returns the actual stack size, no
-        * patching needed. Provide a stub so the Scala extern resolves. */
-
-int version_resolution_fix_main_thread_stack_limit(void) { return 0; }
-
-#endif

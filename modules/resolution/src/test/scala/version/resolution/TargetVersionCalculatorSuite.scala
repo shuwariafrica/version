@@ -29,8 +29,6 @@ class TargetVersionCalculatorSuite extends FunSuite:
   private val sha = CommitSha("0000000000000000000000000000000000000000")
   private def tag(s: String): Tag[SemVer] = Tag(s"v$s", sha, v(s))
 
-  // --- selectValidTarget ---
-
   test("target accepted when higher than reachable final"):
     val result = TargetVersionCalculator.selectValidTarget[SemVer](
       targets = List(v("2.2.6")),
@@ -70,8 +68,6 @@ class TargetVersionCalculatorSuite extends FunSuite:
       isHeadOnFinalTag = false
     )
     assertEquals(result, Some(v("1.6.0")))
-
-  // --- fromKeywords ---
 
   test("major bump resets minor and patch"):
     val result = TargetVersionCalculator.fromKeywords[SemVer](v("1.2.3"), List(ComponentBump(0)))

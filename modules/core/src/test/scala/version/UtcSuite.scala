@@ -13,28 +13,33 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.cli
+package version
 
-import scala.util.control.NoStackTrace
+import munit.FunSuite
 
-import version.resolution.ResolutionError
+class UtcSuite extends FunSuite:
 
-/** CLI-specific errors. Module-scoped sealed ADT. */
-sealed trait CliError extends RuntimeException with NoStackTrace with Product with Serializable:
-  def message: String
-  final override def getMessage: String = message
+  test("compact: epoch produces 197001010000"):
+    assertEquals(Utc.compact(0L), "197001010000")
 
-object CliError:
-  given CanEqual[CliError, CliError] = CanEqual.derived
+  test("compact: post-2038 epoch does not narrow to Int"):
+    // 2050-06-15T12:34:00Z = 2538909240 seconds, beyond Int.MaxValue = 2147483647.
+    assertEquals(Utc.compact(2538909240L), "205006151234")
 
-  final case class ResolutionFailed(cause: ResolutionError) extends CliError:
-    def message: String = cause.message
+  test("compact: leap-day"):
+    // 2024-02-29T12:34:00Z = 1709210040 seconds.
+    assertEquals(Utc.compact(1709210040L), "202402291234")
 
-  final case class InvalidSink(value: String) extends CliError:
-    def message: String = s"Unknown sink '$value' (expected console|raw|json)"
+  test("compact: reference timestamp"):
+    assertEquals(Utc.compact(1778982300L), "202605170145")
 
-  final case class InvalidConsoleStyle(value: String) extends CliError:
-    def message: String = s"Invalid console-style '$value' (expected pretty|compact)"
+  test("dateTime: epoch"):
+    assertEquals(Utc.dateTime(0L), "1970-01-01 00:00")
 
-  final case class EmptyEmitPath(spec: String) extends CliError:
-    def message: String = s"Empty path after '=' in --emit $spec"
+  test("dateTime: reference timestamp to the minute"):
+    assertEquals(Utc.dateTime(1778982300L), "2026-05-17 01:45")
+
+  test("dateTime: leap-day"):
+    assertEquals(Utc.dateTime(1709210040L), "2024-02-29 12:34")
+
+end UtcSuite

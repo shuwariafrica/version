@@ -39,5 +39,8 @@ subsection:
       - title: Settings
         page: sbt/settings.md
 
+  - title: Command-Line Tool
+    page: cli/overview.md
+
   - title: Contributing
     page: contributing.md

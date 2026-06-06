@@ -13,28 +13,19 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.cli
+package version.resolution.domain
 
-import scala.util.control.NoStackTrace
+import version.Version
 
-import version.resolution.ResolutionError
+/** A released version: its parsed version, the tag name, the release time, and the commit the tag dereferences to.
+  *
+  * `releaseTime` is the annotated tag's tagger time (seconds since the Unix epoch) - when the release was tagged.
+  * `commit.commitTime` is the committer time of the source commit it points to, which may predate the release. Used as
+  * the anchoring release on [[version.resolution.ResolutionResult ResolutionResult]] and ordered by
+  * [[Release.version version]].
+  */
+final case class Release[V <: Version](version: V, tag: String, releaseTime: Long, commit: RawCommit)
 
-/** CLI-specific errors. Module-scoped sealed ADT. */
-sealed trait CliError extends RuntimeException with NoStackTrace with Product with Serializable:
-  def message: String
-  final override def getMessage: String = message
-
-object CliError:
-  given CanEqual[CliError, CliError] = CanEqual.derived
-
-  final case class ResolutionFailed(cause: ResolutionError) extends CliError:
-    def message: String = cause.message
-
-  final case class InvalidSink(value: String) extends CliError:
-    def message: String = s"Unknown sink '$value' (expected console|raw|json)"
-
-  final case class InvalidConsoleStyle(value: String) extends CliError:
-    def message: String = s"Invalid console-style '$value' (expected pretty|compact)"
-
-  final case class EmptyEmitPath(spec: String) extends CliError:
-    def message: String = s"Empty path after '=' in --emit $spec"
+object Release:
+  given [V <: Version](using CanEqual[V, V]): CanEqual[Release[V], Release[V]] = CanEqual.derived
+  given [V <: Version: Ordering]: Ordering[Release[V]] = Ordering.by(_.version)

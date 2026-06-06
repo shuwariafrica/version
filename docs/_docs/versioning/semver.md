@@ -1,6 +1,8 @@
 ---
-title: SemVer Behaviour
+title: SemVer Derivation
 ---
+
+# SemVer Derivation
 
 How SemVer versions are derived by the automatic versioning engine.
 
@@ -25,17 +27,15 @@ version wins.
 
 ## Keyword Mapping
 
-| Commit Directive                                    | Effect                                                                 |
-|-----------------------------------------------------|------------------------------------------------------------------------|
-| `version: major` or `breaking: text`                | Increment major, reset minor and patch                                 |
-| `version: minor` or `feat: text` or `feature: text` | Increment minor, reset patch                                           |
-| `version: major: 3`                                 | Set major to 3, reset minor and patch                                  |
-| `version: minor: 5`                                 | Set minor to 5, reset patch                                            |
-| `version: patch: 2`                                 | Set patch to 2                                                         |
-| `fix: text` or `patch: text`                        | No effect (patch increment is the default)                             |
-| `target: 2.0.0`                                     | Set target version explicitly (subject to [validation](validation.md)) |
+| Keyword                    | Component | Effect                                       |
+|----------------------------|-----------|----------------------------------------------|
+| `major`, `breaking`        | Major     | Increment major, reset minor and patch       |
+| `minor`, `feat`, `feature` | Minor     | Increment minor, reset patch                 |
+| `patch`, `fix`             | Patch     | No effect - patch is the default advancement |
 
-See [Commit Directives](directives.md) for the full directive syntax including ignore directives.
+Each keyword works in all three [directive forms](directives.md) - `version: major`, `breaking: <text>`, `[breaking]` -
+and as an absolute set, `version: major: 3`. `target: 2.0.0` sets the version explicitly, subject to
+[validation](validation.md).
 
 ## Default Behaviour
 

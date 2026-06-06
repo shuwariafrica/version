@@ -2,6 +2,8 @@
 title: SemVer
 ---
 
+# SemVer Scheme
+
 Type-safe [Semantic Versioning 2.0.0](https://semver.org/) using Scala 3 opaque types.
 
 ```scala

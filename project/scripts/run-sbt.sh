@@ -67,5 +67,11 @@ done
 
 # Materialise the per-UID /tmp HOME inside the container before sbt runs.
 # /tmp is world-writable (sticky) so the unprivileged user can mkdir there.
+# `--user UID:GID` has no /etc/passwd entry, so the JVM cannot resolve user.home
+# from getpwuid and falls back to the literal "?"; pin it to the writable HOME so
+# the JVM and JGit's global-config lookup agree (the GnuPG signing tests read git
+# config through JGit). `safe.directory '*'` clears git's dubious-ownership guard
+# on the bind-mounted tree.
 exec docker run "${docker_args[@]}" --entrypoint sh "$DOCKER_IMAGE" -c \
-  "mkdir -p \"\$HOME\" && exec sbt \"\$@\"" sh "${extra_args[@]}" "$@"
+  "mkdir -p \"\$HOME\" && git config --global --add safe.directory '*' && exec sbt -Duser.home=\"\$HOME\" \"\$@\"" \
+  sh "${extra_args[@]}" "$@"

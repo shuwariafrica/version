@@ -24,9 +24,12 @@ integration.
     - [[version.ComponentDescriptor ComponentDescriptor]] - component name and role pair
 
 - **`version-resolution` ([[version.resolution]]):** Automatic version derivation:
+    - Entry point ([[version.resolution.VersionCliCore VersionCliCore]]) - resolve a version or list release history
+    - Result ([[version.resolution.ResolutionResult ResolutionResult]],
+      [[version.resolution.ResolutionMode ResolutionMode]]) and release entries
+      ([[version.resolution.domain.Release Release]])
     - Configuration ([[version.resolution.ResolutionConfig ResolutionConfig]])
     - Keyword parsing ([[version.resolution.parsing.KeywordParser KeywordParser]])
-    - Resolution engine ([[version.resolution.Resolver Resolver]])
 
 - **`version-cli`:** Command-line application
 

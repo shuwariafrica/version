@@ -99,6 +99,51 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       assert(res.isRight, clues(res))
       assertEquals(res.toOption.get.show, "1.0.0")
 
+  test("resolveAll Mode 1: concrete mode, target equals resolved"):
+    withFreshRepo("detailed-mode1"): repo =>
+      checkout(repo, "v1.0.0")
+      val res = VersionCliCore.resolveAll(cfg(repo.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val r = res.toOption.get
+      assertEquals(r.mode, ResolutionMode.Concrete)
+      assertEquals(r.resolved, r.target)
+      assertEquals(r.resolved.show, "1.0.0")
+      assert(r.basis.isDefined, "basis commit should be present")
+      val base = r.base.getOrElse(fail("base release should be present in Concrete mode"))
+      assertEquals(base.version, r.resolved)
+      assertEquals(base.commit.id, r.basis.get.id)
+
+  test("resolveAll Mode 2: development mode exposes a clean target distinct from the snapshot"):
+    withFreshRepo("detailed-mode2"): repo =>
+      checkout(repo, "v1.0.0")
+      Files.writeString(repo.resolve("dirty.txt"), "dirty"): Unit
+      val res = VersionCliCore.resolveAll(cfg(repo.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val r = res.toOption.get
+      assertEquals(r.mode, ResolutionMode.Development)
+      assert(r.resolved.show.contains("-SNAPSHOT"), clue(r.resolved.show))
+      assert(!r.target.show.contains("-SNAPSHOT"), clue(r.target.show))
+      assertNotEquals(r.target, r.resolved)
+      assert(r.basis.isDefined, "basis commit should be present")
+      val base = r.base.getOrElse(fail("base release should be present (reachable v1.0.0)"))
+      assertEquals(base.version.show, "1.0.0")
+      assert(base.commit.commitTime > 0L, "source commit time should be positive")
+      assert(base.releaseTime > 0L, "release (tagger) time should be positive")
+
+  test("releaseHistory lists annotated version tags ordered ascending by version"):
+    withFreshRepo("history"): repo =>
+      val res = VersionCliCore.releaseHistory(cfg(repo.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val releases = res.toOption.get
+      val shown = releases.map(_.version.show)
+      assert(shown.contains("1.0.0"), s"expected 1.0.0 in $shown")
+      assert(shown.contains("2.0.0"), s"expected 2.0.0 in $shown")
+      assert(releases.forall(_.commit.commitTime > 0L), "every release should carry a source commit time")
+      assert(releases.forall(_.releaseTime > 0L), "every release should carry a release (tagger) time")
+      val i1 = shown.indexOf("1.0.0")
+      val i2 = shown.indexOf("2.0.0")
+      assert(i1 >= 0 && i2 >= 0 && i1 < i2, s"expected 1.0.0 before 2.0.0 (ascending): $shown")
+
   /** Helper to open a GitRepository, wrapping in Either. */
   private def openEither(path: String): Either[GitError, GitRepository] =
     try Right(openTestRepository(Paths.get(path)))

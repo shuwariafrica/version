@@ -59,4 +59,38 @@ trait GitRepository extends AutoCloseable:
 
   /** Looks up a single commit by its SHA and returns it as a [[RawCommit]]. */
   def loadCommit(sha: CommitSha): Either[GitError, RawCommit]
+
+  /** Returns the tagger time (seconds since the Unix epoch) of the annotated tag named `name` - when the release was
+    * tagged, as distinct from the time of the commit it points to.
+    */
+  def loadTagger(name: String): Either[GitError, Long]
+
+  /** The configured `user.signingkey`, or `None` when unset or empty. */
+  def signingKey: Either[GitError, Option[String]]
+
+  /** The repository's default author identity (`user.name` / `user.email`) stamped at the current time. */
+  def defaultSignature: Either[GitError, AuthorSignature]
+
+  /** Creates an empty commit on HEAD (reusing HEAD's tree), advancing the current branch.
+    *
+    * `author` is used for both author and committer. When `sign` is true the commit is GPG-signed with the configured
+    * signing key. Returns the new commit's SHA.
+    */
+  def createCommit(
+    message: String,
+    author: AuthorSignature,
+    sign: Boolean
+  ): Either[GitError, CommitSha]
+
+  /** Creates an annotated tag named `name` at `target`, tagged by `tagger`.
+    *
+    * When `sign` is true the tag is GPG-signed with the configured signing key.
+    */
+  def createTag(
+    name: String,
+    target: CommitSha,
+    message: String,
+    tagger: AuthorSignature,
+    sign: Boolean
+  ): Either[GitError, Unit]
 end GitRepository

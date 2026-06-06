@@ -7,13 +7,16 @@
 #   autoload -Uz compinit && compinit
 
 _version() {
-    local -a args
-    args=(
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    local -a globals
+    globals=(
         '(-r --repository)'{-r,--repository}'[repository directory]:path:_files -/'
         '(-b --basis-commit)'{-b,--basis-commit}'[commit-ish to resolve against]:rev:'
         '--pr[pull request number]:number:'
         '--branch-override[override branch name]:branch:'
-        '--sha-length[abbreviated SHA length (7..40)]:length:'
+        '--sha-length[SHA length for the full renderer (7..64)]:length:'
         '(-v --verbose)'{-v,--verbose}'[enable verbose diagnostics]'
         '--ci[CI mode (compact console, no colours)]'
         '(--no-colour --no-color)'{--no-colour,--no-color}'[disable ANSI colours]'
@@ -22,7 +25,54 @@ _version() {
         '--help[print help]'
         '--version[print version]'
     )
-    _arguments -s $args
+
+    _arguments -s -C $globals \
+        '1: :->command' \
+        '*:: :->args'
+
+    case $state in
+        command)
+            local -a commands
+            commands=(
+                'target:Show the resolution target, or commit a target directive'
+                'bump:Commit a version bump directive'
+                'tag:Create an annotated tag at HEAD'
+                'list:List the release history'
+            )
+            _describe -t commands 'command' commands
+            ;;
+        args)
+            case $line[1] in
+                bump)
+                    _arguments -s $globals \
+                        '--dry-run[preview without committing]' \
+                        '--no-sign[create the commit unsigned]' \
+                        '1:keyword:(breaking feat feature fix major minor patch)'
+                    ;;
+                target)
+                    _arguments -s $globals \
+                        '--dry-run[preview without committing]' \
+                        '--no-sign[create the commit unsigned]' \
+                        '1::version:'
+                    ;;
+                tag)
+                    _arguments -s $globals \
+                        '(-m --message)'{-m,--message}'[tag message]:message:' \
+                        '--no-sign[create the tag unsigned]' \
+                        '--dry-run[preview without tagging]' \
+                        '1::version:'
+                    ;;
+                list)
+                    _arguments -s $globals \
+                        '(-n --limit)'{-n,--limit}'[limit to the newest N entries]:count:' \
+                        '--final[exclude pre-releases]' \
+                        '--since[releases at or above VERSION]:version:' \
+                        '--until[releases at or below VERSION]:version:' \
+                        '--details[show the tag and source-commit date]'
+                    ;;
+            esac
+            ;;
+    esac
 }
 
 _version "$@"

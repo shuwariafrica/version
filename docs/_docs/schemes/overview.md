@@ -2,6 +2,8 @@
 title: Version Schemes
 ---
 
+# Version Schemes
+
 A version scheme defines how version numbers are structured, parsed, compared, and advanced. The `version` library is
 scheme-generic - each scheme plugs in via a single import, and all tools (parsing, resolution, sbt plugin) work with it
 automatically.

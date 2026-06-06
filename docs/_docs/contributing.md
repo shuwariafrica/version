@@ -2,6 +2,8 @@
 title: Contributing
 ---
 
+# Contribute to `version`
+
 Contributions are welcome. This guide covers project conventions and workflow.
 
 ---

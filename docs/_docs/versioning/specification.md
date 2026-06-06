@@ -1,6 +1,8 @@
 ---
-title: Specification
+title: Derivation Specification
 ---
+
+# Version Derivation Specification
 
 Normative definition of the version resolution algorithm. This document is the contract that implementors of
 `ResolvableScheme[V]` must satisfy; it is also the precise statement of guarantees the resolver makes to its callers.
@@ -29,6 +31,8 @@ algorithm calls these scheme operations:
 
 Tag parsing is configured separately via `config.tagParser: String => Option[V]`, which typically strips a `v`/`V`
 prefix and delegates to `scheme.parse`.
+
+---
 
 ## Algorithm
 
@@ -110,6 +114,8 @@ Sortability invariant: for two development versions sharing the same target core
 string preserves the chronological order of their basis commits. SemVer build metadata is ignored by SemVer 2.0.0
 precedence rules; the invariant is provided for consumers that sort raw rendered strings.
 
+---
+
 ## Keyword Resolution
 
 Keywords are resolved from `scheme.keywordAliases`: a `Map[String, Int]` mapping lowercase keyword strings to zero-based
@@ -121,15 +127,20 @@ The keyword grammar:
 ```
 version: <keyword>                  Relative increment
 version: <keyword>: <N>             Absolute set (non-negative integer)
-version: ignore                     Exclude this commit
+[<keyword>]                         Bracketed form of version: <keyword>
+version: ignore                     Exclude this commit (also [ignore])
 version: ignore: <sha>[, <sha>...]  Exclude commits by SHA prefix (>= 7 hex chars)
 version: ignore: <sha>..<sha>       Exclude range (inclusive, positional)
-version: ignore-merged              Exclude merged branch commits
+version: ignore-merged              Exclude merged branch commits (also [ignore-merged])
 <keyword>: <non-empty text>         Standalone shorthand
 target: <version-string>            Target directive (parsed via scheme.parse)
 ```
 
-Matching is case-insensitive with word-boundary alignment.
+Matching is case-insensitive, tolerates whitespace around the colon, and requires word-boundary alignment. A bracket is
+a directive when its trimmed content is exactly one bare keyword, or begins with a colon directive (`[version: major]`,
+`[target: 2.0.0]`, `[breaking: <text>]`); it then counts exactly once. Brackets are boundary-aligned on both sides. A
+bracket whose content is neither is opaque prose (`[skip ci]`, `[see version: major]`), so a directive embedded
+mid-content does not match.
 
 ## Target Validation
 
@@ -155,13 +166,8 @@ Equality is permitted against non-final cores only. See [Target Validation](vali
 | Shallow clone                 | Treated as no base; defaults apply                                                                    |
 | Commit count overflow         | `commitCount` clamped to `Int.MaxValue` in the model (not rendered by the default SemVer scheme)      |
 
+---
+
 ## Determinism
 
 Given fixed repository state and configuration inputs, the derived version is deterministic and idempotent.
-
-## Out of Scope
-
-- Creating or mutating Git tags
-- Publishing or uploading artefacts
-- Multi-project or path-scoped tagging conventions
-- Signature verification (signed objects are dereferenced transparently)

@@ -55,8 +55,6 @@ object VersionPluginImports:
   /** Companion object for [[PreRelease]], providing factory methods and the [[PreRelease.Resolver]] type. */
   val PreRelease: version.semver.PreRelease.type = version.semver.PreRelease
 
-  // --- sjsonnew IsoString instances for sbt 2.x task caching ---
-
   /** [[sjsonnew.IsoString IsoString]] instance for [[SemVer]] enabling sbt 2.x task caching.
     *
     * Uses [[SemVer.Formatter$.Full Formatter.Full]] for serialisation and [[SemVer.parseUnsafe]] for
@@ -98,4 +96,13 @@ object VersionPluginImports:
     */
   val resolvedVersion: SettingKey[Version] =
     settingKey("Resolved version for the current repository state.")
+
+  /** The target release version the working tree is heading toward.
+    *
+    * On a clean release tag this equals [[resolvedVersion]] - the tag itself. Otherwise it is the next release core the
+    * resolution computed: the version a release cut from the current state would carry, without development metadata
+    * (for example `1.0.1` while [[resolvedVersion]] renders `1.0.1-SNAPSHOT+...`).
+    */
+  val versionTarget: SettingKey[Version] =
+    settingKey("Target release version the working tree is heading toward.")
 end VersionPluginImports

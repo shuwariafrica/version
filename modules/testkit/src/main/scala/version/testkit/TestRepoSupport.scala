@@ -42,6 +42,8 @@ trait TestRepoSupport:
     run(repoDir, "config", "advice.detachedHead", "false")
     run(repoDir, "config", "commit.gpgsign", "false")
     run(repoDir, "config", "tag.gpgsign", "false")
+    // Point git's signature verification at the same gpg the harness signs with (native gpg on Windows CI).
+    sys.env.get("VERSION_GPG").filter(_.nonEmpty).foreach(g => run(repoDir, "config", "gpg.program", g): Unit)
     Files.writeString(repoDir.resolve("README.md"), "# Test\n"): Unit
     run(repoDir, "add", "README.md")
     run(repoDir, "commit", "--no-gpg-sign", "-m", "init")

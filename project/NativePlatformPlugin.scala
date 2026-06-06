@@ -65,13 +65,10 @@ object NativePlatformPlugin extends AutoPlugin:
 
   val isStaticLink: Boolean = sys.props.get("release.binary.static").contains("true")
 
-  // macOS: LTO.full (LTO.thin drops libunwind __unw_*). Linux: LTO.none
-  // pending scala-native#4904 (merged, unreleased) and #4908.
-  // TODO(scala-native#4908): revisit Linux LTO once both PRs ship.
+  // macOS needs LTO.full - LTO.thin drops libunwind __unw_* symbols there. Linux and Windows use LTO.thin
+  // (Linux unblocked by scala-native#4904 and #4908, both shipped in 0.5.12).
   val applicationLto: LTO =
-    if os == Os.MacOs then LTO.full
-    else if os == Os.Windows then LTO.thin
-    else LTO.none
+    if os == Os.MacOs then LTO.full else LTO.thin
 
   // Linux only: macOS clang rejects _FORTIFY_SOURCE without a sysroot, and
   // clang-cl applies /GS automatically under /MT.
@@ -79,7 +76,7 @@ object NativePlatformPlugin extends AutoPlugin:
     if os == Os.Linux then Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
 
   val nativeSettings: List[Setting[?]] = List(
-    // TODO(sbt/sbt#9117): drop once sbt/sbt#9118 ships in a 2.0.x release.
+    // TODO(sbt/sbt#9293): drop once the publish-side platform-suffix fix ships in a 2.0.x release.
     moduleName := {
       val base = moduleName.value
       CrossVersion(ScalaNativeCrossVersion.binary, scalaVersion.value, scalaBinaryVersion.value)

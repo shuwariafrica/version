@@ -1,6 +1,8 @@
 ---
-title: Parsing
+title: SemVer Parsing
 ---
+
+# SemVer Parsing
 
 The core library provides robust parsing for SemVer 2.0.0 strings via:
 

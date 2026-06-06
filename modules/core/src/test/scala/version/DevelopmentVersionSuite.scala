@@ -40,20 +40,6 @@ class DevelopmentVersionSuite extends munit.FunSuite:
       isDirty = false
     )
 
-  test("formatUtcTimestamp: epoch produces 197001010000"):
-    assertEquals(SemVer.formatUtcTimestamp(0L), "197001010000")
-
-  test("formatUtcTimestamp: post-2038 epoch does not narrow to Int"):
-    // 2050-06-15T12:34:00Z = 2538909240 seconds, beyond Int.MaxValue = 2147483647.
-    assertEquals(SemVer.formatUtcTimestamp(2538909240L), "205006151234")
-
-  test("formatUtcTimestamp: leap-day"):
-    // 2024-02-29T12:34:00Z = 1709210040 seconds.
-    assertEquals(SemVer.formatUtcTimestamp(1709210040L), "202402291234")
-
-  test("formatUtcTimestamp: reference timestamp"):
-    assertEquals(SemVer.formatUtcTimestamp(epochMay17_0145), "202605170145")
-
   test("developmentVersion: identifiers appear in the declared order"):
     val meta = DevelopmentMetadata(
       branch = Some("feature-x"),

@@ -62,8 +62,6 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
       val expectedRequirement = "a positive number (>= 1)"
   )
 
-  // --- Generic Tests applied to all components ---
-
   specs.foreach { s =>
     // Extract the simple name of the component object for the test description
     val componentName = s.comp.getClass.getSimpleName.stripSuffix("$")
@@ -114,8 +112,6 @@ class ComponentOpaqueTypeSuite extends munit.FunSuite:
       assertEquals(Random.shuffle(components).sorted, components)
     }
   }
-
-  // --- Specific Tests ---
 
   test("Major.isStable should be true for > 0 and false for 0") {
     assert(Major.fromUnsafe(1).isStable)

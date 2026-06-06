@@ -37,6 +37,10 @@ object TestRepoBuilder:
     run(repoDir, "config", "advice.detachedHead", "false")
     run(repoDir, "config", "commit.gpgsign", "false")
     run(repoDir, "config", "tag.gpgsign", "false")
+    // Neutralise any inherited global user.signingkey so signing-key resolution is hermetic.
+    run(repoDir, "config", "user.signingkey", "")
+    // Point git's signature verification at the same gpg the harness signs with (native gpg on Windows CI).
+    sys.env.get("VERSION_GPG").filter(_.nonEmpty).foreach(g => run(repoDir, "config", "gpg.program", g): Unit)
     runIgnoreError(repoDir, "config", "gpg.sign", "false")
     runIgnoreError(repoDir, "config", "gpg.format", "openpgp")
     run(repoDir, "config", "core.editor", "true")
