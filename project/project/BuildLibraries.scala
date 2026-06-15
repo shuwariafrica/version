@@ -6,7 +6,7 @@ object BuildLibraries extends AutoPlugin:
   val `sbt-shuwari`: Def.Initialize[ModuleID] = sbtPlugin("africa.shuwari.sbt" % "sbt-shuwari" % "0.15.3")
   val `sbt-scalafix` = sbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.6")
   val `sbt-dynver` = sbtPlugin("com.github.sbt" % "sbt-dynver" % "5.1.1")
-  val `sbt-scalafmt` = sbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.6.0")
+  val `sbt-scalafmt` = sbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.6.1")
   val `sbt-scala-native` = sbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
   val `sbt-pgp` = sbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
   val `sbt-buildinfo` = sbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.13.1")
