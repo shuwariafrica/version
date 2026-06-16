@@ -3,7 +3,7 @@ import sbt.Keys.*
 //import sbt.librarymanagement.ModuleID
 
 object BuildLibraries extends AutoPlugin:
-  val `sbt-shuwari`: Def.Initialize[ModuleID] = sbtPlugin("africa.shuwari.sbt" % "sbt-shuwari" % "0.15.3")
+  val `sbt-shuwari`: Def.Initialize[ModuleID] = sbtPlugin("africa.shuwari.sbt" % "sbt-shuwari" % "0.15.4")
   val `sbt-scalafix` = sbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.7")
   val `sbt-dynver` = sbtPlugin("com.github.sbt" % "sbt-dynver" % "5.1.1")
   val `sbt-scalafmt` = sbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.6.1")
