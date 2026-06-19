@@ -38,7 +38,7 @@ jobs:
       DOCKER_IMAGE: shuwariafrica/el10-jdk:${{ matrix.java }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -97,7 +97,7 @@ jobs:
       SBT_PROPS: ${{ matrix.releaseProps }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -274,7 +274,7 @@ jobs:
       DOCKER_IMAGE: shuwariafrica/el10-jdk:25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -296,7 +296,7 @@ jobs:
       DOCKER_IMAGE: shuwariafrica/el10-jdk:25
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -341,7 +341,7 @@ jobs:
       DOCKER_IMAGE: shuwariafrica/el10-jdk:17
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
@@ -385,7 +385,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
