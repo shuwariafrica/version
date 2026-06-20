@@ -3,8 +3,7 @@
 A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
 build integration.
 
-Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary. Scala.js axis is deferred pending upstream sbt
-2.x support.
+Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary.
 
 ## Overview
 
@@ -21,16 +20,18 @@ distances from a _previous_ one.
 | History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3)   |
 | Intent-based (version)           | "What are we releasing next?" | `1.3.0-SNAPSHOT+...` (working toward 1.3.0) |
 
+---
+
 ## Quick Start
 
 ### sbt Plugin
 
-> **Note:** Requires sbt 2.x. Not compatible with sbt 1.x.
+> **Note:** Requires sbt 2.x.
 
 Add to `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("africa.shuwari" % "sbt-version" % "0.7.0")
+addSbtPlugin("africa.shuwari" % "sbt-version" % "0.8.0")
 ```
 
 The plugin automatically derives and sets `version` for all projects.
@@ -38,7 +39,7 @@ The plugin automatically derives and sets `version` for all projects.
 ### Library
 
 ```scala
-//> using dep "africa.shuwari::version::0.7.0"
+//> using dep "africa.shuwari::version::0.8.0"
 
 import version.semver.*
 
@@ -65,12 +66,14 @@ version: minor          # Increment minor (1.2.3 -> 1.3.0)
 version: patch          # Increment patch (1.2.3 -> 1.2.4)
 ```
 
-Standalone shorthands (requires non-empty text after colon):
+Standalone shorthands (requires non-empty text after colon), and bracketed forms:
 
 ```text
 breaking: Remove deprecated API     # Major increment
 feat: Add caching support           # Minor increment
 fix: Handle edge case               # Patch increment
+[breaking]                          # Major increment (bracketed)
+[feat]                              # Minor increment (bracketed)
 ```
 
 ## Modules
@@ -81,6 +84,8 @@ fix: Handle edge case               # Patch increment
 | `version-resolution` | JVM, Native | Git-based version derivation            |
 | `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
 | `sbt-version`        | sbt 2.x     | Build integration                       |
+
+---
 
 ## Licence
 
