@@ -123,7 +123,7 @@ jobs:
         run: echo "sha=$(git -C vendor/libgit2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache libgit2 Build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor/libgit2/build
           key: libgit2-v2-${{ matrix.target }}-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
