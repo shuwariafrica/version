@@ -43,8 +43,8 @@ import version.semver.SemVer
 /** Command-line entry point for version-cli.
   *
   * Resolves a [[Version]] from a repository's Git state and either reports it (the resolved or `target` version) or records it
-  * (`bump`, `target <version>`, `tag`). Resolution is scheme-generic via [[VersionResolver]]; today the only registered
-  * scheme is SemVer, so the SemVer renderers and the JSON sink apply.
+  * (`target --set` / `target --increment`, `tag`). Resolution is scheme-generic via [[VersionResolver]]; today the only
+  * registered scheme is SemVer, so the SemVer renderers and the JSON sink apply.
   */
 object CLI:
 
@@ -77,11 +77,10 @@ object CLI:
 
         val resolver = buildResolver()
         opts.command match
-          case sc: ShowConfig      => runShow(resolver, sc, opts, metadata, logger)
-          case ts: TargetSetConfig => runTargetSet(resolver, opts, logger, ts)
-          case bc: BumpConfig      => runBump(resolver, opts, logger, bc)
-          case tc: TagConfig       => runTag(resolver, opts, metadata, logger, tc)
-          case lc: ListConfig      => runList(resolver, opts, metadata, logger, lc)
+          case sc: ShowConfig   => runShow(resolver, sc, opts, metadata, logger)
+          case tc: TargetConfig => runTarget(resolver, opts, logger, tc)
+          case tg: TagConfig    => runTag(resolver, opts, metadata, logger, tg)
+          case lc: ListConfig   => runList(resolver, opts, metadata, logger, lc)
       case None => 2
   end run
 
@@ -293,33 +292,30 @@ object CLI:
   private def stripVPrefix(s: String): String =
     if s.startsWith("v") || s.startsWith("V") then s.drop(1) else s
 
-  private def runBump(
+  private def runTarget(
     resolver: VersionResolver[? <: Version],
     opts: CliOptions,
     logger: Logger,
-    bc: BumpConfig
+    tc: TargetConfig
   ): Int = resolver match
     case r: VersionResolver[v] =>
       val scheme = r.scheme
-      if scheme.keywordAliases.contains(bc.keyword.toLowerCase) then commit(opts, logger, s"version: ${bc.keyword}", bc.noSign, bc.dryRun)
-      else
-        val accepted = scheme.keywordAliases.keys.toList.sorted.mkString(", ")
-        logger.error(s"unknown bump keyword '${bc.keyword}' for scheme '${scheme.name}'; accepted: $accepted")
-        1
-
-  private def runTargetSet(
-    resolver: VersionResolver[? <: Version],
-    opts: CliOptions,
-    logger: Logger,
-    ts: TargetSetConfig
-  ): Int = resolver match
-    case r: VersionResolver[v] =>
-      // Pre-validate for fail-fast UX; the resolver remains authoritative at next resolution.
-      val normalised = stripVPrefix(ts.versionString)
-      r.scheme.parse(normalised) match
-        case Right(_) => commit(opts, logger, s"target: ${ts.versionString}", ts.noSign, ts.dryRun)
-        case Left(_)  =>
-          logger.error(s"invalid target version '${ts.versionString}' for scheme '${r.scheme.name}'")
+      (tc.set, tc.increment) match
+        case (Some(version), _) =>
+          // Pre-validate for fail-fast UX; the resolver remains authoritative at next resolution.
+          scheme.parse(stripVPrefix(version)) match
+            case Right(_) => commit(opts, logger, s"target: $version", tc.noSign, tc.dryRun)
+            case Left(_)  =>
+              logger.error(s"invalid target version '$version' for scheme '${scheme.name}'")
+              1
+        case (_, Some(keyword)) =>
+          if scheme.keywordAliases.contains(keyword.toLowerCase) then commit(opts, logger, s"version: $keyword", tc.noSign, tc.dryRun)
+          else
+            val accepted = scheme.keywordAliases.keys.toList.sorted.mkString(", ")
+            logger.error(s"unknown increment keyword '$keyword' for scheme '${scheme.name}'; accepted: $accepted")
+            1
+        case (None, None) =>
+          logger.error("target: provide --set <version> or --increment <keyword> to record a directive")
           1
 
   private def commit(opts: CliOptions, logger: Logger, message: String, noSign: Boolean, dryRun: Boolean): Int =

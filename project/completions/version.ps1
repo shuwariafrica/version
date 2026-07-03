@@ -10,7 +10,7 @@
 Register-ArgumentCompleter -Native -CommandName version -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)
 
-    $commands = @('target', 'bump', 'tag', 'list')
+    $commands = @('target', 'tag', 'list')
     $keywords = @('breaking', 'feat', 'feature', 'fix', 'major', 'minor', 'patch')
     $sinks    = @('console', 'raw', 'json')
     $styles   = @('pretty', 'compact')
@@ -20,14 +20,13 @@ Register-ArgumentCompleter -Native -CommandName version -ScriptBlock {
         '-e', '--emit', '--console-style', '--help', '--version'
     )
     $perCommand = @{
-        target  = @('--dry-run', '--no-sign')
-        bump    = @('--dry-run', '--no-sign')
+        target  = @('-s', '--set', '-i', '--increment', '--dry-run', '--no-sign')
         tag     = @('-m', '--message', '--no-sign', '--dry-run')
         list    = @('-n', '--limit', '--final', '--since', '--until', '--details')
     }
     $valueOptions = @(
         '-r', '--repository', '-b', '--basis-commit', '--pr', '--branch-override',
-        '--sha-length', '-m', '--message', '-n', '--limit', '--since', '--until'
+        '--sha-length', '-m', '--message', '-s', '--set', '-n', '--limit', '--since', '--until'
     )
 
     # Scan the typed elements for the selected subcommand and the token left of the cursor.
@@ -49,15 +48,15 @@ Register-ArgumentCompleter -Native -CommandName version -ScriptBlock {
     elseif ($previous -eq '--console-style') {
         $candidates = $styles
     }
+    elseif ($previous -eq '-i' -or $previous -eq '--increment') {
+        $candidates = $keywords
+    }
     elseif ($valueOptions -contains $previous) {
-        return  # the previous option takes a free value (path, rev, number, message); defer to default completion
+        return  # the previous option takes a free value (path, rev, number, message, version); defer to default completion
     }
     elseif ($wordToComplete -like '-*') {
         $candidates = if ($command) { $perCommand[$command] + $globals } else { $globals }
         $resultType = 'ParameterName'
-    }
-    elseif ($command -eq 'bump') {
-        $candidates = $keywords
     }
     elseif (-not $command) {
         $candidates = $commands

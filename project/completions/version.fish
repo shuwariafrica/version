@@ -7,17 +7,13 @@
 complete -c version -f
 
 # Subcommands, offered only at the top level.
-complete -c version -f -n __fish_use_subcommand -a target  -d 'Show the resolution target, or commit a target directive'
-complete -c version -f -n __fish_use_subcommand -a bump    -d 'Commit a version bump directive'
+complete -c version -f -n __fish_use_subcommand -a target  -d 'Show the resolution target, or record a target directive'
 complete -c version -f -n __fish_use_subcommand -a tag     -d 'Create an annotated tag at HEAD'
 complete -c version -f -n __fish_use_subcommand -a list    -d 'List the release history'
 
-# bump <keyword>
-complete -c version -f -n '__fish_seen_subcommand_from bump' -a 'breaking feat feature fix major minor patch'
-complete -c version    -n '__fish_seen_subcommand_from bump' -l dry-run -d 'Preview without committing'
-complete -c version    -n '__fish_seen_subcommand_from bump' -l no-sign -d 'Create the commit unsigned'
-
-# target [version]
+# target [--set <version> | --increment <keyword>]
+complete -c version    -n '__fish_seen_subcommand_from target' -s s -l set -r -d 'Record target: <version>'
+complete -c version    -n '__fish_seen_subcommand_from target' -s i -l increment -r -xa 'breaking feat feature fix major minor patch' -d 'Record version: <keyword>'
 complete -c version    -n '__fish_seen_subcommand_from target' -l dry-run -d 'Preview without committing'
 complete -c version    -n '__fish_seen_subcommand_from target' -l no-sign -d 'Create the commit unsigned'
 

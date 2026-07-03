@@ -15,19 +15,19 @@ version [<command>] [options]
 ```
 
 With no command, `version` prints the resolved version. Any options - command-specific or global - come after the command
-(`version bump minor --no-sign`, not `version --no-sign bump minor`); with no command they follow `version` directly
-(`version --emit raw`).
+(`version target --increment minor --no-sign`, not `version --no-sign target --increment minor`); with no command they
+follow `version` directly (`version --emit raw`).
 
 ## Command Reference
 
-| Command            | Effect                                                       |
-|--------------------|--------------------------------------------------------------|
-| _(none)_           | Print the resolved version (the default).                    |
-| `target`           | Print the release version the working tree is heading toward.|
-| `target <version>` | Aim the next resolution at `<version>` via an empty commit.   |
-| `bump <keyword>`   | Bump `<keyword>` at the next resolution via an empty commit.  |
-| `tag [<version>]`  | Create an annotated tag, defaulting to the target version.    |
-| `list`             | List the release history, newest first.                      |
+| Command                            | Effect                                                        |
+|------------------------------------|---------------------------------------------------------------|
+| _(none)_                           | Print the resolved version (the default).                     |
+| `target`                           | Print the release version the working tree is heading toward. |
+| `target --set, -s <version>`       | Aim the next resolution at `<version>` via an empty commit.    |
+| `target --increment, -i <keyword>` | Bump `<keyword>` at the next resolution via an empty commit.   |
+| `tag [<version>]`                  | Create an annotated tag, defaulting to the target version.     |
+| `list`                             | List the release history, newest first.                       |
 
 ---
 
@@ -39,7 +39,7 @@ With no command, `version` prints the resolved version. Any options - command-sp
 development version. `version target` prints the release the current state is heading toward - the resolved version on a
 clean release tag, otherwise the next release core.
 
-Output is shaped by global flags:
+Output is shaped by these flags:
 
 - `-e, --emit <sink>[=<file>]` - `console` (default), `raw` (the bare version string), or `json`; repeatable, and writable
   to a file with `=<path>`.
@@ -48,16 +48,17 @@ Output is shaped by global flags:
 
 ### Recording directives
 
-`target <version>` and `bump <keyword>` do not change the version directly. Each writes one empty commit - no file
-changes, only a message carrying a [commit directive](../versioning/directives.md) - which the next `version` resolution
-reads and applies. `<keyword>` is one of the active scheme's [recognised keywords](../versioning/semver.md#keyword-mapping)
-(for SemVer: `major`, `minor`, `patch`, and their aliases); an unknown keyword is rejected with the accepted set.
-`--dry-run` prints the intended commit without creating it.
+`target --set <version>` and `target --increment <keyword>` do not change the version directly. Each writes one empty
+commit - no file changes, only a message carrying a [commit directive](../versioning/directives.md) - which the next
+`version` resolution reads and applies. Give one or the other, not both. `<keyword>` is one of the active scheme's
+[recognised keywords](../versioning/semver.md#keyword-mapping) (for SemVer: `major`, `minor`, `patch`, and their
+aliases); an unknown keyword is rejected with the accepted set. `--dry-run` prints the intended commit without creating
+it.
 
 ### Tagging
 
 `tag` creates an annotated tag at `HEAD`. With no argument it tags the target version. The message defaults to
-`Release <version>` and is overridable with `--message`; `--dry-run` previews without tagging.
+`Release <version>` and is overridable with `-m, --message`; `--dry-run` previews without tagging.
 
 ### Signing
 

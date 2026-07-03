@@ -43,14 +43,19 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       case ShowConfig(ShowKind.Target, _, _, _) => ()
       case other                                => fail(s"got $other")
 
-  test("target with a version is a target-set commit"):
-    assertEquals(command("target", "2.0.0"), TargetSetConfig("2.0.0", noSign = false, dryRun = false))
+  test("target --set records a target directive"):
+    assertEquals(command("target", "--set", "2.0.0"), TargetConfig(Some("2.0.0"), None, noSign = false, dryRun = false))
+    assertEquals(command("target", "-s", "2.0.0"), TargetConfig(Some("2.0.0"), None, noSign = false, dryRun = false))
 
-  test("bump requires a keyword"):
-    assert(parse("bump").isEmpty, "bump with no keyword should fail to parse")
+  test("target --increment records an increment directive with flags"):
+    assertEquals(
+      command("target", "--increment", "minor", "--no-sign", "--dry-run"),
+      TargetConfig(None, Some("minor"), noSign = true, dryRun = true)
+    )
+    assertEquals(command("target", "-i", "major"), TargetConfig(None, Some("major"), noSign = false, dryRun = false))
 
-  test("bump with keyword and flags"):
-    assertEquals(command("bump", "minor", "--no-sign", "--dry-run"), BumpConfig("minor", noSign = true, dryRun = true))
+  test("target rejects both --set and --increment"):
+    assert(parse("target", "--set", "2.0.0", "--increment", "minor").isEmpty)
 
   test("tag with no argument"):
     assertEquals(command("tag"), TagConfig(None, None, noSign = false, dryRun = false))
@@ -85,29 +90,34 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       case ShowConfig(ShowKind.Target, _, ConsoleStyle.Compact, true) => ()
       case other                                                      => fail(s"got $other")
 
-  test("bump --no-sign creates an empty commit carrying the directive"):
-    withFreshRepo("cli-bump"): repo =>
+  test("target --increment --no-sign creates an empty commit carrying the directive"):
+    withFreshRepo("cli-increment"): repo =>
       val before = git(repo, "rev-parse", "HEAD").trim
-      assertEquals(CLI.run(Array("bump", "minor", "--no-sign", "--repository", repo.toString)), 0)
+      assertEquals(CLI.run(Array("target", "--increment", "minor", "--no-sign", "--repository", repo.toString)), 0)
       val after = git(repo, "rev-parse", "HEAD").trim
       assertNotEquals(after, before)
       assert(git(repo, "log", "-1", "--format=%B").contains("version: minor"))
       assert(git(repo, "diff", "--name-only", s"$before..$after").trim.isEmpty, "commit should change no files")
 
-  test("bump rejects an unknown keyword"):
-    withFreshRepo("cli-bump-bad"): repo =>
-      assertEquals(CLI.run(Array("bump", "bogus", "--no-sign", "--repository", repo.toString)), 1)
+  test("target --set --no-sign records the target directive"):
+    withFreshRepo("cli-set"): repo =>
+      assertEquals(CLI.run(Array("target", "--set", "3.0.0", "--no-sign", "--repository", repo.toString)), 0)
+      assert(git(repo, "log", "-1", "--format=%B").contains("target: 3.0.0"))
+
+  test("target --increment rejects an unknown keyword"):
+    withFreshRepo("cli-increment-bad"): repo =>
+      assertEquals(CLI.run(Array("target", "--increment", "bogus", "--no-sign", "--repository", repo.toString)), 1)
 
   test("a mutating command without a signing key and without --no-sign is refused"):
     withFreshRepo("cli-nosign-required"): repo =>
       val before = git(repo, "rev-parse", "HEAD").trim
-      assertEquals(CLI.run(Array("bump", "minor", "--repository", repo.toString)), 1)
+      assertEquals(CLI.run(Array("target", "--increment", "minor", "--repository", repo.toString)), 1)
       assertEquals(git(repo, "rev-parse", "HEAD").trim, before, "no commit should be created")
 
   test("--dry-run performs no mutation"):
     withFreshRepo("cli-dryrun"): repo =>
       val before = git(repo, "rev-parse", "HEAD").trim
-      assertEquals(CLI.run(Array("bump", "minor", "--no-sign", "--dry-run", "--repository", repo.toString)), 0)
+      assertEquals(CLI.run(Array("target", "--increment", "minor", "--no-sign", "--dry-run", "--repository", repo.toString)), 0)
       assertEquals(git(repo, "rev-parse", "HEAD").trim, before, "dry-run should not commit")
 
   test("tag --no-sign creates an annotated tag at HEAD"):
@@ -133,10 +143,10 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assertEquals(command("list", "-n", "3"), ListConfig(Some(3), finalOnly = false, None, None, details = false))
 
   test("options are scoped to their command"):
-    assert(parse("bump", "minor", "--limit", "5").isEmpty, "--limit is a list-only option, invalid for bump")
+    assert(parse("target", "--increment", "minor", "--limit", "5").isEmpty, "--limit is a list-only option, invalid for target")
     assert(parse("list", "--no-sign").isEmpty, "--no-sign is a mutating-only option, invalid for list")
     assert(parse("list", "--limit", "5").isDefined, "--limit is valid for list")
-    assert(parse("bump", "minor", "--no-sign").isDefined, "--no-sign is valid for bump")
+    assert(parse("target", "--increment", "minor", "--no-sign").isDefined, "--no-sign is valid for target")
 
   private def capture(args: String*): (Int, String) =
     val out = new java.io.ByteArrayOutputStream()
@@ -192,11 +202,11 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     case None =>
       test("CLI signing test skipped - GNUPGHOME not configured".ignore)(())
     case Some(_) =>
-      test("bump without --no-sign produces a git-verifiable signed commit when a key is configured"):
-        withFreshRepo("cli-signed-bump"): repo =>
+      test("target --increment without --no-sign produces a git-verifiable signed commit when a key is configured"):
+        withFreshRepo("cli-signed-increment"): repo =>
           git(repo, "config", "user.signingkey", keyFingerprint): Unit
           val before = git(repo, "rev-parse", "HEAD").trim
-          assertEquals(CLI.run(Array("bump", "patch", "--repository", repo.toString)), 0)
+          assertEquals(CLI.run(Array("target", "--increment", "patch", "--repository", repo.toString)), 0)
           val after = git(repo, "rev-parse", "HEAD").trim
           assertNotEquals(after, before)
           assert(git(repo, "log", "-1", "--format=%B").contains("version: patch"))

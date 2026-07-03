@@ -77,7 +77,7 @@ abstract class BaseLogger(protected val logConfig: LogConfig) extends Logger:
         System.err.println(formatEntry(entry))
       case LogLevel.Verbose if logConfig.isVerbose =>
         System.err.println(formatEntry(entry))
-      case _ => () // Skip if verbose not enabled
+      case _ => ()
 
 /** Writes [[Logger]] entries to stdout/stderr with optional ANSI colour.
   *

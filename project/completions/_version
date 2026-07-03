@@ -34,8 +34,7 @@ _version() {
         command)
             local -a commands
             commands=(
-                'target:Show the resolution target, or commit a target directive'
-                'bump:Commit a version bump directive'
+                'target:Show the resolution target, or record a target directive'
                 'tag:Create an annotated tag at HEAD'
                 'list:List the release history'
             )
@@ -43,17 +42,12 @@ _version() {
             ;;
         args)
             case $line[1] in
-                bump)
-                    _arguments -s $globals \
-                        '--dry-run[preview without committing]' \
-                        '--no-sign[create the commit unsigned]' \
-                        '1:keyword:(breaking feat feature fix major minor patch)'
-                    ;;
                 target)
                     _arguments -s $globals \
+                        '(-s --set)'{-s,--set}'[record target: <version>]:version:' \
+                        '(-i --increment)'{-i,--increment}'[record version: <keyword>]:keyword:(breaking feat feature fix major minor patch)' \
                         '--dry-run[preview without committing]' \
-                        '--no-sign[create the commit unsigned]' \
-                        '1::version:'
+                        '--no-sign[create the commit unsigned]'
                     ;;
                 tag)
                     _arguments -s $globals \
