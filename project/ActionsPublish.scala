@@ -12,10 +12,12 @@ import scala.sys.process.Process
   *
   * Usage in CI:
   * {{{
-  *   sbt -Dactions.publish.target=<id> \
+  *   ACTIONS_PUBLISH_TARGET=<id> sbt \
   *       [-Drelease.binary.static=true] \
   *       version-cliNative/releaseArchive
   * }}}
+  *
+  * The target may also be supplied as `-Dactions.publish.target=<id>`.
   *
   * Single source of truth for "what gets shipped, in what shape" lives here so the release pipeline does not
   * duplicate the staging logic across YAML branches.
@@ -28,6 +30,7 @@ object ActionsPublish extends AutoPlugin:
   )
 
   private inline val TargetProperty = "actions.publish.target"
+  private inline val TargetEnv = "ACTIONS_PUBLISH_TARGET"
 
   override def trigger = noTrigger
   override def requires: Plugins = ScalaNativePlugin
@@ -45,8 +48,8 @@ object ActionsPublish extends AutoPlugin:
     val binary = converter.toPath(binaryRef).toFile
     val rootBase = (ThisBuild / baseDirectory).value
     val outDir = target.value
-    val targetId = sys.props.getOrElse(TargetProperty, "")
-    if targetId.isEmpty then sys.error(s"ActionsPublish: required system property `-D$TargetProperty=<id>` is not set")
+    val targetId = sys.props.get(TargetProperty).orElse(sys.env.get(TargetEnv)).map(_.trim).getOrElse("")
+    if targetId.isEmpty then sys.error(s"ActionsPublish: release target not set; supply `$TargetEnv=<id>` or `-D$TargetProperty=<id>`")
     val ver = version.value
 
     val isWindows = targetId.startsWith("windows-")

@@ -174,10 +174,9 @@ jobs:
       - name: Build Release Archive
         id: archive
         shell: bash
-        run: >
-          project/scripts/run-sbt.sh
-          -Dactions.publish.target=${{ matrix.archiveTarget }}
-          "version-cliNative/releaseArchive"
+        env:
+          ACTIONS_PUBLISH_TARGET: ${{ matrix.archiveTarget }}
+        run: project/scripts/run-sbt.sh "version-cliNative/releaseArchive"
 
       - name: "[Linux] Verify Static Linkage"
         if: matrix.ship && contains(matrix.releaseProps, 'release.binary.static=true')

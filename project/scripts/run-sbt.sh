@@ -22,13 +22,17 @@
 # can create ~/.sbt/boot/ etc. without bumping into the overlay rootfs.
 set -euo pipefail
 
+# `--server` runs a one-shot foreground JVM. The sbt 2.x native client otherwise reuses a background server that
+# captured its env/sys.props at boot, so a later step's per-step values (e.g. ACTIONS_PUBLISH_TARGET) never reach it.
+sbt_mode=(--server)
+
 extra_args=()
 if [[ -n "${SBT_PROPS:-}" ]]; then
   read -ra extra_args <<< "$SBT_PROPS"
 fi
 
 if [[ -z "${DOCKER_IMAGE:-}" ]]; then
-  exec sbt "${extra_args[@]}" "$@"
+  exec sbt "${sbt_mode[@]}" "${extra_args[@]}" "$@"
 fi
 
 mkdir -p "$HOME/.cache/coursier" "$HOME/.cache/sbt"
@@ -54,7 +58,7 @@ done
 # SBT_PROPS is consumed up-front by `read -ra extra_args` and forwarded as sbt
 # argv; the container does not need it as an env var as well.
 for env_var in \
-  TERM CI SBT_OPTS GITHUB_TOKEN GITHUB_WORKSPACE \
+  TERM CI SBT_OPTS ACTIONS_PUBLISH_TARGET GITHUB_TOKEN GITHUB_WORKSPACE \
   GITHUB_ACTIONS GITHUB_EVENT_NAME \
   GITHUB_REPOSITORY GITHUB_REPOSITORY_OWNER \
   GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_BASE_REF GITHUB_SHA \
@@ -73,5 +77,5 @@ done
 # config through JGit). `safe.directory '*'` clears git's dubious-ownership guard
 # on the bind-mounted tree.
 exec docker run "${docker_args[@]}" --entrypoint sh "$DOCKER_IMAGE" -c \
-  "mkdir -p \"\$HOME\" && git config --global --add safe.directory '*' && exec sbt -Duser.home=\"\$HOME\" \"\$@\"" \
+  "mkdir -p \"\$HOME\" && git config --global --add safe.directory '*' && exec sbt --server -Duser.home=\"\$HOME\" \"\$@\"" \
   sh "${extra_args[@]}" "$@"
