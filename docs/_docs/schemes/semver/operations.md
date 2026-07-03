@@ -103,7 +103,7 @@ v.as[Alpha](5)
 
 // Error: snapshot cannot have a number
 v.as[Snapshot](1)
-// Left(ClassifierNotVersioned(Snapshot))
+// Left(ClassifierNotVersioned("SNAPSHOT"))
 ```
 
 #### Removing Pre-release

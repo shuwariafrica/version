@@ -108,9 +108,10 @@ Most consumers use the [sbt plugin](../sbt/overview.md). For direct API usage:
 ```scala
 import version.semver.*
 import version.resolution.*
+import version.resolution.logging.{NullLogger, Verbose}
 
 val config = ResolutionConfig.default[SemVer]("/path/to/repo")
-val result = VersionCliCore.resolve(config, openRepository)
+val result = VersionCliCore.resolve(config, openRepository, NullLogger, Verbose.disabled)
 result match
   case Right(version) => println(version.show)
   case Left(error)    => println(error.message)

@@ -14,8 +14,6 @@ automatically.
 |------------------------------------|---------------------------|--------|
 | [SemVer 2.0.0](semver/overview.md) | `import version.semver.*` | Stable |
 
-Additional schemes will appear here as they are implemented.
-
 ## Using a Scheme
 
 Import the scheme's package. All types, operations, and instances become available:
@@ -24,9 +22,11 @@ Import the scheme's package. All types, operations, and instances become availab
 import version.semver.*
 
 val v = SemVer.parseUnsafe("1.2.3-alpha.1")
-v.next[Major]       // 2.0.0
-v.show              // "1.2.3-alpha.1"
-versions.sorted     // uses Ordering from companion
+v.next[Major] // 2.0.0
+v.show        // "1.2.3-alpha.1"
+
+// Ordering comes from the companion
+List(v, SemVer.parseUnsafe("1.0.0")).sorted // List(1.0.0, 1.2.3-alpha.1)
 ```
 
 No explicit `given` imports are needed - Scala 3 finds instances in the companion automatically.
@@ -41,7 +41,7 @@ Each scheme provides progressively richer capabilities:
 | **Component manipulation** | Bump or set individual components (e.g. increment major, set patch to 5) |
 | **Git-based resolution**   | Derive versions from repository state via commit directives and tags     |
 
-The SemVer scheme supports all three. Simpler schemes may support only parsing and rendering.
+The SemVer scheme supports all three.
 
 ## Component Roles
 
