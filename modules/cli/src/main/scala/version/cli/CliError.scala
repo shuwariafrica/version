@@ -19,7 +19,7 @@ import scala.util.control.NoStackTrace
 
 import version.resolution.ResolutionError
 
-/** CLI-specific errors. Module-scoped sealed ADT. */
+/** Argument-parsing and output-configuration failures surfaced by the CLI, each carrying a user-facing [[message]]. */
 sealed trait CliError extends RuntimeException with NoStackTrace with Product with Serializable:
   def message: String
   final override def getMessage: String = message

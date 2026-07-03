@@ -60,6 +60,29 @@ object VersionPlugin extends AutoPlugin:
 
   val autoImport: VersionPluginImports.type = VersionPluginImports
 
+  /** Every released version parsed from the repository's annotated version tags, as a `Def.Initialize[Set[Version]]`
+    * to splice into a setting with `.value`. It lives on the plugin object rather than in [[autoImport]] because
+    * evaluating it walks the Git tags; keeping it off the default import surface means only builds that ask for it pay
+    * that cost. The plugin object is already in scope in a `build.sbt`, so deriving `mimaPreviousArtifacts` needs no
+    * import:
+    *
+    * {{{
+    * mimaPreviousArtifacts := VersionPlugin.versionHistory.value.collect {
+    *   case v: SemVer if v.isFinal => organization.value %% moduleName.value % v.show
+    * }
+    * }}}
+    *
+    * Empty when the base directory is not a Git repository. Filter and order with the scheme's own API
+    * (`isFinal`, `Ordering`).
+    */
+  val versionHistory: Def.Initialize[Set[Version]] = Def.setting {
+    internal.history(
+      versionResolver.value,
+      (LocalRootProject / baseDirectory).value.getAbsolutePath,
+      sLog.value
+    )
+  }
+
   // Private graph-node backing for the resolution result
   private val resolvedTyped: SettingKey[internal.VersionResult[? <: Version]] =
     settingKey[internal.VersionResult[? <: Version]]("(internal) typed resolution result")
@@ -142,6 +165,20 @@ object VersionPlugin extends AutoPlugin:
         val cfg = base.mergeWith(metadata)
         val result = resolveResult(cfg, sbtLog, r.scheme)
         VersionResult(r.scheme, r.formatter, result.resolved, result.target)
+
+    def history(
+      resolver: VersionResolver[? <: Version],
+      repoPath: String,
+      sbtLog: SbtLogger
+    ): Set[Version] = resolver match
+      case r: VersionResolver[v] =>
+        given ResolvableScheme[v] = r.scheme
+        val cfg = ResolutionConfig.default[v](repoPath).copy(verbose = defaultVerbose(sys.env), tagParser = r.tagParser)
+        val logger = new SbtCoreLogger(sbtLog)
+        VersionCliCore.releaseHistory(cfg, openRepository, logger, Verbose(cfg.verbose)) match
+          case Right(releases)                                                  => releases.map(_.version: Version).toSet
+          case Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(_))) => Set.empty
+          case Left(err) => throw new MessageOnlyException(s"sbt-version: ${err.message}") // scalafix:ok
 
     private[sbt] def resolveResult[V <: Version](
       cfg: ResolutionConfig[V],

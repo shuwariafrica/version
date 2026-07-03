@@ -4,7 +4,7 @@ title: SemVer Components
 
 # SemVer Component Types
 
-The `SemVer` version scheme is made up of a number of distinct types. See the entire reference below.
+The `SemVer` scheme composes these component types.
 
 ---
 
@@ -17,21 +17,20 @@ The major version number. Must be non-negative.
 ```scala
 import version.semver.*
 
-// Safe construction
-Major.from(2) // Right(Major(2))
-Major.from(-1) // Left(InvalidComponent(-1, "Major", ...))
+// Literal construction, checked at compile time (a negative literal fails to compile)
+val major = Major(2)
 
-// Unsafe construction
-val major = Major.fromUnsafe(2)
+// Runtime value, validated: Either[InvalidComponent, Major]
+Major.from(2)  // Right(Major(2))
+Major.from(-1) // Left(InvalidComponent(-1, "Major version", "a non-negative number (>= 0)"))
 
-// Access and operations
-major.value // 2
+// Runtime value, unchecked (throws on an invalid value)
+Major.fromUnsafe(2)
+
+major.value     // 2
 major.increment // Major(3)
-major.isStable // true (> 0)
-
-// Constants
-Major.minimum // Major(0)
-Major.reset // Major(0)
+major.isStable  // true (> 0)
+Major.reset     // Major(0)
 ```
 
 ### `Minor`
@@ -39,10 +38,10 @@ Major.reset // Major(0)
 The minor version number. Must be non-negative.
 
 ```scala
-val minor = Minor.fromUnsafe(5)
-minor.value // 5
+val minor = Minor(5)
+minor.value     // 5
 minor.increment // Minor(6)
-Minor.reset // Minor(0)
+Minor.reset     // Minor(0)
 ```
 
 ### `Patch`
@@ -50,10 +49,10 @@ Minor.reset // Minor(0)
 The patch version number. Must be non-negative.
 
 ```scala
-val patch = Patch.fromUnsafe(3)
-patch.value // 3
+val patch = Patch(3)
+patch.value     // 3
 patch.increment // Patch(4)
-Patch.reset // Patch(0)
+Patch.reset     // Patch(0)
 ```
 
 ### `PreReleaseNumber`
@@ -61,11 +60,9 @@ Patch.reset // Patch(0)
 The pre-release version number. Must be positive (>= 1).
 
 ```scala
-PreReleaseNumber.from(1) // Right(PreReleaseNumber(1))
-PreReleaseNumber.from(0) // Left(InvalidComponent(0, ...))
-
-val prn = PreReleaseNumber.fromUnsafe(1)
-prn.value // 1
+val prn = PreReleaseNumber(1)
+PreReleaseNumber.from(0) // Left(InvalidComponent(0, "Pre-release number", "a positive number (>= 1)"))
+prn.value     // 1
 prn.increment // PreReleaseNumber(2)
 ```
 
@@ -84,7 +81,7 @@ An enumeration of constrained classifiers with defined precedence (lowest to hig
 | `Alpha`            | `alpha`, `a`           | Yes             |
 | `Beta`             | `beta`, `b`            | Yes             |
 | `ReleaseCandidate` | `rc`, `cr`             | Yes             |
-| `Snapshot`         | `snapshot`, `SNAPSHOT` | No              |
+| `Snapshot`         | `SNAPSHOT`             | No              |
 
 ```scala
 import version.semver.PreReleaseClassifier
@@ -114,23 +111,23 @@ Combines a classifier with an optional version number:
 import version.semver.{PreRelease, PreReleaseNumber}
 
 // Factory methods (no validation needed)
-PreRelease.snapshot // snapshot
-PreRelease.alpha(PreReleaseNumber.fromUnsafe(1)) // alpha.1
-PreRelease.beta(PreReleaseNumber.fromUnsafe(2)) // beta.2
-PreRelease.releaseCandidate(PreReleaseNumber.fromUnsafe(1)) // rc.1
+PreRelease.snapshot // SNAPSHOT
+PreRelease.alpha(PreReleaseNumber(1)) // alpha.1
+PreRelease.beta(PreReleaseNumber(2)) // beta.2
+PreRelease.releaseCandidate(PreReleaseNumber(1)) // rc.1
 
 // Safe construction with validation
-PreRelease.from(PreReleaseClassifier.Alpha, Some(PreReleaseNumber.fromUnsafe(1)))
+PreRelease.from(PreReleaseClassifier.Alpha, Some(PreReleaseNumber(1)))
 // Right(PreRelease(Alpha, Some(1)))
 
 PreRelease.from(PreReleaseClassifier.Alpha, None)
 // Left(MissingQualifierNumber("alpha"))
 
-PreRelease.from(PreReleaseClassifier.Snapshot, Some(PreReleaseNumber.fromUnsafe(1)))
+PreRelease.from(PreReleaseClassifier.Snapshot, Some(PreReleaseNumber(1)))
 // Left(UnexpectedQualifierNumber("SNAPSHOT", 1))
 
 // Operations
-val pr = PreRelease.alpha(PreReleaseNumber.fromUnsafe(1))
+val pr = PreRelease.alpha(PreReleaseNumber(1))
 pr.show // "alpha.1"
 pr.increment // PreRelease(Alpha, Some(2))
 pr.isAlpha // true
@@ -175,10 +172,10 @@ SemVer(major, minor, patch, preRelease, meta) // Full form
 
 // Full example
 val v = SemVer(
-  Major.fromUnsafe(1),
-  Minor.fromUnsafe(2),
-  Patch.fromUnsafe(3),
-  Some(PreRelease.alpha(PreReleaseNumber.fromUnsafe(1))),
+  Major(1),
+  Minor(2),
+  Patch(3),
+  Some(PreRelease.alpha(PreReleaseNumber(1))),
   None
 )
 v.show // "1.2.3-alpha.1"

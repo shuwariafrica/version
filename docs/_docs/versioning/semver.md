@@ -54,19 +54,20 @@ The SemVer scheme's `developmentVersion` writes the resolution metadata into the
 fixed order:
 
 ```
-<core>-SNAPSHOT+<yyyymmddhhmm>.<branch>.<short-sha>[.pr<N>][.dirty]
+<core>-SNAPSHOT+<yyyymmddhhmm>.<branch>.<sha>[.pr<N>][.dirty]
 ```
 
 The 12-character UTC committer timestamp leads so that raw string comparison of two snapshots of the same base sorts
 them in commit-time order. The branch slot carries the active branch, or, on PR builds, the target branch where the
 merge will land. Branch names are sanitised for the SemVer build-metadata grammar at render time; the raw label remains
-available via `DevelopmentMetadata.branch`.
+available via `DevelopmentMetadata.branch`. The SHA is the basis commit's full hash; `SemVer.Formatter.Full.withShaLength(n)`
+truncates it for display.
 
 This is the *default* rendering. Whether build metadata appears in the final version string is controlled by
 the [Formatter](../schemes/semver/operations.md#rendering); a custom `Formatter` can render the metadata identifiers in
 any other shape needed.
 
-**Examples** (using `SemVer.Formatter.Full` to display the metadata):
+**Examples** (rendered with `SemVer.Formatter.Full.withShaLength(12)` to keep the SHA readable):
 
 | Scenario                              | Output                                                         |
 |---------------------------------------|----------------------------------------------------------------|

@@ -1,6 +1,6 @@
 # version
 
-A modular Scala 3 **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
+A modular **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
 build integration.
 
 Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary.
@@ -19,6 +19,8 @@ distances from a _previous_ one.
 |----------------------------------|-------------------------------|---------------------------------------------|
 | History-based (e.g., sbt-dynver) | "How far since last release?" | `1.2.3+5-abc1234` (5 commits after 1.2.3)   |
 | Intent-based (version)           | "What are we releasing next?" | `1.3.0-SNAPSHOT+...` (working toward 1.3.0) |
+
+See the [Full documentation](https://dev.shuwari.africa/version/docs/) for detail.
 
 ---
 
@@ -43,16 +45,16 @@ The plugin automatically derives and sets `version` for all projects.
 
 import version.semver.*
 
-// Parse
-val v = SemVer.parse("2.1.0-rc.1+abc1234.123") // Either[ParseError, SemVer]
+// Parse: Either[ParseError, SemVer]
+val parsed = SemVer.parse("2.1.0-rc.1+abc1234.123")
 
 // Construct
 val release = SemVer(Major(1), Minor(2), Patch(3)) // 1.2.3
 
 // Operations
-release.next[Minor] // 1.3.0
+release.next[Minor]  // 1.3.0
 release.as[Snapshot] // 1.2.3-SNAPSHOT
-release.as[Alpha] // 1.2.3-alpha.1
+release.as[Alpha]    // 1.2.3-alpha.1
 ```
 
 ### Commit Directives

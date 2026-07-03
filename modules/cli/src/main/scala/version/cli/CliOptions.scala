@@ -47,11 +47,11 @@ final case class ShowConfig(
   consoleStyleExplicit: Boolean
 ) extends CommandConfig derives CanEqual
 
-/** Commit `target: <versionString>` as an empty commit on HEAD. */
-final case class TargetSetConfig(versionString: String, noSign: Boolean, dryRun: Boolean) extends CommandConfig derives CanEqual
-
-/** Commit `version: <keyword>` as an empty commit on HEAD. */
-final case class BumpConfig(keyword: String, noSign: Boolean, dryRun: Boolean) extends CommandConfig derives CanEqual
+/** Record a target directive as an empty commit on HEAD: `--set` writes `target: <version>`, `--increment` writes
+  * `version: <keyword>`. Exactly one of the two is present.
+  */
+final case class TargetConfig(set: Option[String], increment: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
+    derives CanEqual
 
 /** Create an annotated tag at HEAD; `version` defaults to the target version when absent. */
 final case class TagConfig(version: Option[String], message: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
@@ -100,10 +100,10 @@ object CliOptions:
   )
 
   /** Builds the scopt parser. Root options are global: the resolution flags plus `--emit` / `--console-style` shaping
-    * the default `show` output. Each explicit subcommand carries its own options as scopt children - `--dry-run` /
-    * `--no-sign` on `bump` / `target` / `tag`, `--message` on `tag`, and the filters (`--limit`, `--final`, `--since`,
-    * `--until`, `--details`) on `list`. A subcommand must precede its options (scopt keeps root options matchable after
-    * the subcommand, but a command after a root option is not recognised).
+    * the default `show` output. Each explicit subcommand carries its own options as scopt children - `--set` /
+    * `--increment` / `--dry-run` / `--no-sign` on `target`, `--message` on `tag`, and the filters (`--limit`, `--final`,
+    * `--since`, `--until`, `--details`) on `list`. A subcommand must precede its options (scopt keeps root options
+    * matchable after the subcommand, but a command after a root option is not recognised).
     */
   final class CliParser(builder: OParserBuilder[CliOptions]):
     import builder.*
@@ -174,24 +174,39 @@ object CliOptions:
       }
       .text("Console rendering style for show commands (pretty|compact).")
 
+    // Lift the pending command into a TargetConfig, preserving any flags already accumulated on a bare `target`.
+    private def toTarget(c: CliOptions)(f: TargetConfig => TargetConfig): CliOptions =
+      val base = c.command match
+        case t: TargetConfig => t
+        case _               => TargetConfig(None, None, noSign = false, dryRun = false)
+      c.copy(command = f(base))
+
+    private def optSet = opt[String]('s', "set")
+      .valueName("<version>")
+      .action((v, c) => toTarget(c)(_.copy(set = Some(v))))
+      .text("Record `target: <version>` as an empty commit.")
+
+    private def optIncrement = opt[String]('i', "increment")
+      .valueName("<keyword>")
+      .action((k, c) => toTarget(c)(_.copy(increment = Some(k))))
+      .text("Record `version: <keyword>` as an empty commit; the keyword is validated against the active scheme.")
+
     // Shared by the mutating commands as scoped children, so a fresh fragment is produced per command.
     private def optDryRun = opt[Unit]("dry-run")
       .action { (_, c) =>
         c.copy(command = c.command match
-          case t: TargetSetConfig => t.copy(dryRun = true)
-          case b: BumpConfig      => b.copy(dryRun = true)
-          case g: TagConfig       => g.copy(dryRun = true)
-          case other              => other)
+          case t: TargetConfig => t.copy(dryRun = true)
+          case g: TagConfig    => g.copy(dryRun = true)
+          case other           => other)
       }
       .text("Preview the command without performing it.")
 
     private def optNoSign = opt[Unit]("no-sign")
       .action { (_, c) =>
         c.copy(command = c.command match
-          case t: TargetSetConfig => t.copy(noSign = true)
-          case b: BumpConfig      => b.copy(noSign = true)
-          case g: TagConfig       => g.copy(noSign = true)
-          case other              => other)
+          case t: TargetConfig => t.copy(noSign = true)
+          case g: TagConfig    => g.copy(noSign = true)
+          case other           => other)
       }
       .text("Create the object unsigned, even when a signing key is configured.")
 
@@ -237,31 +252,14 @@ object CliOptions:
           case s: ShowConfig => c.copy(command = s.copy(what = ShowKind.Target))
           case _             => c.copy(command = defaultShow.copy(what = ShowKind.Target))
       }
-      .text("Show the resolution target; with <version>, commit a target directive.")
-      .children(
-        arg[String]("<version>")
-          .optional()
-          .action((v, c) => c.copy(command = TargetSetConfig(v, noSign = false, dryRun = false)))
-          .text("Commit `target: <version>` as an empty commit."),
-        optDryRun,
-        optNoSign
-      )
+      .text("Show the resolution target; with --set or --increment, record a directive.")
+      .children(optSet, optIncrement, optDryRun, optNoSign)
 
-    private val cmdBump = cmd("bump")
-      .action((_, c) => c.copy(command = BumpConfig("", noSign = false, dryRun = false)))
-      .text("Commit `version: <keyword>` as an empty commit.")
-      .children(
-        arg[String]("<keyword>")
-          .required()
-          .action { (k, c) =>
-            c.copy(command = c.command match
-              case b: BumpConfig => b.copy(keyword = k)
-              case _             => BumpConfig(k, noSign = false, dryRun = false))
-          }
-          .text("Bump keyword, validated against the active scheme's accepted keywords."),
-        optDryRun,
-        optNoSign
-      )
+    private val checkTarget = checkConfig {
+      case CliOptions(_, _, _, _, _, _, _, _, TargetConfig(Some(_), Some(_), _, _)) =>
+        failure("target: use only one of --set and --increment, not both")
+      case _ => success
+    }
 
     private val cmdTag = cmd("tag")
       .action((_, c) => c.copy(command = TagConfig(None, None, noSign = false, dryRun = false)))
@@ -297,11 +295,11 @@ object CliOptions:
       optEmit,
       optConsoleStyle,
       cmdTarget,
-      cmdBump,
       cmdTag,
       cmdList,
       helpFlag,
-      versionFlag
+      versionFlag,
+      checkTarget
     )
   end CliParser
 

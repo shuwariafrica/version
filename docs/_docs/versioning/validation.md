@@ -54,9 +54,10 @@ target: 3.0.0  ->  ignored
 target: 3.1.0  ->  accepted
 ```
 
-### C. No Reachable Base
+### C. Regression vs Repository-wide Highest
 
-When no tags are reachable from HEAD, validation uses repository-wide highest:
+Beyond the reachable tags, the highest final tag anywhere in the repository is a floor - a target may not regress below
+a release that exists on any branch. This holds whether or not a base is reachable:
 
 ```
 Repository highest final: 4.3.0
@@ -64,22 +65,14 @@ target: 4.3.0  ->  ignored (regression)
 target: 5.0.0  ->  accepted
 ```
 
-If only pre-releases exist:
+When the repository has no final tags, its highest pre-release is the floor, with equality allowed:
 
 ```
 Repository highest: 2.0.0-rc.1
 target: 2.0.0  ->  accepted (equality with pre-release)
 ```
 
-### D. At a Final Tag
-
-If HEAD carries a final tag with core `T`:
-
-```
-target <= T  ->  ignored
-```
-
-### E. Malformed
+### D. Malformed
 
 Invalid targets are ignored:
 
@@ -88,9 +81,9 @@ Invalid targets are ignored:
 - Negative values: `target: 1.-1.0`
 - Overflow: `target: 999999999999.0.0`
 
-### F. Multiple Targets
+### E. Multiple Targets
 
-If multiple valid targets survive A-E:
+If multiple valid targets survive A-D:
 
 ```
 Highest core wins; others ignored
@@ -116,6 +109,6 @@ Highest core wins; others ignored
 | Final `2.2.5` reachable          | `2.2.6` | Accepted         |
 | Pre-release `3.1.0-rc.2` highest | `3.1.0` | Accepted (B)     |
 | Pre-release `3.1.0-rc.2` highest | `3.0.0` | Ignored (B)      |
-| No base, repo final `4.3.0`      | `4.3.0` | Ignored (C)      |
-| Partial core                     | `1.2`   | Ignored (E)      |
-| Multiple: `1.5.0`, `1.6.0`       | -       | `1.6.0` wins (F) |
+| Repo final `4.3.0` on any branch | `4.3.0` | Ignored (C)      |
+| Partial core                     | `1.2`   | Ignored (D)      |
+| Multiple: `1.5.0`, `1.6.0`       | -       | `1.6.0` wins (E) |

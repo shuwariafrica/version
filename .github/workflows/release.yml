@@ -155,7 +155,8 @@ jobs:
           trust_level: 5
 
       - name: Publish Artefacts
-        run: sbt publishSigned sonaUpload sonaRelease
+        # `--server` as in run-sbt.sh; set inline because this job bypasses it (see the container note above).
+        run: sbt --server publishSigned sonaUpload sonaRelease
         env:
           SONATYPE_USERNAME: ${{ secrets.OSS_PUBLISH_USER }}
           SONATYPE_PASSWORD: ${{ secrets.OSS_PUBLISH_USER_PASSPHRASE }}

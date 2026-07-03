@@ -95,7 +95,7 @@ but is not rendered by the default SemVer scheme.
 |----------|--------------------------------------|-----------------------|
 | 1        | `yyyymmddhhmm` (UTC committer time)  | Basis commit supplied |
 | 2        | `<branch>` (sanitised) or `detached` | Always                |
-| 3        | `<short-sha>`                        | Always                |
+| 3        | `<sha>` (full hash)                  | Always                |
 | 4        | `pr<N>`                              | PR number supplied    |
 | 5        | `dirty`                              | Worktree dirty        |
 
@@ -104,7 +104,7 @@ consecutive `-`, trim leading/trailing `-`, empty becomes `detached`. The raw br
 `DevelopmentMetadata.branch`. Override takes precedence over detection. For PR builds, the target branch (where the
 merge will land) is preferred over the source branch.
 
-Commit count: first-parent non-merge commits from base to basis. Clamped to `Int.MaxValue`. Available via
+Commit count: first-parent non-merge commits from base to basis. Available via
 `DevelopmentMetadata.commitCount` for custom formatters. SHA: lowercase hex of the basis commit's full hash, supplied
 verbatim by the model; truncation, when desired, is applied at render time by the chosen
 [Formatter](../schemes/semver/operations.md#rendering). Timestamp uses the basis commit's committer time as recorded
@@ -148,10 +148,10 @@ A target with core `T` is rejected if:
 
 - **Rule A**: A reachable final tag has core >= `T`
 - **Rule B**: Highest reachable non-final has core > `T` (equality accepted)
-- **Rule C**: No reachable base, but repository-wide final has core >= `T`
-- **Rule D**: Basis commit carries a final tag with core >= `T`
-- **Rule E**: Target fails `scheme.parse`
-- **Rule F**: Multiple survivors - highest by `scheme.ordering` wins
+- **Rule C**: The repository-wide highest final has core >= `T`; or, when the repository has no final tags, its highest
+  pre-release has core > `T`. This floor applies whether or not a base is reachable
+- **Rule D**: Target fails `scheme.parse`
+- **Rule E**: Multiple survivors - highest by `scheme.ordering` wins
 
 Equality is permitted against non-final cores only. See [Target Validation](validation.md) for details and examples.
 
@@ -164,7 +164,6 @@ Equality is permitted against non-final cores only. See [Target Validation](vali
 | Detached HEAD                 | `branch = None` in `DevelopmentMetadata`; the SemVer scheme renders the slot as `detached`            |
 | No tags anywhere              | `scheme.initialVersion`                                                                               |
 | Shallow clone                 | Treated as no base; defaults apply                                                                    |
-| Commit count overflow         | `commitCount` clamped to `Int.MaxValue` in the model (not rendered by the default SemVer scheme)      |
 
 ---
 

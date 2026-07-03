@@ -147,10 +147,10 @@ SemVer.parse("abc") match
 
 ### Validation Summary
 
-| Component          | Constraint             | Error                                   |
-|--------------------|------------------------|-----------------------------------------|
-| Major              | >= 0                   | `InvalidComponent(value, "Major", ...)` |
-| Minor              | >= 0                   | `InvalidComponent(value, "Minor", ...)` |
-| Patch              | >= 0                   | `InvalidComponent(value, "Patch", ...)` |
-| Pre-release number | >= 1                   | `InvalidComponent(value, ...)`          |
-| Build metadata     | Non-empty, valid chars | `InvalidMetadata`                       |
+| Component          | Constraint             | Error                                             |
+|--------------------|------------------------|---------------------------------------------------|
+| Major              | >= 0                   | `InvalidComponent(value, "Major version", ...)`   |
+| Minor              | >= 0                   | `InvalidComponent(value, "Minor version", ...)`   |
+| Patch              | >= 0                   | `InvalidComponent(value, "Patch number", ...)`    |
+| Pre-release number | >= 1                   | `InvalidComponent(value, "Pre-release number", ...)` |
+| Build metadata     | Non-empty, valid chars | `InvalidMetadata`                                 |
