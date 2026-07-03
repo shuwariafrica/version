@@ -10,6 +10,11 @@ def assertPrefix(actual: String, prefix: String): Unit =
 @transient lazy val gitCommitMsg = inputKey[Unit]("Create a commit with given message")
 @transient lazy val gitTag = inputKey[Unit]("Create an annotated tag")
 @transient lazy val checkPrefix = inputKey[Unit]("Assert version starts with prefix")
+@transient lazy val checkHistory = inputKey[Unit]("Assert versionHistory holds the given space-separated versions")
+
+// Splice the plugin's versionHistory Initialize into a setting, exactly as a mima consumer would.
+@transient lazy val historyShown = settingKey[Set[String]]("Rendered versionHistory for assertions")
+historyShown := VersionPlugin.versionHistory.value.map(_.show)
 
 gitInit := {
   val base = baseDirectory.value
@@ -40,4 +45,10 @@ gitTag := {
 checkPrefix := {
   val prefix = complete.Parsers.spaceDelimited("<prefix>").parsed.head
   assertPrefix(resolvedVersion.value.show, prefix)
+}
+
+checkHistory := {
+  val expected = complete.Parsers.spaceDelimited("<versions>").parsed.toSet
+  val actual = historyShown.value
+  assert(actual == expected, s"versionHistory $actual != expected $expected")
 }

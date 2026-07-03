@@ -34,3 +34,7 @@
 > gitCommitMsg feat: Add new feature
 > reload
 > checkPrefix 4.1.0-SNAPSHOT
+
+# versionHistory holds every annotated version tag, v-prefix stripped
+> reload
+> checkHistory 1.0.0 3.0.0 4.0.0

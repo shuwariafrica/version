@@ -68,9 +68,32 @@ resolution computed: the version a release cut from the current state would carr
 commit past `v1.0.0`, `resolvedVersion` renders `1.0.1-SNAPSHOT+...` while `versionTarget` renders `1.0.1`.
 
 ```scala
-// Surface the next release line in a banner without the snapshot suffix
-ThisBuild / versionTarget
+// The next release line without the snapshot suffix, e.g. for release notes
+releaseNotesHeader := s"Notes for ${versionTarget.value.show}"
 ```
+
+---
+
+## VersionPlugin.versionHistory
+
+Every released version parsed from the repository's annotated version tags, as a `Set[Version]`.
+
+|          |                                |
+|----------|--------------------------------|
+| **Type** | `Def.Initialize[Set[Version]]` |
+
+It sits on the plugin object rather than among the auto-imported settings because evaluating it walks the Git tags; that
+cost then falls only on builds that ask for it. Splice it into a setting with `.value` - the plugin object is already in
+scope, so no import is needed. For example, deriving the previous artifacts for a binary-compatibility check:
+
+```scala
+mimaPreviousArtifacts := VersionPlugin.versionHistory.value.collect {
+  case v: SemVer if v.isFinal => organization.value %% moduleName.value % v.show
+}
+```
+
+The set is empty when the base directory is not a Git repository. Filter and order with the scheme's own API - `isFinal`
+and the scheme `Ordering` - not string comparison.
 
 ---
 
@@ -108,9 +131,11 @@ versionBranchOverride := sys.env.get("GITHUB_REF_NAME")
 versionResolver := VersionResolver.withDefaults[SemVer]
   .withFormatter(SemVer.Formatter.Full.withShaLength(12))
 
-// Compose a Docker tag from the resolved structured value
-def dockerTag = (resolvedVersion.value match
+// Compose a Docker tag from the resolved structured value.
+// `.value` reads the setting, so it must sit inside a setting/task (`:=`), not a plain `def`.
+lazy val dockerTag = settingKey[String]("major.minor.patch for the container tag")
+dockerTag := (resolvedVersion.value match
   case v: SemVer => s"${v.major.value}.${v.minor.value}.${v.patch.value}"
-  case other => sys.error(s"unexpected scheme: ${other.getClass.getSimpleName}")
-  )
+  case other     => sys.error(s"unexpected scheme: ${other.getClass.getSimpleName}")
+)
 ```
