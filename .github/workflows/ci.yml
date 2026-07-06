@@ -52,6 +52,46 @@ jobs:
       - name: Package Project Products
         run: project/scripts/run-sbt.sh "version-jvm/package"
 
+  test_js:
+    name: "[Node ${{ matrix.node }}] Tests"
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [ 22, 24 ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JDK_CURRENT }}
+          check-latest: true
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Coursier Cache
+        uses: coursier/cache-action@v8
+
+      - name: Execute Unit Tests
+        run: project/scripts/run-sbt.sh "version-js/test"
+
+      - name: Package Project Products
+        run: project/scripts/run-sbt.sh "version-js/package"
+
   test_native:
     name: "[Native: ${{ matrix.target }}] Tests"
     strategy:
@@ -411,6 +451,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
       - test_jvm
+      - test_js
       - test_native
       - verify_linux_static_portability
       - test_sbt_scripted

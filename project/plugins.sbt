@@ -1,7 +1,7 @@
 import BuildLibraries.*
 
 libraryDependencies ++= List(
-//  BuildLibraries.`sbt-scala-js`.value, TODO: Scala.js temporarily disabled pending sbt 2.x support
+  BuildLibraries.`sbt-scala-js`.value,
   BuildLibraries.`sbt-scala-native`.value,
   BuildLibraries.`sbt-shuwari`.value,
   BuildLibraries.`sbt-scalafix`.value,

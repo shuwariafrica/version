@@ -20,9 +20,8 @@ val version =
     .settings(publishSettings)
     .settings(libraryDependencies += Libraries.boilerplate)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
-// FIXME: Re-enable JS axis when scala-js supports sbt 2.x. See scala-js/scala-js#5238.
-//    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
 
 val `version-testkit` =
   projectMatrix
@@ -131,12 +130,13 @@ val `version-native` =
       `version-cli`
     )
 
-// FIXME: version-js disabled pending scala-js sbt 2.x support (scala-js/scala-js#5238).
-//val `version-js` =
-//  project
-//    .in(file(".js"))
-//    .notPublished
-//    .aggregate(version.js.get*)
+val `version-js` =
+  projectMatrix
+    .in(file(".js"))
+    .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .defaultAxes(VirtualAxis.js, VirtualAxis.scalaABIVersion(Libraries.scala3.revision))
+    .settings(publish / skip := true)
+    .aggregate(version)
 
 val docs =
   project
@@ -157,7 +157,7 @@ val `version-root` =
   projectMatrix
     .in(file("."))
     .settings(publish / skip := true)
-    .aggregate(`version-jvm`, `version-native`)
+    .aggregate(`version-jvm`, `version-native`, `version-js`)
 
 def noticeMappingSettings: Seq[Setting[?]] = List(
   Compile / packageBin / mappings += {
