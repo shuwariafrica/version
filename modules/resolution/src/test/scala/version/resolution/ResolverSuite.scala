@@ -91,6 +91,26 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
         try Filesystem.removeRecursive(tmp)
         catch case _: Throwable => ()
 
+  test("Pre-1.0 base: a breaking bump caps to a minor bump instead of forcing 1.0.0"):
+    withTempRepo("pre1-breaking"): tmp =>
+      initMinimalRepo(tmp)
+      tag(tmp, "v0.93.9", "Release 0.93.9")
+      commit(tmp, "version: major"): Unit
+      val res = VersionCliCore.resolveAll(cfg(tmp.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val r = res.toOption.get
+      assertEquals(r.target.show, "0.94.0")
+      assert(r.resolved.show.startsWith("0.94.0-SNAPSHOT"), clue(r.resolved.show))
+
+  test("Pre-1.0 base: an explicit major set still reaches 1.0.0"):
+    withTempRepo("pre1-explicit"): tmp =>
+      initMinimalRepo(tmp)
+      tag(tmp, "v0.93.9", "Release 0.93.9")
+      commit(tmp, "version: major: 1"): Unit
+      val res = VersionCliCore.resolveAll(cfg(tmp.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      assertEquals(res.toOption.get.target.show, "1.0.0")
+
   test("Lightweight tags are ignored during version resolution"):
     withFreshRepo("lightweight-ignored"): repo =>
       // v0.1.0 is a lightweight tag in the test repo - should be ignored
@@ -143,6 +163,13 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       val i1 = shown.indexOf("1.0.0")
       val i2 = shown.indexOf("2.0.0")
       assert(i1 >= 0 && i2 >= 0 && i1 < i2, s"expected 1.0.0 before 2.0.0 (ascending): $shown")
+
+  private def withTempRepo[A](name: String)(f: java.nio.file.Path => A): A =
+    val tmp = Files.createTempDirectory(s"version-$name-")
+    try f(tmp)
+    finally
+      try Filesystem.removeRecursive(tmp)
+      catch case _: Throwable => ()
 
   /** Helper to open a GitRepository, wrapping in Either. */
   private def openEither(path: String): Either[GitError, GitRepository] =

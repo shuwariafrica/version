@@ -320,6 +320,11 @@ object SemVer:
         case 1 => Minor.from(value).map(m => SemVer(v.major, m, Patch.reset))
         case 2 => Patch.from(value).map(p => SemVer(v.major, v.minor, p))
         case _ => Left(InvalidVersionFormat(s"Invalid component index: $index"))
+      override def keywordBump(index: Int): SemVer =
+        // Major version 0 is SemVer's initial-development phase: the API is not yet stable, so a breaking bump
+        // (major, index 0) advances the minor (index 1) rather than forcing a premature 1.0.0.
+        val effective = if index == 0 && !v.major.isStable then 1 else index
+        v.incrementComponent(effective)
       def defaultBump: SemVer = SemVer(v.major, v.minor, v.patch.increment)
       def promoteToRelease: SemVer = v.copy(preRelease = None, metadata = None)
   end given

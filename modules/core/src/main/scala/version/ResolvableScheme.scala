@@ -63,6 +63,15 @@ trait ResolvableScheme[V <: Version] extends VersionArithmetic[V]:
     */
   def developmentVersion(targetCore: V, metadata: DevelopmentMetadata): V
 
+  /** Advance the component at `index` by one step, subject to the scheme's stability policy.
+    *
+    * Unlike [[incrementComponent]], a scheme MAY redirect the bump to a lower-precedence component while the version
+    * is not yet stable, so an unstable line never advances a component whose change would imply a stability it has
+    * not reached. The default delegates to [[incrementComponent]]; a scheme with a distinct unstable phase overrides
+    * it.
+    */
+  extension (v: V) def keywordBump(index: Int): V = v.incrementComponent(index)
+
   /** Default advancement when base is a final release and no directives apply. */
   extension (v: V) def defaultBump: V
 

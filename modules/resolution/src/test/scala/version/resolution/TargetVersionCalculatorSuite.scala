@@ -73,6 +73,22 @@ class TargetVersionCalculatorSuite extends FunSuite:
     val result = TargetVersionCalculator.fromKeywords[SemVer](v("1.2.3"), List(ComponentBump(0)))
     assertEquals(result.show, "2.0.0")
 
+  test("pre-1.0 major bump caps to a minor bump (no premature 1.0.0)"):
+    val result = TargetVersionCalculator.fromKeywords[SemVer](v("0.93.9"), List(ComponentBump(0)))
+    assertEquals(result.show, "0.94.0")
+
+  test("pre-1.0 minor bump stays a minor bump"):
+    val result = TargetVersionCalculator.fromKeywords[SemVer](v("0.93.9"), List(ComponentBump(1)))
+    assertEquals(result.show, "0.94.0")
+
+  test("pre-1.0 major bump on a pre-release base caps to a minor bump of its core"):
+    val result = TargetVersionCalculator.fromKeywords[SemVer](v("0.5.0-rc.1"), List(ComponentBump(0)))
+    assertEquals(result.show, "0.6.0")
+
+  test("pre-1.0 explicit major set still reaches 1.0.0"):
+    val result = TargetVersionCalculator.fromKeywords[SemVer](v("0.93.9"), List(ComponentSet(0, 1)))
+    assertEquals(result.show, "1.0.0")
+
   test("minor bump resets patch"):
     val result = TargetVersionCalculator.fromKeywords[SemVer](v("1.2.3"), List(ComponentBump(1)))
     assertEquals(result.show, "1.3.0")

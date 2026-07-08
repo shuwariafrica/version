@@ -37,6 +37,20 @@ Each keyword works in all three [directive forms](directives.md) - `version: maj
 and as an absolute set, `version: major: 3`. `target: 2.0.0` sets the version explicitly, subject to
 [validation](validation.md).
 
+## Initial Development (Major Version 0)
+
+While the major version is `0` the public API is not yet stable, so a `major`/`breaking` bump advances the minor
+component instead of the major - a breaking change during initial development never forces a premature `1.0.0`.
+Reaching `1.0.0` is deliberate: an explicit `target: 1.0.0`, or an absolute set such as `version: major: 1`.
+
+| Base     | Directive           | Result core |
+|----------|---------------------|-------------|
+| `0.93.9` | `version: major`    | `0.94.0`    |
+| `0.93.9` | `version: minor`    | `0.94.0`    |
+| `0.93.9` | `version: major: 1` | `1.0.0`     |
+| `0.93.9` | `target: 1.0.0`     | `1.0.0`     |
+| `1.4.5`  | `version: major`    | `2.0.0`     |
+
 ## Default Behaviour
 
 When no directives apply:
@@ -45,7 +59,7 @@ When no directives apply:
 |----------------------------------|---------------------------------------------|
 | Final release (e.g. `1.4.5`)     | Patch + 1 (`1.4.6`)                         |
 | Pre-release (e.g. `3.0.0-rc.3`)  | Core unchanged (`3.0.0`)                    |
-| No reachable tags, repo has tags | Highest major + 1 (e.g. `4.3.0` -> `5.0.0`) |
+| No reachable tags, repo has tags | Highest tag + a breaking bump (`4.3.0` -> `5.0.0`; pre-1.0 `0.5.0` -> `0.6.0`) |
 | No tags anywhere                 | `0.1.0`                                     |
 
 ## Default Development Rendering

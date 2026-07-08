@@ -21,7 +21,7 @@ algorithm calls these scheme operations:
 | `scheme.ordering`                           | Compare and sort versions                           |
 | `scheme.isFinal(v)`                         | Whether a version has no development markers        |
 | `scheme.core(v)`                            | Strip development/pre-release markers               |
-| `scheme.incrementComponent(v, index)`       | Bump a component with lower-component reset         |
+| `scheme.keywordBump(v, index)`              | Relative bump with lower-component reset, subject to stability policy |
 | `scheme.setComponent(v, index, value)`      | Set a component with lower-component reset          |
 | `scheme.keywordAliases`                     | Map keyword strings to component indices            |
 | `scheme.layout`                             | Component descriptors with semantic roles           |
@@ -72,9 +72,14 @@ In priority order:
 
 1. **Target directive**: Highest valid target core after [validation](validation.md) via `scheme.parse`
 2. **Absolute sets**: `scheme.setComponent(v.core, index, value)` (highest value per component wins)
-3. **Relative bumps**: `scheme.incrementComponent(v.core, index)` (highest-precedence index wins, coalesced)
+3. **Relative bumps**: `scheme.keywordBump(v.core, index)` (highest-precedence index wins, coalesced)
 4. **Default**: `v.defaultBump.core` if base is final; `scheme.core(v)` if base is non-final;
-   `scheme.incrementComponent(highest, 0)` if no base but repo has tags; `scheme.initialVersion.core` if no tags
+   `scheme.keywordBump(highest, 0)` if no base but repo has tags; `scheme.initialVersion.core` if no tags
+
+`scheme.keywordBump` applies a relative bump subject to the scheme's stability policy: a scheme MAY redirect the bump
+to a lower-precedence component while the version is not yet stable. SemVer redirects a breaking bump to the minor
+component while the major version is `0` (initial development), so `1.0.0` is reached only through an explicit target
+or absolute set.
 
 #### Step 4: Assembly
 

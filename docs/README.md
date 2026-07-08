@@ -78,6 +78,9 @@ fix: Handle edge case               # Patch increment
 [feat]                              # Minor increment (bracketed)
 ```
 
+During initial development (major version `0`), a `major`/`breaking` change advances the minor component; `1.0.0` is
+reached with an explicit `target: 1.0.0` or `version: major: 1`.
+
 ## Modules
 
 | Module               | Platforms   | Description                             |

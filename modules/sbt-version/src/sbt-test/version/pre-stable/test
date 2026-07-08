@@ -1,0 +1,14 @@
+# Pre-1.0 (major 0) bump capping
+
+> gitInit
+> reload
+
+# A breaking bump on a 0.x base advances minor, not major
+> gitCommitMsg version: major
+> reload
+> checkPrefix 0.94.0-SNAPSHOT
+
+# An explicit major set is honoured, reaching 1.0.0
+> gitCommitMsg version: major: 1
+> reload
+> checkPrefix 1.0.0-SNAPSHOT
