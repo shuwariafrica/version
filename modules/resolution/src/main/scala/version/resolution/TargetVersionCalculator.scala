@@ -88,8 +88,8 @@ object TargetVersionCalculator:
             case Right(result) => result
             case Left(_)       => baseVersion.core // invalid value, fall through
         else if hasBump then
-          // Relative bump: increment component (resets below per scheme)
-          baseVersion.core.incrementComponent(idx)
+          // Relative bump via keywordBump: the scheme may cap it while the line is unstable.
+          baseVersion.core.keywordBump(idx)
         else baseVersion.core
       case None =>
         // No directives: default advancement

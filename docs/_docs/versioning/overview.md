@@ -40,12 +40,15 @@ Between releases, a target version is computed:
 3. **Relative changes** - `version: major` or `breaking:` (coalesced)
 4. **Default fallback:**
 
-| Condition              | Target Core       |
-|------------------------|-------------------|
-| Base is pre-release    | Core unchanged    |
-| Base is final          | Patch + 1         |
-| No base, repo has tags | Highest major + 1 |
-| No tags anywhere       | `0.1.0`           |
+| Condition              | Target Core                 |
+|------------------------|-----------------------------|
+| Base is pre-release    | Core unchanged              |
+| Base is final          | Patch + 1                   |
+| No base, repo has tags | Highest tag + breaking bump |
+| No tags anywhere       | `0.1.0`                     |
+
+While the base is in initial development (major version `0`), a `major`/`breaking` relative change advances the minor
+component; reaching `1.0.0` requires an explicit `target:` or absolute set. See [SemVer Behaviour](semver.md).
 
 ### Build Metadata
 

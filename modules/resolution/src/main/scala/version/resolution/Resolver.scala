@@ -304,7 +304,7 @@ object Resolver:
           derived
         case None =>
           val fallback = highestRepo match
-            case Some(h) => h.version.core.incrementComponent(0)
+            case Some(h) => h.version.core.keywordBump(0)
             case None    => scheme.initialVersion.core
           logger.verbose(s"Fallback target: ${fallback.show}", "Resolver")
           fallback
