@@ -30,12 +30,15 @@ import org.eclipse.jgit.lib.ObjectId
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.lib.RefUpdate
 import org.eclipse.jgit.lib.Repository
+import org.eclipse.jgit.lib.RepositoryCache.FileKey
 import org.eclipse.jgit.lib.TagBuilder
 import org.eclipse.jgit.lib.UserConfig
 import org.eclipse.jgit.revwalk.RevCommit
 import org.eclipse.jgit.revwalk.RevWalk
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
+import org.eclipse.jgit.util.FS
 
+import scala.annotation.tailrec
 import scala.annotation.threadUnsafe
 import scala.util.Using
 import scala.util.boundary
@@ -47,7 +50,7 @@ import version.resolution.GpgSigner
 import version.resolution.domain.*
 
 // scalafix:off
-/** JGit-backed [[GitRepository]] implementation for the JVM platform. */
+/** [[GitRepository]] over a JGit `Repository`; see [[JvmGitRepository$ JvmGitRepository]] to obtain one. */
 final class JvmGitRepository private (repo: Repository) extends GitRepository:
 
   @threadUnsafe private var closed: Boolean = false
@@ -68,6 +71,10 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
     catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe))
 
   def isBare: Boolean = repo.isBare
+
+  def gitDir: String = repo.getDirectory.unsafe.getAbsolutePath.unsafe
+
+  def workTree: Option[String] = if isBare then None else Some(repo.getWorkTree.unsafe.getAbsolutePath.unsafe)
 
   def clean: Either[GitError, Boolean] =
     if isBare then Right(true)
@@ -120,8 +127,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           var remaining = tagCommits
           var found = Set.empty[CommitSha]
           boundary:
-            // Walk loop: rw.next() returns the null sentinel at end-of-walk. The raw check avoids an Option allocation
-            // per commit in this hot iteration and lets explicit-nulls flow-type `c` as non-null inside the body.
+            // Once per commit of the walk: the raw end-of-walk sentinel spares an Option per step and flow-types `c`.
             var c = rw.next()
             while c != null do
               val sha = CommitSha(c.getId.name)
@@ -151,8 +157,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
         until.foreach: u =>
           rw.markUninteresting(rw.parseCommit(ObjectId.fromString(u.value)))
         val builder = IArray.newBuilder[RawCommit]
-        // Walk loop: rw.next() returns the null sentinel at end-of-walk. The raw check avoids an Option allocation per
-        // commit in this hot iteration and lets explicit-nulls flow-type `c` as non-null inside the body.
+        // Once per commit of the walk: the raw end-of-walk sentinel spares an Option per step and flow-types `c`.
         var c = rw.next()
         while c != null do
           builder += toRawCommit(c)
@@ -249,8 +254,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
         case e: org.eclipse.jgit.api.errors.GitAPIException => Left(GitError.BackendFailure(e.getMessage.unsafe))
         case e: java.io.IOException                         => Left(GitError.BackendFailure(e.getMessage.unsafe))
 
-  // Signed empty commit on HEAD: build the unsigned commit, sign its canonical bytes via the shared GpgSigner, embed the
-  // signature as the gpgsig header, write the object, and fast-forward the current branch to it.
+  // Hand-built rather than through JGit's own signing so that both backends sign along the one GpgSigner path.
   private def signedCommit(message: String, author: AuthorSignature): Either[GitError, CommitSha] =
     signingKey.flatMap:
       case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
@@ -285,8 +289,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           case e: MissingObjectException => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
           case e: java.io.IOException    => Left(GitError.BackendFailure(e.getMessage.unsafe))
 
-  // Signed annotated tag: build the unsigned tag, sign its canonical bytes, append the signature, write the object, and
-  // create refs/tags/<name>. JGit requires the message to end with a newline when signing so the signature verifies.
+  // The signature must cover the bytes JGit will write, including the newline it requires at the end of the message.
   private def signedTag(name: String, target: CommitSha, message: String, tagger: AuthorSignature): Either[GitError, Unit] =
     signingKey.flatMap:
       case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
@@ -342,22 +345,62 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
     new PersonIdent(a.name, a.email, when, zone)
 end JvmGitRepository
 
+/** Factories for [[JvmGitRepository]], backing this platform's `openRepository` and `discoverRepository`. */
 object JvmGitRepository:
 
-  /** Opens a Git repository at the given path. */
   def open(path: String): Either[GitError, JvmGitRepository] =
-    val file = java.io.File(path)
-    val gitDir = java.io.File(file, ".git")
-    if !gitDir.isDirectory && !gitDir.isFile then Left(GitError.RepositoryNotFound(path))
-    else
-      try
-        val builder = FileRepositoryBuilder()
-        builder.setWorkTree(file)
-        builder.setGitDir(gitDir)
-        builder.setMustExist(true)
-        val repo = builder.build()
-        Right(new JvmGitRepository(repo.unsafe))
-      catch
-        case _: RepositoryNotFoundException => Left(GitError.RepositoryNotFound(path))
-        case e: java.io.IOException         => Left(GitError.BackendFailure(e.getMessage.unsafe))
+    builderAt(java.io.File(path).getAbsoluteFile.unsafe).fold(Left(GitError.RepositoryNotFound(path)))(build(_, path))
+
+  def discover(start: String): Either[GitError, JvmGitRepository] = discover(start, Nil)
+
+  // JGit's own findGitDir crosses filesystem boundaries and offers no per-level hook, so the walk is driven here.
+  def discover(start: String, ceilings: Seq[String]): Either[GitError, JvmGitRepository] =
+    val startFile = java.io.File(start).getAbsoluteFile.unsafe
+    val ceilingPaths = ceilings.flatMap(c => realPath(java.io.File(c)))
+
+    @tailrec def ascend(level: java.io.File): Either[GitError, JvmGitRepository] =
+      builderAt(level) match
+        case Some(builder) => build(builder, start)
+        case None          =>
+          level.getParentFile.option match
+            case Some(parent) if !blocked(parent, startFile, ceilingPaths) => ascend(parent)
+            case _                                                         => Left(GitError.RepositoryNotFound(start))
+
+    ascend(startFile)
+
+  // JGit follows a `.git` redirect file only while gitDir is unset, so that case may configure the work tree alone.
+  private def builderAt(dir: java.io.File): Option[FileRepositoryBuilder] =
+    val dotGit = java.io.File(dir, Constants.DOT_GIT)
+    val fs = FS.DETECTED.unsafe
+    if FileKey.isGitRepository(dotGit, fs) || dotGit.isFile then
+      val builder = FileRepositoryBuilder()
+      builder.setWorkTree(dir)
+      builder.setMustExist(true)
+      Some(builder)
+    else if FileKey.isGitRepository(dir, fs) then
+      val builder = FileRepositoryBuilder()
+      builder.setGitDir(dir)
+      builder.setMustExist(true)
+      Some(builder)
+    else None
+
+  private def build(builder: FileRepositoryBuilder, path: String): Either[GitError, JvmGitRepository] =
+    try Right(new JvmGitRepository(builder.build().unsafe))
+    catch
+      case _: RepositoryNotFoundException => Left(GitError.RepositoryNotFound(path))
+      case e: java.io.IOException         => Left(GitError.BackendFailure(e.getMessage.unsafe))
+
+  // A parent that cannot be resolved ends the search: an unreadable ancestor must not let discovery escape upwards.
+  private def blocked(parent: java.io.File, start: java.io.File, ceilings: Seq[java.nio.file.Path]): Boolean =
+    realPath(parent).fold(true)(ceilings.contains) || !sameStore(parent, start)
+
+  private def realPath(file: java.io.File): Option[java.nio.file.Path] =
+    try Some(file.toPath.unsafe.toRealPath().unsafe)
+    catch case _: java.io.IOException => None
+
+  // FileStore has no CanEqual instance under strict equality, and its own equals is the comparison wanted.
+  private def sameStore(a: java.io.File, b: java.io.File): Boolean =
+    try java.nio.file.Files.getFileStore(a.toPath.unsafe).unsafe.equals(java.nio.file.Files.getFileStore(b.toPath.unsafe).unsafe)
+    catch case _: java.io.IOException => false
+end JvmGitRepository
 // scalafix:on
