@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.resolution.native
 
+import boilerplate.Slice
+
 import java.nio.charset.StandardCharsets
 
 import scala.annotation.threadUnsafe
@@ -30,7 +32,7 @@ import version.resolution.GpgSigner
 import version.resolution.domain.*
 
 // scalafix:off
-/** libgit2-backed [[GitRepository]] implementation for Scala Native. */
+/** [[GitRepository]] over a libgit2 `git_repository`; see [[NativeGitRepository$ NativeGitRepository]] to obtain one. */
 final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   import LibGit2.*
@@ -38,13 +40,6 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
   import NativeGitRepository.*
 
   @threadUnsafe private var closed: Boolean = false
-
-  private inline def lastError: String =
-    val err = git_error_last()
-    if err == null then "unknown error"
-    else
-      val msg = git_error_message(err)
-      if msg == null then "unknown error" else fromCString(msg)
 
   // Declare FFI buffer slots at function entry: only entry-block allocas get hoisted by release-fast's inliner.
 
@@ -99,14 +94,18 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   def isBare: Boolean = git_repository_is_bare(repo) != 0
 
+  def gitDir: String = directoryPath(git_repository_path(repo))
+
+  def workTree: Option[String] =
+    val workdir = git_repository_workdir(repo)
+    if workdir == null then None else Some(directoryPath(workdir))
+
   def clean: Either[GitError, Boolean] =
     val rc = git_workdir_dirty_count(repo)
     if rc < 0 then Left(GitError.BackendFailure(lastError))
     else Right(rc == 0)
 
   def tags: Either[GitError, IArray[RawTag]] =
-    // c"..." is a compile-time-constant CString - no Zone, no toCString
-    // allocation needed.
     val iterOut = stackalloc[Ptr[Byte]](1)
     val refOut = stackalloc[Ptr[Byte]](1)
     val tagObjOut = stackalloc[Ptr[Byte]](1)
@@ -172,7 +171,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           git_revwalk_free(walk)
           Left(GitError.BackendFailure(lastError))
         else
-          // Use a mutable HashSet over the underlying String values: amortised O(1) lookup without per-commit persistent-Set node allocation.
+          // Membership is tested once per commit of the walk, so the sets hold plain hex and stay mutable.
           val remaining = mutable.HashSet.from(tagCommits.iterator.map(_.value))
           val found = mutable.HashSet.empty[String]
           var walkRc = git_revwalk_next(oidBuf, walk)
@@ -254,7 +253,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val msg = fromCString(git_commit_message(commit))
       val time = git_commit_time(commit)
       val parentCount = git_commit_parentcount(commit).toInt
-      // Allocate the exact-sized Array directly: skips the closure allocation IArray.newBuilder emits as a Lambda$ in the NIR.
+      // Once per commit loaded: sizing the array up front skips the Lambda$ that IArray.newBuilder emits into the NIR.
       val parentArr = new Array[CommitSha](parentCount)
       var p = 0
       while p < parentCount do
@@ -291,7 +290,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val cfg = !cfgOut
       val valueOut = stackalloc[CString](1)
       val getRc = git_config_get_string(valueOut, cfg, c"user.signingkey")
-      // Copy the value out before freeing the config that owns it; treat an empty value as unset.
+      // The snapshot owns the returned string, so copy before freeing it.
       val outcome =
         if getRc == GIT_OK then
           val value = fromCString(!valueOut)
@@ -353,9 +352,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
               else Right(CommitSha(oidToHex(newOid)))
         end if
 
-  // Signed empty commit on HEAD: build the unsigned commit content over HEAD's tree with HEAD as the sole parent, sign
-  // that content, then write it via git_commit_create_with_signature (which does NOT move any ref) and advance the
-  // current branch with git_reference_set_target. All git_buf / object / reference handles are released on every path.
+  // Hand-built rather than through git_commit_create so that both backends sign along the one GpgSigner path.
   private def signedCommit(message: String, author: AuthorSignature): Either[GitError, CommitSha] =
     signingKey.flatMap:
       case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
@@ -423,15 +420,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         end if
       end if
 
-  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] =
-    val ptr = buf._1
-    val size = buf._3.toInt
-    val bytes = new Array[Byte](size)
-    var i = 0
-    while i < size do
-      bytes(i) = ptr(i)
-      i += 1
-    bytes
+  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] = Slice.of(buf._1, buf._3.toInt).toArray
 
   private inline def firstLine(s: String): String = s.takeWhile(_ != '\n')
 
@@ -460,9 +449,8 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
             if createRc < 0 then Left(GitError.BackendFailure(lastError))
             else Right(())
 
-  // Annotated-tag signing: build the canonical unsigned tag buffer, sign it, append the armoured signature, then write
-  // the object and create refs/tags/<name> in one step via git_tag_create_from_buffer. The signed payload must end the
-  // message with a newline so the signature starts on its own line and verifies against the same bytes.
+  // The signature must cover the exact bytes of the tag object, so the payload is assembled here rather than by
+  // git_tag_create, and its message keeps the trailing newline that puts the signature on a line of its own.
   private def signedTag(name: String, target: CommitSha, message: String, tagger: AuthorSignature): Either[GitError, Unit] =
     signingKey.flatMap:
       case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
@@ -491,23 +479,20 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     if !closed then
       closed = true
       git_repository_free(repo)
-      // Pair with the git_libgit2_init() in `open` so libgit2's thread-local
-      // destructors run cleanly when the last user closes; without this every
-      // successful open leaks a refcount and per-thread state lingers for the
-      // session lifetime.
+      // libgit2's init is reference-counted and every factory takes one: closing the last repository releases the
+      // library's thread-local state, which would otherwise linger for the life of the process.
       git_libgit2_shutdown(): Unit
 
 end NativeGitRepository
 
-/** Factories and FFI utilities for [[NativeGitRepository]]. */
+/** Factories for [[NativeGitRepository]], backing this platform's `openRepository` and `discoverRepository`. */
 object NativeGitRepository:
 
   import LibGit2.*
   import LibGit2Constants.*
 
-  // Direct byte-to-hex into a single Array[Char]: one String allocation, skipping
-  // the git_oid_tostr FFI + fromCString UTF-8 decode + .toLowerCase chain. libgit2's
-  // git_oid_fmt_substr already writes the same lowercase table "0123456789abcdef".
+  // Once per commit and tag of a walk: writing hex here replaces the git_oid_tostr, fromCString and toLowerCase
+  // chain, and libgit2 itself emits this same lowercase alphabet.
   private inline def oidToHex(oid: Ptr[Byte]): String =
     val chars = new Array[Char](GIT_OID_SHA1_HEXSIZE)
     var i = 0
@@ -520,8 +505,7 @@ object NativeGitRepository:
       i += 1
     new String(chars)
 
-  // Decode a CommitSha into the 20 raw bytes of a git_oid buffer in place.
-  // CommitSha.validate enforces 40-char lowercase hex; no runtime guard here.
+  // Unguarded because CommitSha.validate has already established 40 characters of lowercase hex.
   private inline def hexToOid(hex: String, oid: Ptr[Byte]): Unit =
     var i = 0
     while i < GIT_OID_SHA1_SIZE do
@@ -535,23 +519,36 @@ object NativeGitRepository:
     else if c >= 'a' && c <= 'f' then c - 'a' + 10
     else c - 'A' + 10
 
-  /** Opens a libgit2-backed [[NativeGitRepository]] at the given path. */
-  // libgit2 init/shutdown are reference-counted; pair every successful init
-  // with a shutdown so per-thread destructors run when the last user closes.
+  private def lastError: String =
+    val err = git_error_last()
+    if err == null then "unknown error"
+    else
+      val msg = git_error_message(err)
+      if msg == null then "unknown error" else fromCString(msg)
+
+  // libgit2 reports directories with a trailing separator; the trait's paths carry none.
+  private def directoryPath(path: CString): String = fromCString(path).stripSuffix("/")
+
   def open(path: String): Either[GitError, NativeGitRepository] =
+    openExt(path, GIT_REPOSITORY_OPEN_NO_SEARCH, None)
+
+  def discover(start: String): Either[GitError, NativeGitRepository] =
+    openExt(start, 0, None)
+
+  def discover(start: String, ceilings: Seq[String]): Either[GitError, NativeGitRepository] =
+    openExt(start, 0, if ceilings.isEmpty then None else Some(ceilings.mkString(java.io.File.pathSeparator)))
+
+  private def openExt(path: String, flags: Int, ceilingDirs: Option[String]): Either[GitError, NativeGitRepository] =
     git_libgit2_init(): Unit
+    // Repository ownership is never validated: no caller opens an adversarial repository, and the check rejects the
+    // UID-mismatched bind mounts CI routinely presents. The effect is process-wide and idempotent.
+    git_libgit2_opts(GIT_OPT_SET_OWNER_VALIDATION, 0): Unit
     val result = Zone:
       val repoOut = stackalloc[Ptr[Byte]](1)
-      val rc = git_repository_open_ext(repoOut, toCString(path), 0.toUInt, null.asInstanceOf[CString])
+      val ceilings = ceilingDirs.fold(null.asInstanceOf[CString])(toCString)
+      val rc = git_repository_open_ext(repoOut, toCString(path), flags.toUInt, ceilings)
       if rc == GIT_ENOTFOUND then Left(GitError.RepositoryNotFound(path))
-      else if rc < 0 then
-        val err = git_error_last()
-        val msg =
-          if err != null then
-            val m = git_error_message(err)
-            if m != null then fromCString(m) else "unknown error"
-          else "unknown error"
-        Left(GitError.BackendFailure(msg))
+      else if rc < 0 then Left(GitError.BackendFailure(lastError))
       else Right(new NativeGitRepository(!repoOut))
     if result.isLeft then git_libgit2_shutdown(): Unit
     result

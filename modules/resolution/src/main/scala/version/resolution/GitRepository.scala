@@ -17,51 +17,51 @@ package version.resolution
 
 import version.resolution.domain.*
 
-/** Abstraction over Git repository operations.
+/** Read and write access to one Git repository, backed by JGit on the JVM and libgit2 on Scala Native.
   *
-  * Implementations are platform-specific: JGit on JVM, libgit2 on Scala Native. Instances are not thread-safe -
-  * consumers must not share across threads.
-  *
-  * Construction is platform-specific via companion `open` factories on the implementations. The resolver receives an
-  * `open: String => Either[GitError, GitRepository]` parameter.
+  * Instances are not thread-safe. Obtain one from `openRepository` or `discoverRepository`.
   */
 trait GitRepository extends AutoCloseable:
 
-  /** Returns the commit SHA at HEAD, or `None` if HEAD is unborn (post-init, no commits). */
+  /** The commit at HEAD, or `None` when HEAD is unborn. */
   def head: Either[GitError, Option[CommitSha]]
 
-  /** Resolves a revision spec to a full commit SHA. */
+  /** Resolves a revision specification to the full SHA of the commit it names. */
   def resolve(rev: String): Either[GitError, CommitSha]
 
-  /** Returns the current branch short name, or `None` if HEAD is detached. */
+  /** The current branch as a short name, or `None` when HEAD is detached. */
   def branch: Either[GitError, Option[String]]
 
-  /** Returns true if the repository has no working tree. */
   def isBare: Boolean
 
-  /** Returns true if no tracked modifications and no untracked files. Bare repos return true. */
+  /** Absolute path of the Git directory - a linked worktree's own directory rather than the shared one. */
+  def gitDir: String
+
+  /** Absolute path of the working-tree root, or `None` when the repository is bare. */
+  def workTree: Option[String]
+
+  /** True when the working tree holds no modification and no untracked file; bare repositories are always clean. */
   def clean: Either[GitError, Boolean]
 
-  /** Returns all tags under refs/tags/ with their kind and dereferenced commit. */
+  /** Every tag under `refs/tags/`, each peeled to the commit it ultimately names. */
   def tags: Either[GitError, IArray[RawTag]]
 
-  /** Returns true if `ancestor` is an ancestor of or equal to `commit`. */
+  /** True when `ancestor` precedes `commit` in history, or is `commit`. */
   def isAncestorOf(ancestor: CommitSha, commit: CommitSha): Either[GitError, Boolean]
 
-  /** Returns the subset of `tagCommits` reachable from `from` by walking ancestors. */
+  /** The subset of `tagCommits` reachable from `from` through its ancestry. */
   def reachableTags(from: CommitSha, tagCommits: Set[CommitSha]): Either[GitError, Set[CommitSha]]
 
-  /** Walks commits from `from` (inclusive) back to `until` (exclusive), traversing all parents. */
+  /** Commits from `from` inclusive back to `until` exclusive, across all parents. */
   def walkAll(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]]
 
-  /** Walks commits from `from` (inclusive) back to `until` (exclusive), following first-parent only. */
+  /** Commits from `from` inclusive back to `until` exclusive, following first parents only. */
   def walkFirstParent(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]]
 
-  /** Looks up a single commit by its SHA and returns it as a [[RawCommit]]. */
   def loadCommit(sha: CommitSha): Either[GitError, RawCommit]
 
-  /** Returns the tagger time (seconds since the Unix epoch) of the annotated tag named `name` - when the release was
-    * tagged, as distinct from the time of the commit it points to.
+  /** When the annotated tag `name` was created, in seconds since the Unix epoch - the tagger time, not the time of
+    * the commit it points at.
     */
   def loadTagger(name: String): Either[GitError, Long]
 
@@ -71,10 +71,10 @@ trait GitRepository extends AutoCloseable:
   /** The repository's default author identity (`user.name` / `user.email`) stamped at the current time. */
   def defaultSignature: Either[GitError, AuthorSignature]
 
-  /** Creates an empty commit on HEAD (reusing HEAD's tree), advancing the current branch.
+  /** Commits HEAD's tree again on the current branch, changing no file.
     *
-    * `author` is used for both author and committer. When `sign` is true the commit is GPG-signed with the configured
-    * signing key. Returns the new commit's SHA.
+    * `author` becomes both author and committer. `sign` GPG-signs the commit with the configured `user.signingkey`,
+    * failing when none is set.
     */
   def createCommit(
     message: String,
@@ -82,9 +82,9 @@ trait GitRepository extends AutoCloseable:
     sign: Boolean
   ): Either[GitError, CommitSha]
 
-  /** Creates an annotated tag named `name` at `target`, tagged by `tagger`.
+  /** Creates an annotated tag at `target`.
     *
-    * When `sign` is true the tag is GPG-signed with the configured signing key.
+    * `sign` GPG-signs the tag with the configured `user.signingkey`, failing when none is set.
     */
   def createTag(
     name: String,

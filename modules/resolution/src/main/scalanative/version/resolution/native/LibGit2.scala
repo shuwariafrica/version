@@ -18,22 +18,16 @@ package version.resolution.native
 import scala.scalanative.unsafe.*
 import scala.scalanative.unsigned.*
 
-/** libgit2 `git_buf` data-return struct: `{ char *ptr; size_t reserved; size_t size; }`. `_1` is the content pointer
-  * (NUL-terminated), `_3` its length; memory is released via `git_buf_dispose`.
-  */
+// git_buf { char *ptr; size_t reserved; size_t size; }; libgit2 owns the allocation until git_buf_dispose.
 private[native] type GitBuf = CStruct3[CString, CSize, CSize]
 
-/** libgit2 `git_time`: `{ git_time_t time; int offset; char sign; }`. `_1` is seconds since the Unix epoch. */
+// git_time { git_time_t time; int offset; char sign; }, time being seconds since the Unix epoch.
 private[native] type GitTime = CStruct3[CLongLong, CInt, CChar]
 
-/** libgit2 `git_signature`: `{ char *name; char *email; git_time when; }`. `_3._1` is the action's epoch seconds. */
+// git_signature { char *name; char *email; git_time when; }.
 private[native] type GitSignature = CStruct3[CString, CString, GitTime]
 
-/** libgit2 constants used by [[LibGit2]] and [[NativeGitRepository]].
-  *
-  * Held separately from the `@extern` object so the values can be `inline val` literal-typed constants; the
-  * scala-native FFI macro does not allow `inline val` declarations inside an `@extern` object.
-  */
+// Separate from LibGit2 because the scala-native FFI macro rejects `inline val` inside an `@extern` object.
 private[native] object LibGit2Constants:
   inline val GIT_OK = 0
   inline val GIT_ENOTFOUND = -3
@@ -44,23 +38,24 @@ private[native] object LibGit2Constants:
   inline val GIT_OBJECT_COMMIT = 1
   inline val GIT_OBJECT_TAG = 4
 
+  inline val GIT_REPOSITORY_OPEN_NO_SEARCH = 1
+
+  // Position within git_libgit2_opt_t, which libgit2 declares without explicit values.
+  inline val GIT_OPT_SET_OWNER_VALIDATION = 36
+
   inline def GIT_SORT_TIME = 2.toUInt
 
   inline val GIT_OID_SHA1_SIZE = 20
   inline val GIT_OID_SHA1_HEXSIZE = 40
 
-/** Low-level libgit2 FFI bindings.
-  *
-  * Direct C function bindings consumed by [[NativeGitRepository]] only. Pointer types are `Ptr[Byte]`; nominal
-  * discrimination via opaque types is applied at the call site. Returned pointers from libgit2 are not nullable unless
-  * the upstream documentation says otherwise; null handling lives at the call site.
-  */
+// Handles stay untyped as Ptr[Byte]: the call site knows which libgit2 object it holds and which returns may be null.
 @extern
 private[native] object LibGit2:
 
   // Library lifecycle
   def git_libgit2_init(): CInt = extern
   def git_libgit2_shutdown(): CInt = extern
+  def git_libgit2_opts(option: CInt, args: Any*): CInt = extern
 
   // Repository
   def git_repository_open_ext(out: Ptr[Ptr[Byte]], path: CString, flags: CUnsignedInt, ceilingDirs: CString): CInt = extern
@@ -69,6 +64,8 @@ private[native] object LibGit2:
   def git_repository_head_detached(repo: Ptr[Byte]): CInt = extern
   def git_repository_head_unborn(repo: Ptr[Byte]): CInt = extern
   def git_repository_is_bare(repo: Ptr[Byte]): CInt = extern
+  def git_repository_path(repo: Ptr[Byte]): CString = extern
+  def git_repository_workdir(repo: Ptr[Byte]): CString = extern
 
   // Objects
   def git_object_id(obj: Ptr[Byte]): Ptr[Byte] = extern
@@ -135,9 +132,8 @@ private[native] object LibGit2:
   def git_tag_create_from_buffer(oid: Ptr[Byte], repo: Ptr[Byte], buffer: CString, force: CInt): CInt = extern
   def git_tag_tagger(tag: Ptr[Byte]): Ptr[GitSignature] = extern
 
-  // Signing primitives. git_commit_create_buffer writes the unsigned commit content into a git_buf; the caller signs
-  // that content and embeds the signature via git_commit_create_with_signature (which writes the object but does NOT
-  // advance any reference - the branch is moved separately via git_reference_set_target).
+  // Signing primitives. git_commit_create_with_signature writes the object but advances no reference; the branch has
+  // to be moved separately.
   def git_commit_create_buffer(
     out: Ptr[GitBuf],
     repo: Ptr[Byte],
@@ -156,8 +152,7 @@ private[native] object LibGit2:
     signatureField: CString): CInt = extern
   def git_buf_dispose(buf: Ptr[GitBuf]): Unit = extern
 
-  // Config. git_config_get_string yields a pointer into config memory valid only on a
-  // snapshot; on a live config it errors, so we snapshot, read, then free.
+  // Config. git_config_get_string errors on a live config and, on a snapshot, borrows that snapshot's memory.
   def git_repository_config_snapshot(out: Ptr[Ptr[Byte]], repo: Ptr[Byte]): CInt = extern
   def git_config_get_string(out: Ptr[CString], cfg: Ptr[Byte], name: CString): CInt = extern
   def git_config_free(cfg: Ptr[Byte]): Unit = extern
@@ -165,15 +160,12 @@ private[native] object LibGit2:
   // Errors
   def git_error_last(): Ptr[Byte] = extern
 
-  // The status walk for the working-tree dirty count must allocate
-  // git_status_options on the C-side stack; heap-allocating that struct
-  // across the FFI boundary segfaults inside git_diff_index_to_workdir
-  // on musl.
+  // git_status_options has to be allocated on the C-side stack: heap-allocating it across the FFI boundary segfaults
+  // inside git_diff_index_to_workdir on musl.
   @name("version_resolution_git_workdir_dirty_count")
   def git_workdir_dirty_count(repo: Ptr[Byte]): CInt = extern
 
-  // git_error is { char* message; int klass; }; reading message field through
-  // a C shim avoids declaring the struct shape on the Scala side.
+  // Reading git_error { char *message; int klass; } through a shim keeps the struct shape out of the Scala side.
   @name("version_resolution_git_error_message")
   def git_error_message(err: Ptr[Byte]): CString = extern
 

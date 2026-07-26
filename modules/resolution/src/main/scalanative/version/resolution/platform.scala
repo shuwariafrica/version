@@ -17,6 +17,24 @@ package version.resolution
 
 import version.resolution.native.NativeGitRepository
 
-/** Platform-specific repository open function (Native). */
+/** Opens the repository at `path`, examining no parent directory.
+  *
+  * `path` is a worktree root, whose `.git` may be a directory or a `gitdir:` redirect, or a Git directory itself,
+  * bare or otherwise.
+  */
 def openRepository(path: String): Either[GitError, GitRepository] =
   NativeGitRepository.open(path)
+
+/** Opens the nearest repository at or above `start`, stopping where the walk would leave `start`'s filesystem.
+  *
+  * Discovery is a function of `start` and the filesystem alone.
+  */
+def discoverRepository(start: String): Either[GitError, GitRepository] =
+  NativeGitRepository.discover(start)
+
+/** Opens the nearest repository at or above `start`, examining neither a ceiling directory nor anything above one.
+  *
+  * `start` is examined even when its own parent is a ceiling.
+  */
+def discoverRepository(start: String, ceilings: Seq[String]): Either[GitError, GitRepository] =
+  NativeGitRepository.discover(start, ceilings)
