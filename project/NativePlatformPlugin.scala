@@ -1,9 +1,7 @@
 import sbt.*
 import sbt.Keys.*
-import sbt.librarymanagement.{CrossVersion, Disabled}
 
 import scala.scalanative.build.{LTO, Mode}
-import scala.scalanative.sbtplugin.ScalaNativeCrossVersion
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
@@ -76,13 +74,6 @@ object NativePlatformPlugin extends AutoPlugin:
     if os == Os.Linux then Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
 
   val nativeSettings: List[Setting[?]] = List(
-    // TODO(sbt/sbt#9293): drop once the publish-side platform-suffix fix ships in a 2.0.x release.
-    moduleName := {
-      val base = moduleName.value
-      CrossVersion(ScalaNativeCrossVersion.binary, scalaVersion.value, scalaBinaryVersion.value)
-        .fold(base)(_.apply(base))
-    },
-    projectID / crossVersion := Disabled(),
     Test / parallelExecution := true,
     Compile / unmanagedResourceDirectories +=
       (Compile / sourceDirectory).value / "resources-native",
