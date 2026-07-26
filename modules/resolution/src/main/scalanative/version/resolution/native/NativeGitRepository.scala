@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.resolution.native
 
+import boilerplate.Slice
+
 import java.nio.charset.StandardCharsets
 
 import scala.annotation.threadUnsafe
@@ -418,15 +420,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         end if
       end if
 
-  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] =
-    val ptr = buf._1
-    val size = buf._3.toInt
-    val bytes = new Array[Byte](size)
-    var i = 0
-    while i < size do
-      bytes(i) = ptr(i)
-      i += 1
-    bytes
+  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] = Slice.of(buf._1, buf._3.toInt).toArray
 
   private inline def firstLine(s: String): String = s.takeWhile(_ != '\n')
 
