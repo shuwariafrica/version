@@ -39,9 +39,19 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
       try Filesystem.removeRecursive(tmp)
       catch case NonFatal(_) => ()
 
-  // Only libgit2 resolves symlinks in the paths it reports, and macOS reaches temporary directories through one, so
-  // both sides of a path comparison are canonicalised for the expectation to hold on either backend.
-  private def canonical(path: String): String = File(path).getCanonicalPath
+  private val IdentityMark = "discovery-identity"
+
+  // A reported path is proved by what it leads to, never by its spelling: libgit2 resolves symlinks the JDK leaves
+  // alone, and expands the 8.3 short names a Windows TEMP can carry, which Scala Native's javalib cannot expand back.
+  private def markGitDirectory(gitDirectory: Path): Unit =
+    Files.writeString(gitDirectory.resolve(IdentityMark), s"${gitDirectory.getFileName}-${System.nanoTime}"): Unit
+
+  private def gitDirIdentity(gitDir: String): String = Files.readString(File(gitDir, IdentityMark).toPath)
+
+  private def workTreeIdentity(workTree: String): String =
+    val entry = File(workTree, ".git")
+    // A linked worktree's `.git` is the redirect naming its own git directory, so its bytes already identify it.
+    if entry.isDirectory then Files.readString(File(entry, IdentityMark).toPath) else Files.readString(entry.toPath)
 
   private def withRepository[A](opened: Either[GitError, GitRepository])(f: GitRepository => A): A =
     val repository = opened.fold(error => fail(s"expected an open repository, got $error"), identity)
@@ -50,7 +60,7 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
 
   private def assertNotFound(result: Either[GitError, GitRepository], start: Path): Unit =
     result match
-      case Left(GitError.RepositoryNotFound(reported)) => assertEquals(canonical(reported), canonical(start.toString))
+      case Left(GitError.RepositoryNotFound(reported)) => assertEquals(reported, start.toString)
       case Left(other)                                 => fail(s"expected RepositoryNotFound, got $other")
       case Right(repository)                           =>
         val located = repository.workTree
@@ -61,10 +71,11 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
     withTempRoot("exact-root"): tmp =>
       val repo = tmp.resolve("repo")
       initMinimalRepo(repo)
+      markGitDirectory(repo.resolve(".git"))
       withRepository(openRepository(repo.toString)): repository =>
         assert(!repository.isBare)
-        assertEquals(repository.workTree.map(canonical), Some(canonical(repo.toString)))
-        assertEquals(canonical(repository.gitDir), canonical(repo.resolve(".git").toString))
+        assertEquals(repository.workTree.map(workTreeIdentity), Some(workTreeIdentity(repo.toString)))
+        assertEquals(gitDirIdentity(repository.gitDir), gitDirIdentity(repo.resolve(".git").toString))
 
   test("openRepository resolves the gitdir redirect at a linked worktree root"):
     withTempRoot("exact-linked"): tmp =>
@@ -73,13 +84,12 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
       val linked = tmp.resolve("linked")
       git(repo, "worktree", "add", "-q", "-b", "linked-branch", linked.toString): Unit
       assert(Files.isRegularFile(linked.resolve(".git")), "fixture: a linked worktree's .git is a redirect file")
+      val linkedGitDir = repo.resolve(".git").resolve("worktrees").resolve("linked")
+      markGitDirectory(linkedGitDir)
       withRepository(openRepository(linked.toString)): repository =>
-        assertEquals(repository.workTree.map(canonical), Some(canonical(linked.toString)))
+        assertEquals(repository.workTree.map(workTreeIdentity), Some(workTreeIdentity(linked.toString)))
         assertEquals(repository.branch, Right(Some("linked-branch")))
-        assert(
-          repository.gitDir.replace('\\', '/').contains("/worktrees/"),
-          s"expected the per-worktree git directory, got ${repository.gitDir}"
-        )
+        assertEquals(gitDirIdentity(repository.gitDir), gitDirIdentity(linkedGitDir.toString))
 
   test("openRepository does not ascend out of a subdirectory of a repository"):
     withTempRoot("exact-no-ascent"): tmp =>
@@ -95,20 +105,22 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
       initMinimalRepo(repo)
       val bare = tmp.resolve("bare.git")
       Process.runChecked(Seq("git", "clone", "--bare", "--no-hardlinks", "-q", repo.toString, bare.toString), tmp): Unit
+      markGitDirectory(bare)
       withRepository(openRepository(bare.toString)): repository =>
         assert(repository.isBare)
         assertEquals(repository.workTree, None)
-        assertEquals(canonical(repository.gitDir), canonical(bare.toString))
+        assertEquals(gitDirIdentity(repository.gitDir), gitDirIdentity(bare.toString))
         assert(repository.head.toOption.flatten.isDefined, "a bare repository still resolves HEAD")
 
   test("discoverRepository finds the repository root from a nested build directory"):
     withTempRoot("discover-monorepo"): tmp =>
       val repo = tmp.resolve("repo")
       initMinimalRepo(repo)
+      markGitDirectory(repo.resolve(".git"))
       val nested = repo.resolve("services/app")
       Files.createDirectories(nested): Unit
       withRepository(discoverRepository(nested.toString)): repository =>
-        assertEquals(repository.workTree.map(canonical), Some(canonical(repo.toString)))
+        assertEquals(repository.workTree.map(workTreeIdentity), Some(workTreeIdentity(repo.toString)))
 
   test("discoverRepository finds a linked worktree root from one of its subdirectories"):
     withTempRoot("discover-linked"): tmp =>
@@ -119,7 +131,7 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
       val nested = linked.resolve("sub/deep")
       Files.createDirectories(nested): Unit
       withRepository(discoverRepository(nested.toString)): repository =>
-        assertEquals(repository.workTree.map(canonical), Some(canonical(linked.toString)))
+        assertEquals(repository.workTree.map(workTreeIdentity), Some(workTreeIdentity(linked.toString)))
         assertEquals(repository.branch, Right(Some("linked-branch")))
 
   test("discoverRepository never examines a ceiling directory"):
@@ -134,8 +146,9 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
     withTempRoot("discover-ceiling-start"): tmp =>
       val repo = tmp.resolve("repo")
       initMinimalRepo(repo)
+      markGitDirectory(repo.resolve(".git"))
       withRepository(discoverRepository(repo.toString, Seq(tmp.toString))): repository =>
-        assertEquals(repository.workTree.map(canonical), Some(canonical(repo.toString)))
+        assertEquals(repository.workTree.map(workTreeIdentity), Some(workTreeIdentity(repo.toString)))
 
   test("discoverRepository reports not found when no repository lies below the ceiling"):
     withTempRoot("discover-none"): tmp =>
