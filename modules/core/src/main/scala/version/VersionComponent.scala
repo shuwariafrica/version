@@ -19,53 +19,45 @@ import boilerplate.OpaqueType
 
 import version.errors.InvalidComponent
 
-/** Capability trait for opaque version components backed by [[Int]].
+/** Shared companion behaviour for the opaque numeric components of a version scheme: lower-bound validation, a total
+  * increment, and ordering.
   *
-  * Extends [[boilerplate.OpaqueType]] with version-specific semantics:
-  *   - Minimum and maximum value validation
-  *   - Increment operation with saturation at upper bound
-  *   - Standard ordering
-  *
-  * Subclasses override [[maximumValue]] for scheme-specific bounds (e.g., .NET components use `65535` for UInt16).
-  *
-  * @tparam T
-  *   The opaque type itself.
+  * Components are carried as `Long`: schemes do put date stamps and build counters in numeric positions, and those
+  * overflow an `Int`.
   */
-transparent trait VersionComponent[T] extends OpaqueType[T, Int], OpaqueType.Eq[T]:
+transparent trait VersionComponent[T] extends OpaqueType[T, Long], OpaqueType.Eq[T]:
 
   type Error = InvalidComponent
 
-  /** The component name used in error messages (e.g., "Major version"). */
+  /** Names the component as the subject of an [[InvalidComponent]] message: "Major version must be ...". */
   protected def componentName: String
 
-  /** The minimum valid value for this component. */
-  protected def minimumValue: Int
+  protected def minimumValue: Long
 
-  /** The maximum valid value for this component. Override for scheme-specific bounds (e.g., `65535` for .NET UInt16). */
-  protected def maximumValue: Int = Int.MaxValue
-
-  /** The validation requirement description for error messages (e.g., "a non-negative number (>= 0)"). */
+  /** Completes an [[InvalidComponent]] message after "must be", for example "a non-negative number (>= 0)". */
   protected def requirement: String
 
-  protected inline def validate(value: Int): Option[InvalidComponent] =
-    if value >= minimumValue && value <= maximumValue then None
+  protected inline def validate(value: Long): Option[InvalidComponent] =
+    if value >= minimumValue then None
     else Some(InvalidComponent(value, componentName, requirement))
 
-  /** The minimum valid value for this component, wrapped in the opaque type. */
+  /** The lowest value this component admits. */
   inline def minimum: T = wrap(minimumValue)
 
   extension (t: T)
-    inline def value: Int = unwrap(t)
+    inline def value: Long = unwrap(t)
 
-    /** Returns a new instance incremented by one. Saturates at [[maximumValue]]. */
+    /** One step up, saturating at `Long.MaxValue` so that advancement is total. */
     inline def increment: T =
       val current = unwrap(t)
-      if current >= maximumValue then wrap(current)
-      else wrap(current + 1)
+      if current == Long.MaxValue then t else wrap(current + 1)
 
   given Ordering[T] = Ordering.by(unwrap)
+
 end VersionComponent
 
-/** Extends [[VersionComponent]] for components that have a defined reset value (typically the minimum value). */
+/** Extends [[VersionComponent]] for components a scheme returns to a fixed value when a more significant component
+  * advances.
+  */
 transparent trait ResettableVersionComponent[T] extends VersionComponent[T]:
   inline def reset: T = minimum

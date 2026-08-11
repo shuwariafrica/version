@@ -15,29 +15,16 @@
  ****************************************************************************/
 package version
 
-/** Policy for determining API/binary compatibility between two versions.
+/** A named rule for whether two versions of a scheme may stand in for one another.
   *
-  * Compatibility is a policy applied to versions, not an inherent property of the version itself. Multiple policies can
-  * exist for the same version type (following sbt's pattern: Strict, SemVer, EarlySemVer, PackVer).
-  *
-  * Each scheme provides a default policy in its companion (found via implicit scope). Users override locally:
-  * {{{
-  * given CompatibilityPolicy[SemVer] = SemVer.compatibility.early
-  * v1.isCompatibleWith(v2)  // uses early policy
-  * }}}
-  *
-  * @tparam V
-  *   The version type.
+  * Policies are plain values rather than `given` instances, because a scheme has several defensible rules that
+  * disagree with each other and choosing between them is the consumer's commitment, not the scheme's.
   */
-trait CompatibilityPolicy[V <: Version]:
+trait CompatibilityPolicy[V]:
+  def compatible(a: V, b: V): Boolean
 
-  /** Whether `v2` is considered compatible with `v1` under this policy. */
-  extension (v1: V) def isCompatibleWith(v2: V): Boolean
-
-/** Provides universal policy constructors for [[CompatibilityPolicy]]. */
+/** Provides the scheme-independent policy for [[CompatibilityPolicy]]. */
 object CompatibilityPolicy:
 
-  /** Exact match only - versions are compatible only if equal. */
-  def strict[V <: Version](using CanEqual[V, V]): CompatibilityPolicy[V] =
-    new CompatibilityPolicy[V]:
-      extension (v1: V) def isCompatibleWith(v2: V): Boolean = v1 == v2
+  /** Admits a version only in place of itself. */
+  def strict[V](using CanEqual[V, V]): CompatibilityPolicy[V] = (a: V, b: V) => a == b

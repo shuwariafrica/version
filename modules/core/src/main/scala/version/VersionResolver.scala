@@ -15,32 +15,38 @@
  ****************************************************************************/
 package version
 
-/** Bundles every scheme-typed piece of configuration the version pipeline needs: the [[ResolvableScheme]] instance,
-  * a Git tag parser, and the optional rendering [[Formatter]].
-  *
-  * Bundling guarantees the three pieces share a single `V` parameter at the type level, so consumers cannot pair a
-  * scheme with a mismatched tag parser or formatter.
+import scala.annotation.targetName
+
+/** Every scheme-typed piece a version pipeline needs, held behind a single `V` so that a scheme cannot be paired with
+  * a tag parser, formatter, or capability instance belonging to another.
   *
   * Instances may be constructed via [[VersionResolver$ VersionResolver]].
   */
-final case class VersionResolver[V <: Version](
-  scheme: ResolvableScheme[V],
+final case class VersionResolver[V](
+  scheme: VersionScheme[V],
+  arithmetic: VersionArithmetic[V],
+  workflow: ResolvableScheme[V],
   tagParser: String => Option[V],
   formatter: Option[Formatter[V]]
 )
 
 /** Provides factory methods and combinators for [[VersionResolver]]. */
 object VersionResolver:
-  import scala.annotation.targetName
 
-  given [V <: Version]: CanEqual[VersionResolver[V], VersionResolver[V]] = CanEqual.derived
+  given [V]: CanEqual[VersionResolver[V], VersionResolver[V]] = CanEqual.derived
 
-  /** Default resolver for the in-scope scheme: scheme-supplied parsing with the conventional `v`/`V` tag prefix
-    * stripped, and no rendering formatter (consumers fall back to [[Version!.show]]).
+  /** The resolver over the contextual capabilities: tags are read by the scheme with the conventional `v` or `V`
+    * prefix stripped, and nothing is rendered other than canonically.
     */
-  def withDefaults[V <: Version](using scheme: ResolvableScheme[V]): VersionResolver[V] =
+  def withDefaults[V](using
+    scheme: VersionScheme[V],
+    arithmetic: VersionArithmetic[V],
+    workflow: ResolvableScheme[V]
+  ): VersionResolver[V] =
     VersionResolver(
       scheme = scheme,
+      arithmetic = arithmetic,
+      workflow = workflow,
       tagParser = name =>
         val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
         scheme.parse(raw).toOption
@@ -48,15 +54,13 @@ object VersionResolver:
       formatter = None
     )
 
-  /** Companion alias for the multi-parameter [[withTagParser]] extension. */
-  inline def withTagParser[V <: Version](r: VersionResolver[V], parser: String => Option[V]): VersionResolver[V] =
+  inline def withTagParser[V](r: VersionResolver[V], parser: String => Option[V]): VersionResolver[V] =
     r.withTagParser(parser)
 
-  /** Companion alias for the multi-parameter [[withFormatter]] extension. */
-  inline def withFormatter[V <: Version](r: VersionResolver[V], f: Formatter[V]): VersionResolver[V] =
+  inline def withFormatter[V](r: VersionResolver[V], f: Formatter[V]): VersionResolver[V] =
     r.withFormatter(f)
 
-  extension [V <: Version](r: VersionResolver[V])
+  extension [V](r: VersionResolver[V])
     @targetName("ext_withTagParser")
     inline def withTagParser(parser: String => Option[V]): VersionResolver[V] = r.copy(tagParser = parser)
 

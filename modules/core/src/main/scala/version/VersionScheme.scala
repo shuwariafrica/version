@@ -17,60 +17,43 @@ package version
 
 import version.errors.VersionError
 
-/** Core contract for a versioning scheme.
+/** The capability every versioning scheme provides: reading and rendering its values, ordering them, and reporting
+  * how any two of them differ.
   *
-  * Every version type provides an instance of this trait in its companion object, enabling scheme selection via Scala 3
-  * implicit scope. When a type `V` appears as a type parameter, the compiler finds `VersionScheme[V]` in `V`'s
-  * companion - no explicit import of givens required.
-  *
-  * The [[ordering]] member is a plain `def` (not `given`) because implicit search does not recursively extract given
-  * members from given instances. Each scheme companion provides a standalone `given Ordering[V]` for direct implicit
-  * resolution, and this `def` for extraction by generic code.
-  *
-  * @tparam V
-  *   The version type.
+  * This is the only capability a scheme must have. Advancement ([[VersionArithmetic]]), compatibility
+  * ([[CompatibilityPolicy]]) and release workflow ([[ResolvableScheme]]) are separate instances a scheme supplies
+  * only where it defines them.
   */
-trait VersionScheme[V <: Version]:
+trait VersionScheme[V]:
 
-  /** Canonical scheme identifier (e.g., "semver", "dotnet-official"). */
+  /** The identifier this scheme is selected by, in the spelling its ecosystem publishes. */
   def name: String
 
-  /** Component descriptors in scheme order, pairing each position's name with its semantic role.
-    *
-    * For example, SemVer declares:
-    * {{{
-    * IArray(
-    *   ComponentDescriptor("major", ComponentRole.Breaking),
-    *   ComponentDescriptor("minor", ComponentRole.Feature),
-    *   ComponentDescriptor("patch", ComponentRole.Fix)
-    * )
-    * }}}
-    */
-  def layout: IArray[ComponentDescriptor]
-
-  /** Parse a version string into the scheme's type. */
+  /** Reads a value, rejecting anything outside the scheme's grammar rather than coercing it. */
   def parse(input: String): Either[VersionError, V]
 
-  /** Ordering relation for this scheme. Plain `def`, not `given` - see trait documentation. */
-  def ordering: Ordering[V]
-
-  /** Numeric core components in scheme order.
+  /** The scheme's normative comparison.
     *
-    * Pre-release and metadata state is NOT represented here - use [[isFinal]], [[core]], or scheme-specific typed
-    * accessors for that information.
+    * This may equate structurally distinct values wherever the scheme ranks two spellings alike, so it is not a
+    * substitute for equality; identity remains structural.
     */
-  extension (v: V) def components: IArray[Int]
+  def precedence: Ordering[V]
 
-  /** Whether this represents a final/stable release (no development or pre-release markers). */
-  extension (v: V) def isFinal: Boolean
+  /** The most significant tier separating `a` from `b`. */
+  def difference(a: V, b: V): Difference
 
-  /** The core version without development/pre-release markers.
-    *
-    * For schemes without pre-release concepts, returns unchanged.
-    */
-  extension (v: V) def core: V
+  extension (v: V)
+    /** The canonical rendering, which [[parse]] reads back as an equal value. */
+    def show: String
+
+    /** Whether the value carries no below-release qualifier. */
+    def stable: Boolean
+
+    /** The value with every below-release qualifier stripped. */
+    def release: V
+
+    /** The leading numeric components, for coarse bucketing. Lossy by construction, and empty for schemes with no
+      * numeric positions at all.
+      */
+    def numbers: IArray[Long]
 end VersionScheme
-
-object VersionScheme:
-  /** Summons the contextual [[VersionScheme]] instance. */
-  inline def apply[V <: Version](using vs: VersionScheme[V]): VersionScheme[V] = vs

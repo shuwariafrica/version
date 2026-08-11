@@ -4,7 +4,9 @@ title: SemVer
 
 # SemVer Scheme
 
-Type-safe [Semantic Versioning 2.0.0](https://semver.org/) using Scala 3 opaque types.
+[Semantic Versioning 2.0.0](https://semver.org/) as the specification defines it, modelled with Scala 3 opaque types.
+Ordering follows clause 11 exactly, including its case-sensitive comparison of pre-release identifiers, and parsing
+preserves identifiers as written rather than normalising them.
 
 ```scala
 libraryDependencies += "africa.shuwari" %%% "version" % "@VERSION@"
@@ -16,20 +18,25 @@ libraryDependencies += "africa.shuwari" %%% "version" % "@VERSION@"
 import version.semver.*
 ```
 
-All SemVer types, extensions, and `given` instances are accessible from this single import.
+One import brings in the types, the extensions, and every capability instance.
 
 ## Types
 
-| Type                   | Purpose                | Constraint                                |
-|------------------------|------------------------|-------------------------------------------|
-| `Major`                | Major component        | >= 0                                      |
-| `Minor`                | Minor component        | >= 0                                      |
-| `Patch`                | Patch component        | >= 0                                      |
-| `PreReleaseNumber`     | Pre-release version    | >= 1                                      |
-| `PreReleaseClassifier` | Classifier enum        | dev, milestone, alpha, beta, rc, snapshot |
-| `PreRelease`           | Structured pre-release | Classifier + optional number              |
-| `Metadata`             | Build identifiers      | `[0-9A-Za-z-]+` per identifier            |
-| `SemVer`               | Complete version       | `MAJOR.MINOR.PATCH[-PRERELEASE][+META]`   |
+| Type                   | Purpose                              | Constraint                                |
+|------------------------|--------------------------------------|-------------------------------------------|
+| `Major`                | Major component                      | `>= 0`, carried as `Long`                 |
+| `Minor`                | Minor component                      | `>= 0`, carried as `Long`                 |
+| `Patch`                | Patch component                      | `>= 0`, carried as `Long`                 |
+| `PreReleaseNumber`     | Number in the construction helpers   | `>= 1`, carried as `Long`                 |
+| `PreReleaseClassifier` | Labels recognised by name            | dev, milestone, alpha, beta, rc, SNAPSHOT |
+| `PreRelease`           | Dot-separated identifier list        | `[0-9A-Za-z-]+` per identifier            |
+| `Metadata`             | Build identifiers                    | `[0-9A-Za-z-]+` per identifier            |
+| `SemVer`               | Complete version                     | `MAJOR.MINOR.PATCH[-PRERELEASE][+META]`   |
+
+## Capabilities
+
+SemVer supplies all four: reading and ranking, advancement, release workflow, and two named compatibility rules
+(compatibility is never a `given` - see [Version Schemes](../overview.md)).
 
 ## Quick Reference
 
@@ -38,36 +45,37 @@ import version.semver.*
 
 val v = SemVer.parseUnsafe("1.2.3-alpha.1+build.456")
 
-// Components
-v.major.value       // 1
-v.preRelease        // Some(PreRelease(Alpha, Some(1)))
-v.metadata          // Some(Metadata(List("build", "456")))
-v.stable            // true (major > 0 and not snapshot)
+// Projections
+v.major.value // 1
+v.preRelease  // Some(alpha.1)
+v.metadata    // Some(build.456)
+v.stable      // false - it carries a pre-release
+v.release     // 1.2.3 - pre-release and metadata stripped
+v.numbers     // IArray(1, 2, 3)
 
-// Bumping
-v.next[Major]       // 2.0.0
-v.next[Minor]       // 1.3.0
-v.next[Patch]       // 1.2.4
+// Bumping a component
+v.next[Major] // 2.0.0
+v.next[Minor] // 1.3.0
+v.next[Patch] // 1.2.4
 
-// Pre-release transitions
-v.next[Alpha]       // 1.2.3-alpha.2 (same - increment)
-v.next[Beta]        // 1.2.3-beta.1  (higher - advance)
-v.next[Dev]         // 1.2.4-dev.1   (lower - new patch cycle)
+// Moving along the pre-release labels
+v.next[Alpha] // 1.2.3-alpha.2 - the same label, numbered on
+v.next[Beta]  // 1.2.3-beta.1  - a label that outranks it
+v.next[Dev]   // 1.2.4-dev.1   - one that does not, so the patch moves first
 
-// Direct assignment
-v.core              // 1.2.3
-v.as[Snapshot]      // 1.2.3-SNAPSHOT
-v.as[Beta]          // 1.2.3-beta.1
+// Setting a label outright
+v.as[Snapshot] // 1.2.3-SNAPSHOT
+v.as[Beta]     // 1.2.3-beta.1
 
 // Rendering
-v.show                          // "1.2.3-alpha.1"
-SemVer.Formatter.Full.format(v) // "1.2.3-alpha.1+build.456"
+v.show                              // "1.2.3-alpha.1+build.456"
+SemVer.Formatter.Standard.format(v) // "1.2.3-alpha.1"
 ```
 
-Supports JVM and Scala Native.
+Builds for the JVM, Scala.js, and Scala Native.
 
 ### See Also
 
-- [Types](types.md) - detailed type documentation
-- [Parsing](parsing.md) - parsing versions from strings
-- [Operations](operations.md) - version manipulation and rendering
+- [Types](types.md) - each component type in detail
+- [Parsing](parsing.md) - what is accepted, what is rejected, and why
+- [Operations](operations.md) - advancement, compatibility, and rendering

@@ -13,21 +13,15 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version
+package version.semver
 
-/** Describes a single version component position within a scheme.
-  *
-  * Pairs the component's name (e.g., "major", "minor", "patch") with its semantic [[ComponentRole]]. Each scheme
-  * declares its layout as an `IArray[ComponentDescriptor]`, making it structurally impossible for names and roles to
-  * fall out of sync.
-  *
-  * @param name
-  *   The component name used in commit-message keywords and display.
-  * @param role
-  *   The semantic role of this component position.
-  */
-final case class ComponentDescriptor(name: String, role: ComponentRole)
+private[semver] object Identifier:
 
-/** Provides instances for [[ComponentDescriptor]]. */
-object ComponentDescriptor:
-  given CanEqual[ComponentDescriptor, ComponentDescriptor] = CanEqual.derived
+  inline def char(c: Char): Boolean =
+    (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-'
+
+  inline def valid(id: String): Boolean = id.nonEmpty && id.forall(char)
+
+  inline def numeric(id: String): Boolean = id.nonEmpty && id.forall(c => c >= '0' && c <= '9')
+
+  inline def leadingZero(id: String): Boolean = id.length > 1 && id.charAt(0) == '0'

@@ -17,73 +17,70 @@ package version.semver
 
 import version.ResettableVersionComponent
 
-/** Represents a major version number. Must be non-negative (>= 0).
+/** A major version number. Must be non-negative (>= 0).
   *
   * Instances may be constructed via [[Major$ Major]].
   */
-opaque type Major = Int
+opaque type Major = Long
 
 /** Provides factory methods, instances, and operations for [[Major]]. */
 object Major extends ResettableVersionComponent[Major]:
   protected inline def componentName: String = "Major version"
-  protected inline def minimumValue: Int = 0
+  protected inline def minimumValue: Long = 0L
   protected inline def requirement: String = "a non-negative number (>= 0)"
-  inline def wrap(value: Int): Major = value
-  inline def unwrap(mv: Major): Int = mv
-  inline def apply(inline value: Int): Major =
+  inline def wrap(value: Long): Major = value
+  inline def unwrap(mv: Major): Long = mv
+  inline def apply(inline value: Long): Major =
     inline if value < 0 then compiletime.error("Major must be non-negative (>= 0)")
     else wrap(value)
-  extension (v: Major)
-    /** Returns `true` if the major version is greater than 0, indicating a stable release. */
-    inline def isStable: Boolean = unwrap(v) > 0
 
-/** Represents a minor version number. Must be non-negative (>= 0).
+/** A minor version number. Must be non-negative (>= 0).
   *
   * Instances may be constructed via [[Minor$ Minor]].
   */
-opaque type Minor = Int
+opaque type Minor = Long
 
 /** Provides factory methods, instances, and operations for [[Minor]]. */
 object Minor extends ResettableVersionComponent[Minor]:
   protected inline def componentName: String = "Minor version"
-  protected inline def minimumValue: Int = 0
+  protected inline def minimumValue: Long = 0L
   protected inline def requirement: String = "a non-negative number (>= 0)"
-  inline def wrap(value: Int): Minor = value
-  inline def unwrap(mv: Minor): Int = mv
-  inline def apply(inline value: Int): Minor =
+  inline def wrap(value: Long): Minor = value
+  inline def unwrap(mv: Minor): Long = mv
+  inline def apply(inline value: Long): Minor =
     inline if value < 0 then compiletime.error("Minor must be non-negative (>= 0)")
     else wrap(value)
 
-/** Represents a patch number. Must be non-negative (>= 0).
+/** A patch number. Must be non-negative (>= 0).
   *
   * Instances may be constructed via [[Patch$ Patch]].
   */
-opaque type Patch = Int
+opaque type Patch = Long
 
 /** Provides factory methods, instances, and operations for [[Patch]]. */
 object Patch extends ResettableVersionComponent[Patch]:
   protected inline def componentName: String = "Patch number"
-  protected inline def minimumValue: Int = 0
+  protected inline def minimumValue: Long = 0L
   protected inline def requirement: String = "a non-negative number (>= 0)"
-  inline def wrap(value: Int): Patch = value
-  inline def unwrap(pn: Patch): Int = pn
-  inline def apply(inline value: Int): Patch =
+  inline def wrap(value: Long): Patch = value
+  inline def unwrap(pn: Patch): Long = pn
+  inline def apply(inline value: Long): Patch =
     inline if value < 0 then compiletime.error("Patch must be non-negative (>= 0)")
     else wrap(value)
 
-/** Represents a pre-release number. Must be positive (>= 1).
+/** The number carried by a classifier in the pre-release construction helpers. Must be positive (>= 1).
   *
   * Instances may be constructed via [[PreReleaseNumber$ PreReleaseNumber]].
   */
-opaque type PreReleaseNumber = Int
+opaque type PreReleaseNumber = Long
 
 /** Provides factory methods, instances, and operations for [[PreReleaseNumber]]. */
 object PreReleaseNumber extends ResettableVersionComponent[PreReleaseNumber]:
   protected inline def componentName: String = "Pre-release number"
-  protected inline def minimumValue: Int = 1
+  protected inline def minimumValue: Long = 1L
   protected inline def requirement: String = "a positive number (>= 1)"
-  inline def wrap(value: Int): PreReleaseNumber = value
-  inline def unwrap(prn: PreReleaseNumber): Int = prn
-  inline def apply(inline value: Int): PreReleaseNumber =
+  inline def wrap(value: Long): PreReleaseNumber = value
+  inline def unwrap(prn: PreReleaseNumber): Long = prn
+  inline def apply(inline value: Long): PreReleaseNumber =
     inline if value < 1 then compiletime.error("PreReleaseNumber must be positive (>= 1)")
     else wrap(value)

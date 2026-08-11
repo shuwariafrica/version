@@ -17,60 +17,64 @@ package version.errors
 
 import scala.util.control.NoStackTrace
 
-/** Base trait for all errors produced by the version library.
+/** The root of every error this library produces.
   *
-  * Extends [[RuntimeException]] with [[NoStackTrace]] for compatibility with both functional error handling (`Either`)
-  * and exception-based validation paths.
+  * Left deliberately open: a scheme implemented outside this library rejects input for reasons only it knows, and
+  * extends this root to say so.
   */
 trait VersionError extends RuntimeException with NoStackTrace:
   def message: String
   final override def getMessage: String = message
 
+/** Provides instances for [[VersionError]]. */
 object VersionError:
   given CanEqual[VersionError, VersionError] = CanEqual.derived
 
-/** A version component value is outside the valid range for that component.
-  *
-  * Common across all versioning schemes. The [[componentName]] identifies which component failed.
-  */
-final case class InvalidComponent(value: Int, componentName: String, requirement: String) extends VersionError:
+/** A component was given a value outside the range that component admits. */
+final case class InvalidComponent(value: Long, componentName: String, requirement: String) extends VersionError:
   override def message: String = s"$componentName must be $requirement. Found: $value"
 
-/** Errors related to inconsistencies between a qualifier classifier and its associated number. */
+/** A request addressed a component under a name the scheme does not use. */
+final case class UnsupportedComponent(scheme: String, component: String) extends VersionError:
+  override def message: String = s"The '$scheme' scheme has no component named '$component'."
+
+/** A classifier and a qualifier number contradict one another. */
 sealed trait InvalidQualifierCombination extends VersionError
 
-/** A classifier that requires a number was used without one. */
+/** A classifier that is numbered was used without a number. */
 final case class MissingQualifierNumber(classifier: String) extends InvalidQualifierCombination:
   override def message: String =
     s"The classifier '$classifier' requires a qualifier number, but none was provided."
 
-/** A classifier that forbids a number was used with one. */
-final case class UnexpectedQualifierNumber(classifier: String, number: Int) extends InvalidQualifierCombination:
+/** A classifier that is not numbered was used with a number. */
+final case class UnexpectedQualifierNumber(classifier: String, number: Long) extends InvalidQualifierCombination:
   override def message: String =
     s"The classifier '$classifier' cannot have a qualifier number. Found: $number"
 
-/** Build metadata identifiers contain invalid characters or are empty. */
-final case class InvalidMetadata(identifiers: List[String]) extends VersionError:
-  override def message: String =
-    s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"
-
-/** An operation requires a versioned classifier but a non-versioned one was provided. */
+/** An operation that needs a numbered classifier was given one that is not numbered. */
 final case class ClassifierNotVersioned(classifier: String) extends VersionError:
   override def message: String = s"Classifier '$classifier' is not versioned and cannot be used in this operation."
 
-/** Base for errors that occur during the parsing of version strings. */
+/** Input does not conform to the grammar of the scheme reading it. */
 sealed trait ParseError extends VersionError
 
-/** The input string does not conform to the expected version format. */
+/** The overall shape of the input is not a version of this scheme. */
 final case class InvalidVersionFormat(input: String) extends ParseError:
   override def message: String = s"The input string '$input' is not a valid version format."
 
-/** A numeric field in the version string cannot be parsed as an integer or is out of range. */
+/** A numeric field is not a number, or names one too large to carry. */
 final case class InvalidNumericField(field: String, value: String) extends ParseError:
   override def message: String =
-    s"The value '$value' is invalid for the $field field. It must be a valid, non-negative integer within the standard integer range."
+    s"The value '$value' is invalid for the $field field. It must be a non-negative integer no greater than ${Long.MaxValue}."
 
-/** A qualifier identifier is structurally valid but not recognised by the configured resolver. */
-final case class UnrecognisedIdentifier(identifiers: List[String]) extends ParseError:
+/** Pre-release identifiers are empty, contain characters outside `[0-9A-Za-z-]`, or carry a leading zero on a purely
+  * numeric identifier.
+  */
+final case class InvalidPreRelease(identifiers: List[String]) extends ParseError:
   override def message: String =
-    s"The identifiers '${identifiers.mkString(".")}' are not recognised by the current mapping configuration."
+    s"Pre-release identifiers must be non-empty, contain only ASCII alphanumerics and hyphens [0-9A-Za-z-], and carry no leading zero when numeric. Found: '${identifiers.mkString(".")}'"
+
+/** Build metadata identifiers are empty or contain characters outside `[0-9A-Za-z-]`. */
+final case class InvalidMetadata(identifiers: List[String]) extends ParseError:
+  override def message: String =
+    s"Build metadata identifiers must be non-empty and contain only ASCII alphanumerics and hyphens [0-9A-Za-z-]. Found: '${identifiers.mkString(".")}'"

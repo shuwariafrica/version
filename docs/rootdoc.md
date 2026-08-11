@@ -3,25 +3,24 @@ integration.
 
 ## API Structure
 
-- **`version.semver` ([[version.semver]]):** SemVer 2.0.0 model:
-    - Version
+- **`version` ([[version]]):** the scheme-generic algebra, one instance per capability:
+    - [[version.VersionScheme VersionScheme]] - parse, render, order, and classify a difference
+    - [[version.VersionArithmetic VersionArithmetic]] - interpret a [[version.Request Request]] against a version
+    - [[version.CompatibilityPolicy CompatibilityPolicy]] - whether one version may stand in for another
+    - [[version.ResolvableScheme ResolvableScheme]] - what a release workflow needs of a scheme
+    - [[version.Request Request]] and [[version.Intent Intent]] - reified advancements, by significance or by name
+    - [[version.Difference Difference]] - the tier in which two versions differ
+    - [[version.Formatter Formatter]] - a rendering other than the canonical one
+    - [[version.VersionResolver VersionResolver]] - the capabilities, tag parser, and formatter behind one type
+
+- **`version.semver` ([[version.semver]]):** SemVer 2.0.0, and the only scheme shipped:
+    - Numeric
       components ([[version.semver.Major Major]], [[version.semver.Minor Minor]], [[version.semver.Patch Patch]])
-    - Pre-release classifiers ([[version.semver.PreReleaseClassifier PreReleaseClassifier]])
-    - Structured pre-release ([[version.semver.PreRelease PreRelease]])
+    - Pre-release identifiers ([[version.semver.PreRelease PreRelease]]) and the labels named among
+      them ([[version.semver.PreReleaseClassifier PreReleaseClassifier]])
     - Build metadata ([[version.semver.Metadata Metadata]])
     - Complete version ([[version.semver.SemVer SemVer]])
     - Named formatter instances ([[version.semver.SemVer.Formatter Formatter]] with `Standard` and `Full`)
-
-- **`version` ([[version]]):** Scheme-generic core:
-    - [[version.Version Version]] - family marker carrying the canonical-string contract
-    - [[version.VersionScheme VersionScheme]] - parsing, ordering, components, layout
-    - [[version.VersionArithmetic VersionArithmetic]] - component manipulation
-    - [[version.ResolvableScheme ResolvableScheme]] - Git-based resolution contract
-    - [[version.Formatter Formatter]] - per-scheme rendering strategy
-    - [[version.VersionResolver VersionResolver]] - scheme + tag parser + formatter bundle
-    - [[version.CompatibilityPolicy CompatibilityPolicy]] - API/binary compatibility
-    - [[version.ComponentRole ComponentRole]] - semantic role of component positions
-    - [[version.ComponentDescriptor ComponentDescriptor]] - component name and role pair
 
 - **`version-resolution` ([[version.resolution]]):** Automatic version derivation:
     - Entry point ([[version.resolution.VersionCliCore VersionCliCore]]) - resolve a version or list release history

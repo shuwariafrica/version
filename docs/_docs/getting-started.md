@@ -13,7 +13,7 @@ integration.
 
 | Module               | Platforms   | Description                             |
 |----------------------|-------------|-----------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations      |
+| `version`            | JVM, JS, Native | Version model, parsing, operations  |
 | `version-resolution` | JVM, Native | Automatic version derivation from Git   |
 | `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
 | `sbt-version`        | sbt 2.x     | Build integration                       |
@@ -38,14 +38,14 @@ import version.semver.*
 
 val v = SemVer.parseUnsafe("1.2.3-alpha.1")
 
-v.major.value          // 1
-v.preRelease.isDefined // true
+v.major.value // 1
+v.stable      // false
+v.release     // 1.2.3
 
-v.next[Major]   // 2.0.0
-v.next[Minor]   // 1.3.0
-v.next[Alpha]   // 1.2.3-alpha.2
-v.as[Snapshot]  // 1.2.3-SNAPSHOT
-v.core          // 1.2.3
+v.next[Major]  // 2.0.0
+v.next[Minor]  // 1.3.0
+v.next[Alpha]  // 1.2.3-alpha.2
+v.as[Snapshot] // 1.2.3-SNAPSHOT
 ```
 
 ---

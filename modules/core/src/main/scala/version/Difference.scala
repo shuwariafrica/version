@@ -15,16 +15,25 @@
  ****************************************************************************/
 package version
 
-import version.errors.VersionError
-
-/** Interpretation of an advancement [[Request]], for schemes that define one.
+/** The most significant tier by which two versions of a scheme differ.
   *
-  * A scheme whose advancement is a matter of policy rather than of its own algebra supplies no instance, so code that
-  * needs to advance a version says so in its context bounds and the absence is answered at compile time.
+  * Reports what moved, never whether the move breaks consumers: that is [[CompatibilityPolicy]]'s question, and the
+  * two answers routinely disagree - a leading-component move below `1.0.0` is a [[Difference.Release Release]] at
+  * index 0 that no caret-style policy treats as breaking.
   */
-trait VersionArithmetic[V]:
+enum Difference derives CanEqual:
 
-  /** `Left` where the scheme cannot express the request: an unknown component name, or a value the addressed
-    * component does not admit.
-    */
-  def apply(v: V, request: Request): Either[VersionError, V]
+  /** The values are indistinguishable in the scheme's structure. */
+  case None
+
+  /** Only identifiers the scheme excludes from precedence differ. */
+  case Build
+
+  /** A below-release qualifier differs: a pre-release, post-release, or development marker. */
+  case Qualifier
+
+  /** The numeric release component at `index` differs, counted from the most significant position. */
+  case Release(index: Int)
+
+  /** The epoch differs. Schemes without an epoch field never report this. */
+  case Epoch
