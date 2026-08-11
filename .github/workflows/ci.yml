@@ -81,7 +81,7 @@ jobs:
           check-latest: true
 
       - name: Setup sbt
-        uses: sbt/setup-sbt@v1.5.5
+        uses: sbt/setup-sbt@v1.5.7
 
       - name: Setup Coursier Cache
         uses: coursier/cache-action@v8
@@ -152,7 +152,7 @@ jobs:
 
       - name: "[host] Setup sbt"
         if: matrix.dockerImage == ''
-        uses: sbt/setup-sbt@v1.5.5
+        uses: sbt/setup-sbt@v1.5.7
 
       - name: Setup Coursier Cache
         uses: coursier/cache-action@v8
@@ -437,7 +437,7 @@ jobs:
           check-latest: true
 
       - name: Setup sbt
-        uses: sbt/setup-sbt@v1.5.5
+        uses: sbt/setup-sbt@v1.5.7
 
       - name: Setup Coursier Cache
         uses: coursier/cache-action@v8
