@@ -37,9 +37,9 @@ transparent trait VersionComponent[T] extends OpaqueType[T, Long], OpaqueType.Eq
   /** Completes an [[InvalidComponent]] message after "must be", for example "a non-negative number (>= 0)". */
   protected def requirement: String
 
-  protected inline def validate(value: Long): Option[InvalidComponent] =
-    if value >= minimumValue then None
-    else Some(InvalidComponent(value, componentName, requirement))
+  protected inline def validate(value: Long): Either[InvalidComponent, Long] =
+    if value >= minimumValue then Right(value)
+    else Left(InvalidComponent(value, componentName, requirement))
 
   /** The lowest value this component admits. */
   inline def minimum: T = wrap(minimumValue)

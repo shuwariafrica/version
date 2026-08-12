@@ -18,6 +18,10 @@ With no command, `version` prints the resolved version. Any options - command-sp
 (`version target --increment minor --no-sign`, not `version --no-sign target --increment minor`); with no command they
 follow `version` directly (`version --emit raw`).
 
+Every command works on the repository containing `--repository` (default: the working directory), searching upward for
+it exactly as `git` does, so the CLI can be run from anywhere inside a checkout. `--console-style pretty` names the
+repository it settled on.
+
 ## Command Reference
 
 | Command                            | Effect                                                        |
@@ -57,8 +61,14 @@ it.
 
 ### Tagging
 
-`tag` creates an annotated tag at `HEAD`. With no argument it tags the target version. The message defaults to
-`Release <version>` and is overridable with `-m, --message`; `--dry-run` previews without tagging.
+`tag` creates an annotated tag. With no argument it derives the target version and tags the commit that derivation
+read, so a `HEAD` that moves mid-command cannot receive a version computed for another commit. Given an argument it
+tags `HEAD` with that name exactly as written, once the scheme confirms it reads as a version.
+
+- `--prefix <text>` - lead a derived name with `<text>`, for repositories tagging `v1.2.3` rather than `1.2.3`. An
+  explicit argument is never prefixed: the name you give is the name written.
+- `-m, --message <text>` - the tag message, defaulting to `Release <name>`.
+- `--dry-run` - print the intended tag without creating it.
 
 ### Signing
 
@@ -73,9 +83,15 @@ the tag's creation time. Filtering is scheme-generic:
 
 - `-n, --limit <count>` - Keep the `<count>` newest entries.
 - `--final` - Exclude pre-releases.
-- `--since <version>` - Releases at or above `<version>`.
-- `--until <version>` - Releases at or below `<version>`.
+- `--since <version|line>` - Releases at or above `<version>`, or on or above the line `<line>`.
+- `--until <version|line>` - Releases at or below `<version>`, or on or below the line `<line>`.
 - `--details` - Also show the tag and source-commit date.
+
+A bound may name a whole version (`1.2.0`) or just a line of them: a dotted prefix of the scheme's numeric positions,
+optionally closed by `x` - `1`, `1.x`, `1.2`. A line is judged on the positions it names alone, so `--until 1.x` keeps
+every 1-line release and drops the 2 line including its pre-releases, and `--since 1 --until 1.x` is the whole of the
+1 line. Whole-version bounds remain inclusive on the version itself. A scheme with no numeric positions names no
+lines, and requires whole versions.
 
 `--details` extends each line to `<version>  <release date>  <tag>  <source-commit date>`. The source-commit date is when
 the underlying commit was made, which precedes the release date when a release is tagged after its last commit.

@@ -26,8 +26,10 @@ _version() {
         -e|--emit)       COMPREPLY=( $(compgen -W "${sinks}" -- "${cur}") ); return ;;
         --console-style) COMPREPLY=( $(compgen -W "${styles}" -- "${cur}") ); return ;;
         -i|--increment)  COMPREPLY=( $(compgen -W "${keywords}" -- "${cur}") ); return ;;
-        -b|--basis-commit|--pr|--branch-override|--sha-length|-m|--message|-s|--set|-n|--limit|--since|--until)
+        -b|--basis-commit|--pr|--branch-override|--sha-length|-m|--message|-s|--set|-n|--limit|--prefix)
             return ;;
+        # A bound is a whole version or a line of them (1, 1.x, 1.2), neither of which can be enumerated.
+        --since|--until) return ;;
     esac
 
     # Identify the selected subcommand, if any.
@@ -47,7 +49,7 @@ _version() {
     local opts="${globals}"
     case "${cmd}" in
         target) opts="-s --set -i --increment --dry-run --no-sign ${globals}" ;;
-        tag)    opts="-m --message --no-sign --dry-run ${globals}" ;;
+        tag)    opts="-m --message --prefix --no-sign --dry-run ${globals}" ;;
         list)   opts="-n --limit --final --since --until --details ${globals}" ;;
     esac
     COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )

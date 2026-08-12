@@ -13,30 +13,26 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version.resolution.logging
+package version.semver
 
-import boilerplate.OpaqueType
+import boilerplate.ValueCodec
+import munit.FunSuite
 
-/** Controls whether verbose/debug logging is enabled during version resolution.
-  *
-  * Replaces raw `Boolean` as a contextual parameter to prevent ambiguity with other `given Boolean` instances.
-  *
-  * Instances may be constructed via [[Verbose$ Verbose]].
-  */
-opaque type Verbose = Boolean
+import version.errors.InvalidVersionFormat
+import version.errors.VersionError
 
-/** Provides factory methods and operations for [[Verbose]]. */
-object Verbose extends OpaqueType[Verbose, Boolean], OpaqueType.Eq[Verbose]:
-  type Error = Nothing
+class SemVerCodecSuite extends FunSuite:
 
-  def wrap(value: Boolean): Verbose = value
-  def unwrap(value: Verbose): Boolean = value
-  protected inline def validate(value: Boolean): Option[Nothing] = None
-  inline def apply(inline value: Boolean): Verbose = wrap(value)
+  private val codec = summon[ValueCodec.Aux[SemVer, VersionError]]
 
-  val enabled: Verbose = wrap(true)
-  val disabled: Verbose = wrap(false)
+  test("a version survives being written out and read back") {
+    List("1.2.3", "0.1.0-rc.1", "2.0.0+sha.5114f85", "1.0.0-x.7.z.92+build.1").foreach: text =>
+      val decoded = codec.decode(text)
+      assertEquals(decoded.map(codec.encode), Right(text), text)
+  }
 
-  extension (v: Verbose)
-    /** Whether verbose logging is enabled. */
-    inline def isEnabled: Boolean = unwrap(v)
+  test("text that is not a version is refused with the reason, not an exception") {
+    assertEquals(codec.decode("2.0"), Left(InvalidVersionFormat("2.0")))
+  }
+
+end SemVerCodecSuite

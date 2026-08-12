@@ -15,15 +15,13 @@
  ****************************************************************************/
 package version.resolution.domain
 
-import version.Version
-
-/** A parsed version tag - the result of applying `config.tagParser` to a [[RawTag]].
+/** A [[RawTag]] whose name the configured tag parser read as a version.
   *
-  * Parameterised by `V` (the scheme's version type). Produced by the resolver after parsing raw tag names. Ordered by
-  * the version component.
+  * Instances are compared and ordered via [[Tag$ Tag]].
   */
-final case class Tag[V <: Version](name: String, commit: CommitSha, version: V)
+final case class Tag[V](name: String, commit: CommitSha, version: V)
 
+/** Provides instances for [[Tag]]. */
 object Tag:
-  given [V <: Version](using CanEqual[V, V]): CanEqual[Tag[V], Tag[V]] = CanEqual.derived
-  given [V <: Version: Ordering]: Ordering[Tag[V]] = Ordering.by(_.version)
+  given [V](using CanEqual[V, V]): CanEqual[Tag[V], Tag[V]] = CanEqual.derived
+  given [V: Ordering]: Ordering[Tag[V]] = Ordering.by(_.version)

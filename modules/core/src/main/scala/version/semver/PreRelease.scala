@@ -95,14 +95,14 @@ opaque type PreRelease = List[String]
 object PreRelease extends OpaqueType[PreRelease, List[String]], OpaqueType.Eq[PreRelease]:
   type Error = InvalidPreRelease
 
-  def wrap(ids: List[String]): PreRelease = ids
+  protected inline def wrap(ids: List[String]): PreRelease = ids
   def unwrap(pr: PreRelease): List[String] = pr
-  inline def apply(inline identifiers: List[String]): PreRelease = fromUnsafe(identifiers)
+  inline def apply(inline identifiers: List[String]): PreRelease = ofUnsafe(identifiers)
 
-  protected inline def validate(ids: List[String]): Option[Error] =
+  protected inline def validate(ids: List[String]): Either[Error, List[String]] =
     if ids.nonEmpty && ids.forall(id => Identifier.valid(id) && !(Identifier.numeric(id) && Identifier.leadingZero(id)))
-    then None
-    else Some(InvalidPreRelease(ids))
+    then Right(ids)
+    else Left(InvalidPreRelease(ids))
 
   /** The label marking an in-development build. */
   val snapshot: PreRelease = wrap(List(PreReleaseClassifier.Snapshot.show))
@@ -110,7 +110,7 @@ object PreRelease extends OpaqueType[PreRelease, List[String]], OpaqueType.Eq[Pr
   /** The pre-release naming `classifier`, rejecting a number the classifier does not take and the absence of one it
     * requires.
     */
-  def from(
+  def of(
     classifier: PreReleaseClassifier,
     number: Option[PreReleaseNumber]
   ): Either[InvalidQualifierCombination, PreRelease] =
@@ -120,9 +120,9 @@ object PreRelease extends OpaqueType[PreRelease, List[String]], OpaqueType.Eq[Pr
       case (false, None)    => Right(wrap(List(classifier.show)))
       case (false, Some(n)) => Left(UnexpectedQualifierNumber(classifier.show, n.value))
 
-  /** The pre-release naming `classifier`, throwing where [[from]] rejects the combination. */
-  def fromUnsafe(classifier: PreReleaseClassifier, number: Option[PreReleaseNumber]): PreRelease =
-    from(classifier, number) match
+  /** The pre-release naming `classifier`, throwing where [[of]] rejects the combination. */
+  def ofUnsafe(classifier: PreReleaseClassifier, number: Option[PreReleaseNumber]): PreRelease =
+    of(classifier, number) match
       case Right(pr) => pr
       case Left(err) => throw err // scalafix:ok
 

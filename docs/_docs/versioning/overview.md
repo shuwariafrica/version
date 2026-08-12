@@ -35,20 +35,19 @@ Between releases, a target version is computed:
 
 **Priority:**
 
-1. **Valid target directive** - explicit `target: X.Y.Z` in commits
-2. **Absolute sets** - `version: major: 3` (highest per component wins)
-3. **Relative changes** - `version: major` or `breaking:` (coalesced)
-4. **Default fallback:**
+1. **A version named outright** - `target: X.Y.Z` in a commit, where the existing tags admit it
+2. **What the commits asked for** - every directive is applied to the base version and the highest result wins
+3. **Default fallback:**
 
-| Condition              | Target Core                 |
+| Condition              | Target                      |
 |------------------------|-----------------------------|
-| Base is pre-release    | Core unchanged              |
+| Base is pre-release    | Its release                 |
 | Base is final          | Patch + 1                   |
 | No base, repo has tags | Highest tag + breaking bump |
 | No tags anywhere       | `0.1.0`                     |
 
-While the base is in initial development (major version `0`), a `major`/`breaking` relative change advances the minor
-component; reaching `1.0.0` requires an explicit `target:` or absolute set. See [SemVer Behaviour](semver.md).
+Below `1.0.0`, a stated kind of change means one component less than it would above it, while a component named
+outright is obeyed as written. See [SemVer Derivation](semver.md).
 
 ### Build Metadata
 
@@ -111,14 +110,17 @@ Most consumers use the [sbt plugin](../sbt/overview.md). For direct API usage:
 ```scala
 import version.semver.*
 import version.resolution.*
-import version.resolution.logging.{NullLogger, Verbose}
 
 val config = ResolutionConfig.default[SemVer]("/path/to/repo")
-val result = VersionCliCore.resolve(config, openRepository, NullLogger, Verbose.disabled)
-result match
+Resolver.resolve(config, discoverRepository) match
   case Right(version) => println(version.show)
-  case Left(error)    => println(error.message)
+  case Left(error)    => println(error.getMessage)
 ```
+
+`discoverRepository` searches upward from the path for the repository containing it; `openRepository` takes the path
+as the repository itself. Each operation also accepts a `GitRepository` in place of the function, for a caller that
+already holds one: the engine closes only a repository it opened itself. Diagnostics are opt-in - with no `Logger` in
+scope nothing is recorded, and passing one as a third argument records to it.
 
 Customise via `.copy`:
 

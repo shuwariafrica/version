@@ -71,8 +71,8 @@ Every one of these is a `ParseError`, so a consumer can match the shape it cares
 import version.errors.*
 
 SemVer.parse(input) match
-  case Left(e: InvalidNumericField) => s"component out of range: ${e.message}"
-  case Left(e: ParseError)          => e.message
+  case Left(e: InvalidNumericField) => s"component out of range: ${e.getMessage}"
+  case Left(e: ParseError)          => e.getMessage
   case Right(v)                     => v.show
 ```
 

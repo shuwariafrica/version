@@ -13,10 +13,12 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version
+package version.resolution
 
 import munit.FunSuite
 
+import version.Intent
+import version.Request
 import version.semver.SemVer
 
 class VersionResolverSuite extends FunSuite:

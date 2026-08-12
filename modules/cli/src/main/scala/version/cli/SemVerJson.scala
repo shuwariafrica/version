@@ -18,45 +18,41 @@ package version.cli
 import version.semver.*
 
 // scalafix:off
-/** Minimal JSON serialisation for [[SemVer]] used by the CLI's `--emit json` output.
-  *
-  * Write-only. No external codec dependency required.
-  */
+// Hand-written rather than taken from a codec library: `--emit json` writes one shape and never reads it back, so a
+// dependency would cost the native binary more than it saves here.
 private[cli] object SemVerJson:
 
-  /** Render a SemVer value as a JSON object string. */
   def toJson(v: SemVer): String =
     val sb = new StringBuilder(128)
     def w(s: String): Unit =
       val _ = sb.append(s)
     def wc(c: Char): Unit =
       val _ = sb.append(c)
-    def wi(n: Int): Unit =
+    def wl(n: Long): Unit =
       val _ = sb.append(n)
-    wc('{')
-    w("\"major\":"); wi(v.major.value)
-    w(",\"minor\":"); wi(v.minor.value)
-    w(",\"patch\":"); wi(v.patch.value)
-    v.preRelease.foreach: pr =>
-      w(",\"preRelease\":{\"classifier\":\""); w(escapeJson(pr.classifier.show)); wc('"')
-      pr.number.foreach { n => w(",\"number\":"); wi(n.value) }
-      wc('}')
-    v.metadata.foreach: bm =>
-      w(",\"metadata\":[")
-      val ids = bm.identifiers
+    def wids(ids: List[String]): Unit =
+      wc('[')
       var i = 0
       while i < ids.length do
         if i > 0 then wc(',')
         wc('"'); w(escapeJson(ids(i))); wc('"')
         i += 1
       wc(']')
+    wc('{')
+    w("\"major\":"); wl(v.major.value)
+    w(",\"minor\":"); wl(v.minor.value)
+    w(",\"patch\":"); wl(v.patch.value)
+    v.preRelease.foreach: pr =>
+      w(",\"preRelease\":"); wids(pr.identifiers)
+    v.metadata.foreach: bm =>
+      w(",\"metadata\":"); wids(bm.identifiers)
     wc('}')
     sb.result()
   end toJson
 
   private def escapeJson(s: String): String =
-    // Metadata identifiers and classifier names are ASCII alphanumeric + hyphen only,
-    // so escaping is a safety net rather than a hot path.
+    // Pre-release and metadata identifiers are ASCII alphanumerics and hyphens only, so this is a safety net against
+    // a future scheme rather than a path any SemVer value takes.
     val sb = new StringBuilder(s.length)
     var i = 0
     while i < s.length do

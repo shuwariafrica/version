@@ -44,6 +44,17 @@ abstract class SigningSuite extends FunSuite, GitRepositoryTestSupport:
 
   override def afterAll(): Unit = gpgHome.foreach(GpgKeyring.killAgent)
 
+  // Runs without a keyring: the refusal happens before any signer is invoked, so nothing underlies it to report.
+  test("a signing request with no key configured is refused with no cause to report"):
+    withRepo("unsigned-refusal"): repo =>
+      val gr = openTestRepository(repo)
+      try
+        val target = gr.head.toOption.flatten.getOrElse(fail("no HEAD"))
+        gr.createTag("v9.9.9", target, "Release 9.9.9", signerIdentity, sign = true) match
+          case Left(GitError.SigningFailure(_, cause)) => assertEquals(cause, None)
+          case other                                   => fail(s"expected a signing failure, got $other")
+      finally gr.close()
+
   gpgHome match
     case None =>
       test("signing tests skipped - GNUPGHOME not configured".ignore)(())

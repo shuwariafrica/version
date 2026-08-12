@@ -11,7 +11,9 @@ integration.
     - [[version.Request Request]] and [[version.Intent Intent]] - reified advancements, by significance or by name
     - [[version.Difference Difference]] - the tier in which two versions differ
     - [[version.Formatter Formatter]] - a rendering other than the canonical one
-    - [[version.VersionResolver VersionResolver]] - the capabilities, tag parser, and formatter behind one type
+    - [[version.Versioned Versioned]] - a version paired with its scheme, for boundaries it crosses without its type
+    - [[version.Directive Directive]] - what a commit message asks for, and the grammar that reads it
+    - [[version.Derivation Derivation]] - the version a range of commits asks for, from its directives
 
 - **`version.semver` ([[version.semver]]):** SemVer 2.0.0, and the only scheme shipped:
     - Numeric
@@ -23,12 +25,13 @@ integration.
     - Named formatter instances ([[version.semver.SemVer.Formatter Formatter]] with `Standard` and `Full`)
 
 - **`version-resolution` ([[version.resolution]]):** Automatic version derivation:
-    - Entry point ([[version.resolution.VersionCliCore VersionCliCore]]) - resolve a version or list release history
+    - Entry point ([[version.resolution.Resolver Resolver]]) - resolve a version or list release history
     - Result ([[version.resolution.ResolutionResult ResolutionResult]],
       [[version.resolution.ResolutionMode ResolutionMode]]) and release entries
       ([[version.resolution.domain.Release Release]])
-    - Configuration ([[version.resolution.ResolutionConfig ResolutionConfig]])
-    - Keyword parsing ([[version.resolution.parsing.KeywordParser KeywordParser]])
+    - Configuration ([[version.resolution.ResolutionConfig ResolutionConfig]] and
+      [[version.resolution.VersionResolver VersionResolver]], the capabilities, tag parser, and formatter behind one
+      type)
 
 - **`version-cli`:** Command-line application
 

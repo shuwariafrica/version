@@ -4,6 +4,12 @@ title: Plugin Settings
 
 # `sbt-version` Settings
 
+The plugin resolves against the repository containing the build, found by searching upward from the build's root
+directory to the filesystem boundary. A build in a linked worktree or in a subdirectory of a monorepo therefore
+resolves against the repository it really belongs to; where the search finds none, the plugin falls back to the
+scheme's initial development version. The resolved root is named in the plugin's info line, so an unintended hit on an
+enclosing repository is visible in the build log.
+
 ## versionResolver
 
 Bundles the scheme, tag parser, and rendering formatter into a single typed value. All three share the same `V` type
@@ -11,17 +17,13 @@ parameter.
 
 |             |                                                                                                    |
 |-------------|----------------------------------------------------------------------------------------------------|
-| **Type**    | `SettingKey[VersionResolver[? <: Version]]`                                                        |
-| **Default** | `VersionResolver.withDefaults[SemVer]` - SemVer scheme, `v`/`V`-stripping tag parser, no formatter |
+| **Type**    | `SettingKey[VersionResolver[?]]`                                                |
+| **Default** | `VersionResolver.withDefaults[SemVer].withFormatter(SemVer.Formatter.Standard)` |
 
 Customise via builder combinators:
 
 ```scala
-// Include build metadata in the rendered version
-versionResolver := VersionResolver.withDefaults[SemVer]
-  .withFormatter(SemVer.Formatter.Full)
-
-// Render with a truncated SHA
+// Publish build metadata, with a truncated SHA
 versionResolver := VersionResolver.withDefaults[SemVer]
   .withFormatter(SemVer.Formatter.Full.withShaLength(7))
 
@@ -30,23 +32,31 @@ versionResolver := VersionResolver.withDefaults[SemVer]
   .withTagParser(name => SemVer.parse(name.stripPrefix("release-")).toOption)
 ```
 
-The bundled `formatter` controls how `version` (the standard sbt setting) is rendered. `None` falls back to canonical
-`v.show` (core plus pre-release, excludes build metadata).
+The bundled `formatter` decides how `version` - the standard sbt setting, and so the coordinate the build publishes
+under - is rendered. The default renders the numbers and any pre-release and stops there, so a development build
+publishes as `1.0.1-SNAPSHOT`: one stable coordinate a dependent build can pin, which each publish replaces.
+Telling individual snapshots apart is the repository's job, and naming a particular pre-release is what a classifier
+such as `rc` or `M1` is for.
+
+The full rendering, build metadata included, is always available from the resolved value itself
+(`resolvedVersion.value.show`); `withFormatter(SemVer.Formatter.Full)` publishes under it where every artefact should
+carry the commit it was built from.
 
 ---
 
 ## resolvedVersion
 
-The resolved version for the current repository state, typed against the `Version` marker.
+The resolved version for the current repository state, carried with the scheme that read it.
 
-|          |                       |
-|----------|-----------------------|
-| **Type** | `SettingKey[Version]` |
+|          |                        |
+|----------|------------------------|
+| **Type** | `SettingKey[Versioned]` |
 
-For scheme-specific accessors, pattern-match:
+`show`, `stable`, `release` and `numbers` are available without naming the scheme. Match `.value` for scheme-specific
+accessors:
 
 ```scala
-resolvedVersion.value match
+resolvedVersion.value.value match
   case v: SemVer => s"${v.major.value}.${v.minor.value}.${v.patch.value}"
 ```
 
@@ -57,15 +67,15 @@ For just the rendered string, use sbt's standard `version` setting - it already 
 
 ## versionTarget
 
-The target release version the working tree is heading toward, typed against the `Version` marker.
+The target release version the working tree is heading toward, carried with the scheme that read it.
 
-|          |                       |
-|----------|-----------------------|
-| **Type** | `SettingKey[Version]` |
+|          |                        |
+|----------|------------------------|
+| **Type** | `SettingKey[Versioned]` |
 
-On a clean release tag this equals `resolvedVersion` - the tag itself. Otherwise it is the next release core the
-resolution computed: the version a release cut from the current state would carry, without development metadata. After a
-commit past `v1.0.0`, `resolvedVersion` renders `1.0.1-SNAPSHOT+...` while `versionTarget` renders `1.0.1`.
+On a clean release tag this equals `resolvedVersion` - the tag itself. Otherwise it is the next release the resolution
+computed: the version a release cut from the current state would carry, without development metadata. After a commit
+past `v1.0.0`, `resolvedVersion` renders `1.0.1-SNAPSHOT+...` while `versionTarget` renders `1.0.1`.
 
 ```scala
 // The next release line without the snapshot suffix, e.g. for release notes
@@ -76,11 +86,11 @@ releaseNotesHeader := s"Notes for ${versionTarget.value.show}"
 
 ## VersionPlugin.versionHistory
 
-Every released version parsed from the repository's annotated version tags, as a `Set[Version]`.
+Every released version the repository's annotated version tags name.
 
-|          |                                |
-|----------|--------------------------------|
-| **Type** | `Def.Initialize[Set[Version]]` |
+|          |                                  |
+|----------|----------------------------------|
+| **Type** | `Def.Initialize[Set[Versioned]]` |
 
 It sits on the plugin object rather than among the auto-imported settings because evaluating it walks the Git tags; that
 cost then falls only on builds that ask for it. Splice it into a setting with `.value` - the plugin object is already in
@@ -88,12 +98,25 @@ scope, so no import is needed. For example, deriving the previous artifacts for 
 
 ```scala
 mimaPreviousArtifacts := VersionPlugin.versionHistory.value.collect {
-  case v: SemVer if v.isFinal => organization.value %% moduleName.value % v.show
+  case v if v.stable => organization.value %% moduleName.value % v.show
 }
 ```
 
-The set is empty when the base directory is not a Git repository. Filter and order with the scheme's own API - `isFinal`
-and the scheme `Ordering` - not string comparison.
+Which past releases the current one must stay compatible with is a commitment the build makes, so SemVer names two
+rules rather than assuming one, and neither is supplied implicitly:
+
+- `SemVer.Compatibility.sameMajor` - the specification read strictly: both stable, at or above `1.0.0`, sharing a
+  major.
+- `SemVer.Compatibility.leftmostNonZero` - the caret rule of Cargo, npm and Composer, which additionally keeps each
+  `0.x` line apart from the next.
+
+```scala
+SemVer.Compatibility.leftmostNonZero.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.4.0")) // true
+SemVer.Compatibility.leftmostNonZero.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.3.9")) // false
+```
+
+The set is empty where no repository contains the build. Order it with the scheme's own precedence, never by string
+comparison.
 
 ---
 
@@ -134,7 +157,7 @@ versionResolver := VersionResolver.withDefaults[SemVer]
 // Compose a Docker tag from the resolved structured value.
 // `.value` reads the setting, so it must sit inside a setting/task (`:=`), not a plain `def`.
 lazy val dockerTag = settingKey[String]("major.minor.patch for the container tag")
-dockerTag := (resolvedVersion.value match
+dockerTag := (resolvedVersion.value.value match
   case v: SemVer => s"${v.major.value}.${v.minor.value}.${v.patch.value}"
   case other     => sys.error(s"unexpected scheme: ${other.getClass.getSimpleName}")
 )

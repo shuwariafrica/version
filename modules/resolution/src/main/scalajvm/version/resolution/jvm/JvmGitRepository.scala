@@ -57,18 +57,18 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
 
   def head: Either[GitError, Option[CommitSha]] =
     try Right(repo.exactRef(Constants.HEAD).option.flatMap(ref => ref.getLeaf.getObjectId.option).map(oid => CommitSha(oid.name)))
-    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe))
+    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def resolve(rev: String): Either[GitError, CommitSha] =
     try repo.resolve(s"$rev^{commit}").either(GitError.RevisionNotFound(rev)).map(oid => CommitSha(oid.name))
     catch
       case e: AmbiguousObjectException => Left(GitError.AmbiguousRevision(rev))
       case _: RevisionSyntaxException  => Left(GitError.RevisionNotFound(rev))
-      case e: java.io.IOException      => Left(GitError.BackendFailure(e.getMessage.unsafe))
+      case e: java.io.IOException      => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def branch: Either[GitError, Option[String]] =
     try Right(repo.exactRef(Constants.HEAD).option.filter(_.isSymbolic).map(ref => Repository.shortenRefName(ref.getTarget.getName)))
-    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe))
+    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def isBare: Boolean = repo.isBare
 
@@ -84,9 +84,9 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           Right(git.status().call().isClean)
       catch
         case e: org.eclipse.jgit.api.errors.GitAPIException =>
-          Left(GitError.BackendFailure(e.getMessage.unsafe))
+          Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
         case e: java.io.IOException =>
-          Left(GitError.BackendFailure(e.getMessage.unsafe))
+          Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def tags: Either[GitError, IArray[RawTag]] =
     try
@@ -102,7 +102,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
         commitOid.fold(()): co =>
           builder += RawTag(ref.getName.unsafe.stripPrefix(Constants.R_TAGS), CommitSha(co.name), kind): Unit
       Right(builder.result())
-    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe))
+    catch case e: java.io.IOException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def isAncestorOf(ancestor: CommitSha, commit: CommitSha): Either[GitError, Boolean] =
     if ancestor.value == commit.value then Right(true)
@@ -114,8 +114,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           Right(rw.isMergedInto(base, tip))
       catch
         case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-        case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-        case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe))
+        case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+        case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def reachableTags(from: CommitSha, tagCommits: Set[CommitSha]): Either[GitError, Set[CommitSha]] =
     if tagCommits.isEmpty then Right(Set.empty)
@@ -139,8 +139,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           Right(found)
       catch
         case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-        case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-        case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe))
+        case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+        case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def walkAll(from: CommitSha, until: Option[CommitSha]): Either[GitError, IArray[RawCommit]] =
     doWalk(from, until, firstParent = false)
@@ -165,8 +165,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
         Right(builder.result())
     catch
       case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe))
+      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def loadCommit(sha: CommitSha): Either[GitError, RawCommit] =
     try
@@ -176,8 +176,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
         Right(toRawCommit(commit))
     catch
       case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe))
+      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def loadTagger(name: String): Either[GitError, Long] =
     try
@@ -190,8 +190,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
           .map(oid => rw.parseTag(oid).getTaggerIdent.unsafe.getWhenAsInstant.unsafe.getEpochSecond)
     catch
       case e: MissingObjectException       => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe))
+      case e: IncorrectObjectTypeException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+      case e: java.io.IOException          => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def signingKey: Either[GitError, Option[String]] =
     Right(Option(GpgConfig(repo.getConfig).getSigningKey).map(_.unsafe).filter(_.nonEmpty))
@@ -223,8 +223,8 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
             .unsafe
           Right(CommitSha(commit.getId.unsafe.name))
       catch
-        case e: org.eclipse.jgit.api.errors.GitAPIException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-        case e: java.io.IOException                         => Left(GitError.BackendFailure(e.getMessage.unsafe))
+        case e: org.eclipse.jgit.api.errors.GitAPIException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+        case e: java.io.IOException                         => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   def createTag(
     name: String,
@@ -251,18 +251,18 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
             Right(())
       catch
         case e: MissingObjectException                      => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-        case e: org.eclipse.jgit.api.errors.GitAPIException => Left(GitError.BackendFailure(e.getMessage.unsafe))
-        case e: java.io.IOException                         => Left(GitError.BackendFailure(e.getMessage.unsafe))
+        case e: org.eclipse.jgit.api.errors.GitAPIException => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
+        case e: java.io.IOException                         => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   // Hand-built rather than through JGit's own signing so that both backends sign along the one GpgSigner path.
   private def signedCommit(message: String, author: AuthorSignature): Either[GitError, CommitSha] =
     signingKey.flatMap:
-      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
+      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured", None))
       case Some(key) =>
         try
           repo
             .resolve(Constants.HEAD)
-            .either[GitError](GitError.BackendFailure("cannot create a signed commit on an unborn HEAD"))
+            .either[GitError](GitError.BackendFailure("cannot create a signed commit on an unborn HEAD", None))
             .flatMap: headId =>
               Using.resource(new RevWalk(repo)): rw =>
                 val parent = rw.parseCommit(headId)
@@ -287,12 +287,12 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
                       refUpdated(update.update().unsafe).map(_ => CommitSha(commitId.name))
         catch
           case e: MissingObjectException => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-          case e: java.io.IOException    => Left(GitError.BackendFailure(e.getMessage.unsafe))
+          case e: java.io.IOException    => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   // The signature must cover the bytes JGit will write, including the newline it requires at the end of the message.
   private def signedTag(name: String, target: CommitSha, message: String, tagger: AuthorSignature): Either[GitError, Unit] =
     signingKey.flatMap:
-      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
+      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured", None))
       case Some(key) =>
         try
           Using.resource(new RevWalk(repo)): rw =>
@@ -315,12 +315,12 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
                   refUpdated(update.update().unsafe)
         catch
           case e: MissingObjectException => Left(GitError.ObjectNotFound(e.getObjectId.unsafe.name))
-          case e: java.io.IOException    => Left(GitError.BackendFailure(e.getMessage.unsafe))
+          case e: java.io.IOException    => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   private def refUpdated(result: RefUpdate.Result): Either[GitError, Unit] =
     // Java enum singletons: reference equality, avoiding a CanEqual instance under strict equality.
     if result.eq(RefUpdate.Result.NEW) || result.eq(RefUpdate.Result.FAST_FORWARD) || result.eq(RefUpdate.Result.FORCED) then Right(())
-    else Left(GitError.BackendFailure(s"reference update rejected: $result"))
+    else Left(GitError.BackendFailure(s"reference update rejected: $result", None))
 
   private def firstLine(s: String): String = s.takeWhile(_ != '\n')
 
@@ -388,7 +388,7 @@ object JvmGitRepository:
     try Right(new JvmGitRepository(builder.build().unsafe))
     catch
       case _: RepositoryNotFoundException => Left(GitError.RepositoryNotFound(path))
-      case e: java.io.IOException         => Left(GitError.BackendFailure(e.getMessage.unsafe))
+      case e: java.io.IOException         => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 
   // A parent that cannot be resolved ends the search: an unreadable ancestor must not let discovery escape upwards.
   private def blocked(parent: java.io.File, start: java.io.File, ceilings: Seq[java.nio.file.Path]): Boolean =

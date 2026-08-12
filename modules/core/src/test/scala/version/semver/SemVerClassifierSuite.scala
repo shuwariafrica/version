@@ -31,7 +31,7 @@ class SemVerClassifierSuite extends FunSuite:
 
   private def v(input: String): SemVer = SemVer.parseUnsafe(input)
 
-  private def n(value: Long): PreReleaseNumber = PreReleaseNumber.fromUnsafe(value)
+  private def n(value: Long): PreReleaseNumber = PreReleaseNumber.ofUnsafe(value)
 
   test("a classifier is numbered unless it is SNAPSHOT") {
     assert(PreReleaseClassifier.Dev.versioned)
@@ -68,21 +68,21 @@ class SemVerClassifierSuite extends FunSuite:
   }
 
   test("construction pairs a numbered classifier with its number") {
-    assertEquals(PreRelease.from(PreReleaseClassifier.Alpha, Some(n(5))).map(_.show), Right("alpha.5"))
-    assertEquals(PreRelease.from(PreReleaseClassifier.Snapshot, None).map(_.show), Right("SNAPSHOT"))
+    assertEquals(PreRelease.of(PreReleaseClassifier.Alpha, Some(n(5))).map(_.show), Right("alpha.5"))
+    assertEquals(PreRelease.of(PreReleaseClassifier.Snapshot, None).map(_.show), Right("SNAPSHOT"))
   }
 
   test("a numbered classifier without a number is rejected") {
-    assertEquals(PreRelease.from(PreReleaseClassifier.Alpha, None), Left(MissingQualifierNumber("alpha")))
-    intercept[MissingQualifierNumber](PreRelease.fromUnsafe(PreReleaseClassifier.ReleaseCandidate, None))
+    assertEquals(PreRelease.of(PreReleaseClassifier.Alpha, None), Left(MissingQualifierNumber("alpha")))
+    intercept[MissingQualifierNumber](PreRelease.ofUnsafe(PreReleaseClassifier.ReleaseCandidate, None))
   }
 
   test("an unnumbered classifier given a number is rejected") {
     assertEquals(
-      PreRelease.from(PreReleaseClassifier.Snapshot, Some(n(1))),
+      PreRelease.of(PreReleaseClassifier.Snapshot, Some(n(1))),
       Left(UnexpectedQualifierNumber("SNAPSHOT", 1L))
     )
-    intercept[UnexpectedQualifierNumber](PreRelease.fromUnsafe(PreReleaseClassifier.Snapshot, Some(n(1))))
+    intercept[UnexpectedQualifierNumber](PreRelease.ofUnsafe(PreReleaseClassifier.Snapshot, Some(n(1))))
   }
 
   test("the named factories render their classifier and number") {
@@ -95,11 +95,11 @@ class SemVerClassifierSuite extends FunSuite:
   }
 
   test("construction from identifiers rejects what the grammar forbids") {
-    assertEquals(PreRelease.from(Nil), Left(InvalidPreRelease(Nil)))
-    assertEquals(PreRelease.from(List("")), Left(InvalidPreRelease(List(""))))
-    assertEquals(PreRelease.from(List("alpha_1")), Left(InvalidPreRelease(List("alpha_1"))))
-    assertEquals(PreRelease.from(List("alpha", "01")), Left(InvalidPreRelease(List("alpha", "01"))))
-    assertEquals(PreRelease.from(List("alpha", "0")).map(_.show), Right("alpha.0"))
+    assertEquals(PreRelease.of(Nil), Left(InvalidPreRelease(Nil)))
+    assertEquals(PreRelease.of(List("")), Left(InvalidPreRelease(List(""))))
+    assertEquals(PreRelease.of(List("alpha_1")), Left(InvalidPreRelease(List("alpha_1"))))
+    assertEquals(PreRelease.of(List("alpha", "01")), Left(InvalidPreRelease(List("alpha", "01"))))
+    assertEquals(PreRelease.of(List("alpha", "0")).map(_.show), Right("alpha.0"))
   }
 
   test("the leading identifier names the classifier where it is a known alias") {
@@ -111,12 +111,12 @@ class SemVerClassifierSuite extends FunSuite:
 
   test("incrementing a pre-release advances its trailing number") {
     assertEquals(PreRelease.alpha(n(1)).increment.show, "alpha.2")
-    assertEquals(PreRelease.from(List("x", "7", "z", "92")).map(_.increment.show), Right("x.7.z.93"))
+    assertEquals(PreRelease.of(List("x", "7", "z", "92")).map(_.increment.show), Right("x.7.z.93"))
   }
 
   test("a pre-release ending in no number is left unchanged by increment") {
     assertEquals(PreRelease.snapshot.increment.show, "SNAPSHOT")
-    assertEquals(PreRelease.from(List("alpha")).map(_.increment.show), Right("alpha"))
+    assertEquals(PreRelease.of(List("alpha")).map(_.increment.show), Right("alpha"))
   }
 
   test("next on a numeric component resets the components below it") {

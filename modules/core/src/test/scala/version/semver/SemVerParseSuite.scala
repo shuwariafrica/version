@@ -26,7 +26,7 @@ class SemVerParseSuite extends FunSuite:
 
   private def parsed(input: String): SemVer = SemVer.parse(input) match
     case Right(v) => v
-    case Left(e)  => fail(s"parse of '$input' failed: ${e.message}")
+    case Left(e)  => fail(s"parse of '$input' failed: ${e.getMessage}")
 
   private def identifiers(input: String): List[String] =
     parsed(input).preRelease.map(_.identifiers).getOrElse(Nil)

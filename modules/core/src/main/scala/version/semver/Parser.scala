@@ -33,8 +33,8 @@ private[semver] object Parser:
       val (core, pre) = section(beforeBuild, '-')
       coreComponents(core, input).flatMap { (major, minor, patch) =>
         for
-          preRelease <- optional(pre)(ids => PreRelease.from(ids))
-          metadata <- optional(build)(ids => Metadata.from(ids))
+          preRelease <- optional(pre)(ids => PreRelease.of(ids))
+          metadata <- optional(build)(ids => Metadata.of(ids))
         yield SemVer(Major.wrap(major), Minor.wrap(minor), Patch.wrap(patch), preRelease, metadata)
       }
 

@@ -53,9 +53,9 @@ final case class ShowConfig(
 final case class TargetConfig(set: Option[String], increment: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
     derives CanEqual
 
-/** Create an annotated tag at HEAD; `version` defaults to the target version when absent. */
-final case class TagConfig(version: Option[String], message: Option[String], noSign: Boolean, dryRun: Boolean) extends CommandConfig
-    derives CanEqual
+/** Create an annotated tag; `version` defaults to the target version, which `prefix` then leads. */
+final case class TagConfig(version: Option[String], message: Option[String], prefix: String, noSign: Boolean, dryRun: Boolean)
+    extends CommandConfig derives CanEqual
 
 /** List the release history (annotated version tags), newest first, with optional scheme-generic filters. */
 final case class ListConfig(limit: Option[Int], finalOnly: Boolean, since: Option[String], until: Option[String], details: Boolean)
@@ -210,6 +210,15 @@ object CliOptions:
       }
       .text("Create the object unsigned, even when a signing key is configured.")
 
+    private def optPrefix = opt[String]("prefix")
+      .valueName("<text>")
+      .action { (p, c) =>
+        c.copy(command = c.command match
+          case g: TagConfig => g.copy(prefix = p)
+          case other        => other)
+      }
+      .text("Lead the derived tag name with <text> (e.g. 'v'); an explicit version is written as given.")
+
     private def optMessage = opt[String]('m', "message")
       .action { (msg, c) =>
         c.copy(command = c.command match
@@ -228,14 +237,14 @@ object CliOptions:
       .text("List only final releases, excluding pre-releases.")
 
     private def optSince = opt[String]("since")
-      .valueName("<version>")
+      .valueName("<version|line>")
       .action((v, c) => updateList(c)(_.copy(since = Some(v))))
-      .text("List only releases at or above <version>.")
+      .text("List only releases at or above <version>, or on or above the line <line> (1, 1.x, 1.2).")
 
     private def optUntil = opt[String]("until")
-      .valueName("<version>")
+      .valueName("<version|line>")
       .action((v, c) => updateList(c)(_.copy(until = Some(v))))
-      .text("List only releases at or below <version>.")
+      .text("List only releases at or below <version>, or on or below the line <line> (1, 1.x, 1.2).")
 
     private def optDetails = opt[Unit]("details")
       .action((_, c) => updateList(c)(_.copy(details = true)))
@@ -262,7 +271,7 @@ object CliOptions:
     }
 
     private val cmdTag = cmd("tag")
-      .action((_, c) => c.copy(command = TagConfig(None, None, noSign = false, dryRun = false)))
+      .action((_, c) => c.copy(command = TagConfig(None, None, prefix = "", noSign = false, dryRun = false)))
       .text("Create an annotated tag at HEAD using the target (or given) version.")
       .children(
         arg[String]("<version>")
@@ -270,10 +279,11 @@ object CliOptions:
           .action { (v, c) =>
             c.copy(command = c.command match
               case g: TagConfig => g.copy(version = Some(v))
-              case _            => TagConfig(Some(v), None, noSign = false, dryRun = false))
+              case _            => TagConfig(Some(v), None, prefix = "", noSign = false, dryRun = false))
           }
           .text("Explicit tag version (default: the resolved version)."),
         optMessage,
+        optPrefix,
         optNoSign,
         optDryRun
       )

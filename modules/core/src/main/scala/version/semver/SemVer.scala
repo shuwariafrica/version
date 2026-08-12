@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.semver
 
+import boilerplate.ValueCodec
+
 import scala.annotation.targetName
 
 import version.*
@@ -255,7 +257,7 @@ object SemVer:
         metadata.prNumber.map(n => s"pr${Math.max(0, n)}"),
         Option.when(metadata.isDirty)("dirty")
       ).flatten
-      SemVer(release.major, release.minor, release.patch, Some(PreRelease.snapshot), Metadata.from(identifiers).toOption)
+      SemVer(release.major, release.minor, release.patch, Some(PreRelease.snapshot), Metadata.of(identifiers).toOption)
 
     def defaultTarget(base: SemVer): SemVer = advance(base, Intent.Fix)
 
@@ -272,6 +274,11 @@ object SemVer:
 
     extension (v: SemVer) def snapshot: Boolean = v.preRelease.exists(_.classifier.contains(PreReleaseClassifier.Snapshot))
   end resolvable
+
+  /** Binds a version to the text carrying it - a path segment, a query parameter, a header - for a service that reads
+    * and writes versions at a wire boundary.
+    */
+  given valueCodec: ValueCodec.Aux[SemVer, VersionError] = ValueCodec(Parser.parse(_), v => v.show)
 
   /** Provides the named compatibility rules for [[SemVer]]. No instance is given: the two rules disagree below
     * `1.0.0`, and choosing between them is the consumer's commitment.
@@ -300,8 +307,8 @@ object SemVer:
       if !target.versioned then Left(ClassifierNotVersioned(target.show))
       else
         for
-          number <- PreReleaseNumber.from(n)
-          label <- PreRelease.from(target, Some(number))
+          number <- PreReleaseNumber.of(n)
+          label <- PreRelease.of(target, Some(number))
         yield SemVer(v.major, v.minor, v.patch, label)
 
     def as[C](using cls: PreReleaseClass[C]): SemVer =
@@ -342,9 +349,9 @@ object SemVer:
     case _ => SemVer(base.major, base.minor, base.patch.increment)
 
   private def assign(base: SemVer, axis: Int, value: Long): Either[VersionError, SemVer] = axis match
-    case 0 => Major.from(value).map(m => SemVer(m, Minor.reset, Patch.reset))
-    case 1 => Minor.from(value).map(m => SemVer(base.major, m, Patch.reset))
-    case _ => Patch.from(value).map(p => SemVer(base.major, base.minor, p))
+    case 0 => Major.of(value).map(m => SemVer(m, Minor.reset, Patch.reset))
+    case 1 => Minor.of(value).map(m => SemVer(base.major, m, Patch.reset))
+    case _ => Patch.of(value).map(p => SemVer(base.major, base.minor, p))
 
   private def axis(component: String): Either[VersionError, Int] = component match
     case "major" => Right(0)

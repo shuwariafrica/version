@@ -15,85 +15,62 @@
  ****************************************************************************/
 package version.resolution.logging
 
-/** Logging levels for the version resolution system.
-  *
-  * Zero-cost abstraction using inline methods and compile-time evaluation to ensure no runtime overhead when logging is
-  * disabled.
-  */
-enum LogLevel:
-  /** Error level - always enabled, for critical failures and errors. */
+/** How much a log entry has to say for itself. */
+enum LogLevel derives CanEqual:
+
+  /** A failure the caller needs, emitted whatever the logger's verbosity. */
   case Error
-  /** Verbose level - enabled only with verbose flag, for debug information. */
+
+  /** Detail about how a version was reached, emitted only by a logger that asked for it. */
   case Verbose
 
-object LogLevel:
-  given CanEqual[LogLevel, LogLevel] = CanEqual.derived
+/** One thing worth saying, with the part of the engine that said it. */
+final case class LogEntry(level: LogLevel, message: String, context: Option[String])
 
-  extension (level: LogLevel)
-    /** Check if this level should be logged given a [[Verbose]] flag. */
-    inline def isEnabled(inline verbose: Verbose): Boolean =
-      inline level match
-        case LogLevel.Error   => true
-        case LogLevel.Verbose => verbose.isEnabled
-
-/** Pure data representing a log entry. */
-final case class LogEntry(
-  level: LogLevel,
-  message: String,
-  context: Option[String]
-)
-
+/** Provides instances for [[LogEntry]]. */
 object LogEntry:
   given CanEqual[LogEntry, LogEntry] = CanEqual.derived
 
-/** Abstract interface for log output handling.
+/** Where the resolution engine's diagnostics go.
   *
-  * This trait enables pluggable logging implementations, allowing build tools and other consumers to integrate with
-  * their own logging frameworks.
+  * A consumer implements this against its own logging - sbt's, a build tool's, a service's - and answers
+  * [[Logger.verboseEnabled verboseEnabled]] for whether it wants the detail. That answer is the only verbosity switch:
+  * the engine asks the logger rather than being told separately.
   */
 trait Logger:
-  /** Output a log entry. Implementation determines where it goes (stderr, stdout, etc). */
+
+  /** Emits `entry` wherever this logger writes. */
   def log(entry: LogEntry): Unit
 
+  /** Whether this logger wants verbose entries. Asked before each one is built. */
+  def verboseEnabled: Boolean
+
+/** Provides the logging operations and the default instance for [[Logger]]. */
 object Logger:
 
-  /** Zero-cost logging macros that eliminate overhead when logging is disabled.
-    *
-    * These inline methods use compile-time evaluation to completely remove logging calls when the level is not enabled,
-    * achieving true zero-cost abstraction.
-    */
+  /** Records nothing, so that resolution runs without a logger being wired at all. Override locally to see anything. */
+  given Logger = NullLogger
+
   extension (logger: Logger)
-    /** Log an error message. Always emitted regardless of verbose setting. */
+    /** Records a failure, whatever this logger's verbosity. */
     inline def error(inline message: String, inline context: String): Unit =
       logger.log(LogEntry(LogLevel.Error, message, if context.nonEmpty then Some(context) else None))
+
     inline def error(inline message: String): Unit =
       logger.log(LogEntry(LogLevel.Error, message, None))
 
-    /** Log a verbose/debug message. Only emitted when verbose mode is enabled.
-      *
-      * The message expression is only evaluated if verbose logging is enabled, providing zero-cost abstraction for
-      * expensive debug computations.
+    /** Records detail, where this logger wants it. The message is built only then, so composing one costs nothing
+      * when nobody is listening.
       */
-    def verbose(message: String, context: String)(using v: Verbose): Unit =
-      if v.isEnabled then logger.log(LogEntry(LogLevel.Verbose, message, if context.nonEmpty then Some(context) else None))
-    def verbose(message: String)(using v: Verbose): Unit =
-      if v.isEnabled then logger.log(LogEntry(LogLevel.Verbose, message, None))
+    inline def verbose(inline message: String, inline context: String): Unit =
+      if logger.verboseEnabled then logger.log(LogEntry(LogLevel.Verbose, message, if context.nonEmpty then Some(context) else None))
 
-    /** Log a verbose message with lazy evaluation of an expensive computation.
-      *
-      * The computation is only performed if verbose logging is enabled.
-      */
-    def verboseLazy[T](computation: => T, messageTemplate: T => String, context: String)(using v: Verbose): Unit =
-      if v.isEnabled then
-        val result = computation
-        logger.log(LogEntry(LogLevel.Verbose, messageTemplate(result), if context.nonEmpty then Some(context) else None))
-    def verboseLazy[T](computation: => T, messageTemplate: T => String)(using v: Verbose): Unit =
-      if v.isEnabled then
-        val result = computation
-        logger.log(LogEntry(LogLevel.Verbose, messageTemplate(result), None))
+    inline def verbose(inline message: String): Unit =
+      if logger.verboseEnabled then logger.log(LogEntry(LogLevel.Verbose, message, None))
   end extension
 end Logger
 
-/** Null logger (does nothing). Provided in core so external users can opt out of logging with zero overhead. */
+/** Records nothing. */
 object NullLogger extends Logger:
   def log(entry: LogEntry): Unit = ()
+  def verboseEnabled: Boolean = false

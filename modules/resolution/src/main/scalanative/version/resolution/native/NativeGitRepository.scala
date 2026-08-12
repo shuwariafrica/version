@@ -48,16 +48,16 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     val objOut = stackalloc[Ptr[Byte]](1)
     val unborn = git_repository_head_unborn(repo)
     if unborn == 1 then Right(None)
-    else if unborn < 0 then Left(GitError.BackendFailure(lastError))
+    else if unborn < 0 then Left(GitError.BackendFailure(lastError, None))
     else
       val rc = git_repository_head(refOut, repo)
       if rc == GIT_EUNBORNBRANCH then Right(None)
-      else if rc < 0 then Left(GitError.BackendFailure(lastError))
+      else if rc < 0 then Left(GitError.BackendFailure(lastError, None))
       else
         val ref = !refOut
         val peelRc = git_reference_peel(objOut, ref, GIT_OBJECT_COMMIT)
         git_reference_free(ref)
-        if peelRc < 0 then Left(GitError.BackendFailure(lastError))
+        if peelRc < 0 then Left(GitError.BackendFailure(lastError, None))
         else
           val obj = !objOut
           val hex = oidToHex(git_object_id(obj))
@@ -70,7 +70,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val rc = git_revparse_single(objOut, repo, toCString(rev))
       if rc == GIT_ENOTFOUND then Left(GitError.RevisionNotFound(rev))
       else if rc == GIT_EAMBIGUOUS then Left(GitError.AmbiguousRevision(rev))
-      else if rc < 0 then Left(GitError.BackendFailure(lastError))
+      else if rc < 0 then Left(GitError.BackendFailure(lastError, None))
       else
         val obj = !objOut
         val hex = oidToHex(git_object_id(obj))
@@ -84,7 +84,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     else
       val rc = git_repository_head(refOut, repo)
       if rc == GIT_EUNBORNBRANCH then Right(None)
-      else if rc < 0 then Left(GitError.BackendFailure(lastError))
+      else if rc < 0 then Left(GitError.BackendFailure(lastError, None))
       else
         val ref = !refOut
         val name = git_reference_shorthand(ref)
@@ -102,7 +102,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   def clean: Either[GitError, Boolean] =
     val rc = git_workdir_dirty_count(repo)
-    if rc < 0 then Left(GitError.BackendFailure(lastError))
+    if rc < 0 then Left(GitError.BackendFailure(lastError, None))
     else Right(rc == 0)
 
   def tags: Either[GitError, IArray[RawTag]] =
@@ -111,7 +111,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     val tagObjOut = stackalloc[Ptr[Byte]](1)
     val commitObjOut = stackalloc[Ptr[Byte]](1)
     val rc = git_reference_iterator_glob_new(iterOut, repo, c"refs/tags/*")
-    if rc < 0 then Left(GitError.BackendFailure(lastError))
+    if rc < 0 then Left(GitError.BackendFailure(lastError, None))
     else
       val iter = !iterOut
       val builder = IArray.newBuilder[RawTag]
@@ -152,7 +152,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val rc = git_graph_descendant_of(repo, commitOid, ancestorOid)
       if rc == 1 then Right(true)
       else if rc == 0 then Right(false)
-      else Left(GitError.BackendFailure(lastError))
+      else Left(GitError.BackendFailure(lastError, None))
 
   def reachableTags(from: CommitSha, tagCommits: Set[CommitSha]): Either[GitError, Set[CommitSha]] =
     val walkOut = stackalloc[Ptr[Byte]](1)
@@ -161,7 +161,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     if tagCommits.isEmpty then Right(Set.empty)
     else
       val rc = git_revwalk_new(walkOut, repo)
-      if rc < 0 then Left(GitError.BackendFailure(lastError))
+      if rc < 0 then Left(GitError.BackendFailure(lastError, None))
       else
         val walk = !walkOut
         val sortRc = git_revwalk_sorting(walk, GIT_SORT_TIME)
@@ -169,7 +169,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         val pushRc = if sortRc < 0 then sortRc else git_revwalk_push(walk, fromOid)
         if pushRc < 0 then
           git_revwalk_free(walk)
-          Left(GitError.BackendFailure(lastError))
+          Left(GitError.BackendFailure(lastError, None))
         else
           // Membership is tested once per commit of the walk, so the sets hold plain hex and stay mutable.
           val remaining = mutable.HashSet.from(tagCommits.iterator.map(_.value))
@@ -201,7 +201,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
     val untilOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
     val oidBuf = stackalloc[Byte](GIT_OID_SHA1_SIZE)
     val rc = git_revwalk_new(walkOut, repo)
-    if rc < 0 then Left(GitError.BackendFailure(lastError))
+    if rc < 0 then Left(GitError.BackendFailure(lastError, None))
     else
       val walk = !walkOut
       val sortRc = git_revwalk_sorting(walk, GIT_SORT_TIME)
@@ -210,7 +210,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val pushRc = if sortRc < 0 then sortRc else git_revwalk_push(walk, fromOid)
       if pushRc < 0 then
         git_revwalk_free(walk)
-        Left(GitError.BackendFailure(lastError))
+        Left(GitError.BackendFailure(lastError, None))
       else
         val hideRc = until match
           case Some(u) =>
@@ -219,7 +219,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           case None => GIT_OK
         if hideRc < 0 then
           git_revwalk_free(walk)
-          Left(GitError.BackendFailure(lastError))
+          Left(GitError.BackendFailure(lastError, None))
         else
           val builder = IArray.newBuilder[RawCommit]
           var walkRc = git_revwalk_next(oidBuf, walk)
@@ -274,7 +274,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         val ref = !refOut
         val peelRc = git_reference_peel(tagObjOut, ref, GIT_OBJECT_TAG)
         git_reference_free(ref)
-        if peelRc < 0 then Left(GitError.BackendFailure(lastError))
+        if peelRc < 0 then Left(GitError.BackendFailure(lastError, None))
         else
           val tagObj = !tagObjOut
           val sig = git_tag_tagger(tagObj)
@@ -285,7 +285,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
 
   def signingKey: Either[GitError, Option[String]] =
     val cfgOut = stackalloc[Ptr[Byte]](1)
-    if git_repository_config_snapshot(cfgOut, repo) < 0 then Left(GitError.BackendFailure(lastError))
+    if git_repository_config_snapshot(cfgOut, repo) < 0 then Left(GitError.BackendFailure(lastError, None))
     else
       val cfg = !cfgOut
       val valueOut = stackalloc[CString](1)
@@ -296,13 +296,13 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           val value = fromCString(!valueOut)
           Right(if value.nonEmpty then Some(value) else None)
         else if getRc == GIT_ENOTFOUND then Right(None)
-        else Left(GitError.BackendFailure(lastError))
+        else Left(GitError.BackendFailure(lastError, None))
       git_config_free(cfg)
       outcome
 
   def defaultSignature: Either[GitError, AuthorSignature] =
     val cfgOut = stackalloc[Ptr[Byte]](1)
-    if git_repository_config_snapshot(cfgOut, repo) < 0 then Left(GitError.BackendFailure(lastError))
+    if git_repository_config_snapshot(cfgOut, repo) < 0 then Left(GitError.BackendFailure(lastError, None))
     else
       val cfg = !cfgOut
       val nameOut = stackalloc[CString](1)
@@ -313,7 +313,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       val outcome =
         if nameRc == GIT_OK && emailRc == GIT_OK then
           Right(AuthorSignature(fromCString(!nameOut), fromCString(!emailOut), System.currentTimeMillis() / 1000L, 0))
-        else Left(GitError.BackendFailure("user.name and user.email must be configured"))
+        else Left(GitError.BackendFailure("user.name and user.email must be configured", None))
       git_config_free(cfg)
       outcome
 
@@ -326,12 +326,12 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         val sigOut = stackalloc[Ptr[Byte]](1)
         val parents = stackalloc[Ptr[Byte]](1)
         val newOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-        if git_revparse_single(headOut, repo, c"HEAD") < 0 then Left(GitError.BackendFailure(lastError))
+        if git_revparse_single(headOut, repo, c"HEAD") < 0 then Left(GitError.BackendFailure(lastError, None))
         else
           val head = !headOut
           if git_commit_tree(treeOut, head) < 0 then
             git_object_free(head)
-            Left(GitError.BackendFailure(lastError))
+            Left(GitError.BackendFailure(lastError, None))
           else
             val tree = !treeOut
             val sigRc =
@@ -339,7 +339,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
             if sigRc < 0 then
               git_tree_free(tree)
               git_object_free(head)
-              Left(GitError.BackendFailure(lastError))
+              Left(GitError.BackendFailure(lastError, None))
             else
               val sig = !sigOut
               !parents = head
@@ -348,14 +348,14 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
               git_signature_free(sig)
               git_tree_free(tree)
               git_object_free(head)
-              if createRc < 0 then Left(GitError.BackendFailure(lastError))
+              if createRc < 0 then Left(GitError.BackendFailure(lastError, None))
               else Right(CommitSha(oidToHex(newOid)))
         end if
 
   // Hand-built rather than through git_commit_create so that both backends sign along the one GpgSigner path.
   private def signedCommit(message: String, author: AuthorSignature): Either[GitError, CommitSha] =
     signingKey.flatMap:
-      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
+      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured", None))
       case Some(key) => signedCommitWith(message, author, key)
 
   private def signedCommitWith(message: String, author: AuthorSignature, key: String): Either[GitError, CommitSha] =
@@ -372,12 +372,12 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
       buf._1 = null.asInstanceOf[CString]
       buf._2 = 0.toUSize
       buf._3 = 0.toUSize
-      if git_revparse_single(headOut, repo, c"HEAD") < 0 then Left(GitError.BackendFailure(lastError))
+      if git_revparse_single(headOut, repo, c"HEAD") < 0 then Left(GitError.BackendFailure(lastError, None))
       else
         val head = !headOut
         if git_commit_tree(treeOut, head) < 0 then
           git_object_free(head)
-          Left(GitError.BackendFailure(lastError))
+          Left(GitError.BackendFailure(lastError, None))
         else
           val tree = !treeOut
           val sigRc =
@@ -385,7 +385,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
           if sigRc < 0 then
             git_tree_free(tree)
             git_object_free(head)
-            Left(GitError.BackendFailure(lastError))
+            Left(GitError.BackendFailure(lastError, None))
           else
             val sig = !sigOut
             !parents = head
@@ -396,7 +396,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
             git_object_free(head)
             if bufRc < 0 then
               git_buf_dispose(buf)
-              Left(GitError.BackendFailure(lastError))
+              Left(GitError.BackendFailure(lastError, None))
             else
               val content = readBuf(buf)
               GpgSigner.sign(content, key) match
@@ -406,13 +406,13 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
                 case Right(signature) =>
                   val createRc = git_commit_create_with_signature(newOid, repo, buf._1, toCString(signature), null.asInstanceOf[CString])
                   git_buf_dispose(buf)
-                  if createRc < 0 then Left(GitError.BackendFailure(lastError))
-                  else if git_repository_head(refOut, repo) < 0 then Left(GitError.BackendFailure(lastError))
+                  if createRc < 0 then Left(GitError.BackendFailure(lastError, None))
+                  else if git_repository_head(refOut, repo) < 0 then Left(GitError.BackendFailure(lastError, None))
                   else
                     val ref = !refOut
                     val setRc = git_reference_set_target(newRefOut, ref, newOid, toCString(s"commit (signed): ${firstLine(message)}"))
                     git_reference_free(ref)
-                    if setRc < 0 then Left(GitError.BackendFailure(lastError))
+                    if setRc < 0 then Left(GitError.BackendFailure(lastError, None))
                     else
                       git_reference_free(!newRefOut)
                       Right(CommitSha(oidToHex(newOid)))
@@ -420,7 +420,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
         end if
       end if
 
-  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] = Slice.of(buf._1, buf._3.toInt).toArray
+  private def readBuf(buf: Ptr[GitBuf]): Array[Byte] = Slice.borrowing(buf._1, buf._3.toInt)(_.toArray)
 
   private inline def firstLine(s: String): String = s.takeWhile(_ != '\n')
 
@@ -440,20 +440,20 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
             git_signature_new(sigOut, toCString(tagger.name), toCString(tagger.email), tagger.whenEpochSeconds, tagger.offsetMinutes)
           if sigRc < 0 then
             git_commit_free(commit)
-            Left(GitError.BackendFailure(lastError))
+            Left(GitError.BackendFailure(lastError, None))
           else
             val sig = !sigOut
             val createRc = git_tag_create(tagOid, repo, toCString(name), commit, sig, toCString(message), 0)
             git_signature_free(sig)
             git_commit_free(commit)
-            if createRc < 0 then Left(GitError.BackendFailure(lastError))
+            if createRc < 0 then Left(GitError.BackendFailure(lastError, None))
             else Right(())
 
   // The signature must cover the exact bytes of the tag object, so the payload is assembled here rather than by
   // git_tag_create, and its message keeps the trailing newline that puts the signature on a line of its own.
   private def signedTag(name: String, target: CommitSha, message: String, tagger: AuthorSignature): Either[GitError, Unit] =
     signingKey.flatMap:
-      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured"))
+      case None      => Left(GitError.SigningFailure("signing requested but user.signingkey is not configured", None))
       case Some(key) =>
         val payload = tagPayload(name, target, message, tagger)
         GpgSigner
@@ -462,7 +462,7 @@ final class NativeGitRepository private (repo: Ptr[Byte]) extends GitRepository:
             val full = payload + signature + "\n"
             Zone:
               val tagOid = stackalloc[Byte](GIT_OID_SHA1_SIZE)
-              if git_tag_create_from_buffer(tagOid, repo, toCString(full), 0) < 0 then Left(GitError.BackendFailure(lastError))
+              if git_tag_create_from_buffer(tagOid, repo, toCString(full), 0) < 0 then Left(GitError.BackendFailure(lastError, None))
               else Right(())
 
   private def tagPayload(name: String, target: CommitSha, message: String, tagger: AuthorSignature): String =
@@ -548,7 +548,7 @@ object NativeGitRepository:
       val ceilings = ceilingDirs.fold(null.asInstanceOf[CString])(toCString)
       val rc = git_repository_open_ext(repoOut, toCString(path), flags.toUInt, ceilings)
       if rc == GIT_ENOTFOUND then Left(GitError.RepositoryNotFound(path))
-      else if rc < 0 then Left(GitError.BackendFailure(lastError))
+      else if rc < 0 then Left(GitError.BackendFailure(lastError, None))
       else Right(new NativeGitRepository(!repoOut))
     if result.isLeft then git_libgit2_shutdown(): Unit
     result

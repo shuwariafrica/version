@@ -21,12 +21,12 @@ Register-ArgumentCompleter -Native -CommandName version -ScriptBlock {
     )
     $perCommand = @{
         target  = @('-s', '--set', '-i', '--increment', '--dry-run', '--no-sign')
-        tag     = @('-m', '--message', '--no-sign', '--dry-run')
+        tag     = @('-m', '--message', '--prefix', '--no-sign', '--dry-run')
         list    = @('-n', '--limit', '--final', '--since', '--until', '--details')
     }
     $valueOptions = @(
         '-r', '--repository', '-b', '--basis-commit', '--pr', '--branch-override',
-        '--sha-length', '-m', '--message', '-s', '--set', '-n', '--limit', '--since', '--until'
+        '--sha-length', '-m', '--message', '--prefix', '-s', '--set', '-n', '--limit', '--since', '--until'
     )
 
     # Scan the typed elements for the selected subcommand and the token left of the cursor.

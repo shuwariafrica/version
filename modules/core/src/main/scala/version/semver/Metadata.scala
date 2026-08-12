@@ -29,13 +29,13 @@ opaque type Metadata = List[String]
 object Metadata extends OpaqueType[Metadata, List[String]], OpaqueType.Eq[Metadata]:
   type Error = InvalidMetadata
 
-  def wrap(ids: List[String]): Metadata = ids
+  protected inline def wrap(ids: List[String]): Metadata = ids
   def unwrap(bm: Metadata): List[String] = bm
-  inline def apply(inline identifiers: List[String]): Metadata = fromUnsafe(identifiers)
+  inline def apply(inline identifiers: List[String]): Metadata = ofUnsafe(identifiers)
 
-  protected inline def validate(ids: List[String]): Option[Error] =
-    if ids.nonEmpty && ids.forall(Identifier.valid) then None
-    else Some(InvalidMetadata(ids))
+  protected inline def validate(ids: List[String]): Either[Error, List[String]] =
+    if ids.nonEmpty && ids.forall(Identifier.valid) then Right(ids)
+    else Left(InvalidMetadata(ids))
 
   extension (metadata: Metadata)
     inline def identifiers: List[String] = unwrap(metadata)

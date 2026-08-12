@@ -1,14 +1,14 @@
-# Pre-1.0 (major 0) bump capping
+# Pre-1.0 (major 0) tier policy
 
 > gitInit
 > reload
 
-# A breaking bump on a 0.x base advances minor, not major
-> gitCommitMsg version: major
+# A breaking intent stays on the 0.x line
+> gitCommitMsg breaking: rework the interface
 > reload
 > checkPrefix 0.94.0-SNAPSHOT
 
-# An explicit major set is honoured, reaching 1.0.0
-> gitCommitMsg version: major: 1
+# A positional bump is not held below 1.0.0
+> gitCommitMsg version: major
 > reload
 > checkPrefix 1.0.0-SNAPSHOT

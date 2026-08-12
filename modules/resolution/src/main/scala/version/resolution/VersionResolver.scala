@@ -13,9 +13,14 @@
  * See the License for the specific language governing permissions and      *
  * limitations under the License.                                           *
  ****************************************************************************/
-package version
+package version.resolution
 
 import scala.annotation.targetName
+
+import version.Formatter
+import version.ResolvableScheme
+import version.VersionArithmetic
+import version.VersionScheme
 
 /** Every scheme-typed piece a version pipeline needs, held behind a single `V` so that a scheme cannot be paired with
   * a tag parser, formatter, or capability instance belonging to another.
@@ -35,8 +40,16 @@ object VersionResolver:
 
   given [V]: CanEqual[VersionResolver[V], VersionResolver[V]] = CanEqual.derived
 
-  /** The resolver over the contextual capabilities: tags are read by the scheme with the conventional `v` or `V`
-    * prefix stripped, and nothing is rendered other than canonically.
+  /** Reads a tag name as a version, tolerating the conventional `v` or `V` prefix that Git tags carry and the scheme
+    * does not.
+    */
+  def defaultTagParser[V](using scheme: VersionScheme[V]): String => Option[V] =
+    name =>
+      val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
+      scheme.parse(raw).toOption
+
+  /** The resolver over the contextual capabilities: tags are read by [[defaultTagParser]], and nothing is rendered
+    * other than canonically.
     */
   def withDefaults[V](using
     scheme: VersionScheme[V],
@@ -47,10 +60,7 @@ object VersionResolver:
       scheme = scheme,
       arithmetic = arithmetic,
       workflow = workflow,
-      tagParser = name =>
-        val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
-        scheme.parse(raw).toOption
-      ,
+      tagParser = defaultTagParser[V],
       formatter = None
     )
 

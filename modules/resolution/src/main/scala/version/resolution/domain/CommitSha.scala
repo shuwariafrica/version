@@ -34,15 +34,15 @@ object CommitSha extends OpaqueType[CommitSha, String], OpaqueType.Eq[CommitSha]
   // ObjectId. Add a Sha256HexLength sibling when both upstreams stabilise.
   private inline val Sha1HexLength = 40
 
-  def wrap(sha: String): CommitSha = sha.toLowerCase
+  protected inline def wrap(sha: String): CommitSha = sha.toLowerCase
   def unwrap(sha: CommitSha): String = sha
 
-  protected inline def validate(value: String): Option[Error] =
+  protected inline def validate(value: String): Either[Error, String] =
     if value.length == Sha1HexLength && value.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))
-    then None
-    else Some(ResolutionError.InvalidCommitSha(value))
+    then Right(value)
+    else Left(ResolutionError.InvalidCommitSha(value))
 
-  inline def apply(inline value: String): CommitSha = fromUnsafe(value)
+  inline def apply(inline value: String): CommitSha = ofUnsafe(value)
 
   extension (sha: CommitSha)
     /** The lowercase hex string value. */

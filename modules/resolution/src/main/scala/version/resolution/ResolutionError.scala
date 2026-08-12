@@ -15,31 +15,32 @@
  ****************************************************************************/
 package version.resolution
 
-import scala.util.control.NoStackTrace
+import boilerplate.TypedError
+import boilerplate.nullable.*
 
-/** Errors produced during version resolution.
+/** A failure that stopped a resolution run.
   *
-  * Every public method in the resolution module returns `Either[ResolutionError, ...]`. Git backend errors are wrapped
-  * in [[ResolutionError.GitFailure]] at the boundary. Module-scoped sealed ADT - does not extend
-  * [[version.errors.VersionError]].
+  * Every public operation in this module answers with one of these on its left; a [[GitError]] raised by the backend
+  * arrives wrapped in [[ResolutionError.GitFailure GitFailure]].
+  *
+  * Instances may be constructed via [[ResolutionError$ ResolutionError]].
   */
-sealed trait ResolutionError extends RuntimeException with NoStackTrace with Product with Serializable:
-  def message: String
-  final override def getMessage: String = message
+sealed abstract class ResolutionError(message: String, cause: Option[Throwable]) extends TypedError(message, cause)
 
+/** Provides the failure cases for [[ResolutionError]]. */
 object ResolutionError:
-  given CanEqual[ResolutionError, ResolutionError] = CanEqual.derived
 
-  /** Wraps a [[GitError]] at the resolution boundary. */
-  final case class GitFailure(cause: GitError) extends ResolutionError:
-    def message: String = cause.message
+  /** The Git backend failed, and says why. */
+  final case class GitFailure(cause: GitError) extends ResolutionError(cause.getMessage.unsafe, Some(cause))
 
   /** Basis commit must not be empty. */
-  final case class InvalidBasisCommit(value: String) extends ResolutionError:
-    def message: String = s"Basis commit must not be empty. Found: '$value'"
+  final case class InvalidBasisCommit(value: String) extends ResolutionError(s"Basis commit must not be empty. Found: '$value'", None)
 
   /** Invalid commit SHA - must be non-empty and contain only hexadecimal characters. */
-  final case class InvalidCommitSha(value: String) extends ResolutionError:
-    def message: String =
-      s"Invalid commit SHA: '$value'. Must be non-empty and contain only hexadecimal characters [0-9a-fA-F]."
+  final case class InvalidCommitSha(value: String)
+      extends ResolutionError(
+        s"Invalid commit SHA: '$value'. Must be non-empty and contain only hexadecimal characters [0-9a-fA-F].",
+        None
+      )
+
 end ResolutionError

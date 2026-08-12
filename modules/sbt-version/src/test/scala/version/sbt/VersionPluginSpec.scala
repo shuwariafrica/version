@@ -20,17 +20,13 @@ import sbt.util.Logger
 
 import java.nio.file.Files
 
-import version.ResolvableScheme
-import version.resolution.ResolutionConfig
-import version.resolution.ResolutionMode
 import version.resolution.domain.CiProvider
 import version.sbt.VersionPlugin.internal
-import version.semver.SemVer
 import version.testkit.Filesystem
 
 class VersionPluginSpec extends FunSuite:
 
-  /** Silent logger for tests -- expected fallback messages should not pollute test output. */
+  // The fallback paths log by design; silencing keeps expected messages out of the test output.
   private val testLogger: Logger = Logger.Null
 
   test("detectCiMetadata recognises GitHub Actions environment") {
@@ -65,25 +61,35 @@ class VersionPluginSpec extends FunSuite:
     assertEquals(internal.defaultVerbose(Map.empty), false)
   }
 
-  test("resolveResult returns the scheme's empty-metadata development version when not in a Git repository") {
-    val repo = Files.createTempDirectory("version-plugin-resolve-")
+  private def resolvedAt(path: String): internal.VersionResult[?] =
+    internal.resolve(internal.defaultResolver, None, path, testLogger)
+
+  private def target(result: internal.VersionResult[?]): String = result match
+    case r: internal.VersionResult[v] => r.scheme.show(r.target)
+
+  test("a directory in no repository falls back to the scheme's empty-metadata development version") {
+    val outside = Files.createTempDirectory("version-plugin-resolve-")
     try
-      val cfg = ResolutionConfig.default[SemVer](repo.toString)
-      val scheme = summon[ResolvableScheme[SemVer]]
-      val result = internal.resolveResult(cfg, testLogger, scheme)
-      assertEquals(result.resolved.show, "0.1.0-SNAPSHOT")
-      assertEquals(result.target.show, "0.1.0")
-      assertEquals(result.mode, ResolutionMode.Development)
-    finally Filesystem.removeRecursive(repo)
+      val result = resolvedAt(outside.toString)
+      assertEquals(internal.render(result), "0.1.0-SNAPSHOT")
+      assertEquals(target(result), "0.1.0")
+    finally Filesystem.removeRecursive(outside)
   }
 
-  test("resolveResult handles non-existent paths gracefully") {
-    val nonExistentRepo = Files.createTempDirectory("version-plugin-").resolve("does-not-exist")
-    val cfg = ResolutionConfig.default[SemVer](nonExistentRepo.toString)
-    val scheme = summon[ResolvableScheme[SemVer]]
-    val result = internal.resolveResult(cfg, testLogger, scheme)
-    assertEquals(result.resolved.show, "0.1.0-SNAPSHOT")
-    assertEquals(result.target.show, "0.1.0")
+  test("a path that does not exist falls back rather than failing") {
+    val result = resolvedAt(Files.createTempDirectory("version-plugin-").resolve("does-not-exist").toString)
+    assertEquals(internal.render(result), "0.1.0-SNAPSHOT")
+    assertEquals(target(result), "0.1.0")
+  }
+
+  test("the published version drops build metadata that the carrier's own rendering keeps") {
+    val outside = Files.createTempDirectory("version-plugin-rendering-")
+    try
+      val result = resolvedAt(outside.toString)
+      assert(!internal.render(result).contains("+"), clue(internal.render(result)))
+      result match
+        case r: internal.VersionResult[v] => assertEquals(r.scheme.show(r.value), "0.1.0-SNAPSHOT+detached")
+    finally Filesystem.removeRecursive(outside)
   }
 
 end VersionPluginSpec

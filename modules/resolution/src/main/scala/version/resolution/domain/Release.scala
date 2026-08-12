@@ -15,17 +15,16 @@
  ****************************************************************************/
 package version.resolution.domain
 
-import version.Version
-
-/** A released version: its parsed version, the tag name, the release time, and the commit the tag dereferences to.
+/** A version that was released, and when.
   *
-  * `releaseTime` is the annotated tag's tagger time (seconds since the Unix epoch) - when the release was tagged.
-  * `commit.commitTime` is the committer time of the source commit it points to, which may predate the release. Used as
-  * the anchoring release on [[version.resolution.ResolutionResult ResolutionResult]] and ordered by
-  * [[Release.version version]].
+  * `releaseTime` is the annotated tag's tagger time in seconds since the Unix epoch - when the release was cut, which
+  * may postdate `commit.commitTime`, the time the source commit was written.
+  *
+  * Instances are compared and ordered via [[Release$ Release]].
   */
-final case class Release[V <: Version](version: V, tag: String, releaseTime: Long, commit: RawCommit)
+final case class Release[V](version: V, tag: String, releaseTime: Long, commit: RawCommit)
 
+/** Provides instances for [[Release]]. */
 object Release:
-  given [V <: Version](using CanEqual[V, V]): CanEqual[Release[V], Release[V]] = CanEqual.derived
-  given [V <: Version: Ordering]: Ordering[Release[V]] = Ordering.by(_.version)
+  given [V](using CanEqual[V, V]): CanEqual[Release[V], Release[V]] = CanEqual.derived
+  given [V: Ordering]: Ordering[Release[V]] = Ordering.by(_.version)

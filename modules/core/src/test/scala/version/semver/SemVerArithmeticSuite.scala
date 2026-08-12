@@ -34,7 +34,7 @@ class SemVerArithmeticSuite extends FunSuite:
   private def applied(base: String, request: Request): String =
     arithmetic(v(base), request) match
       case Right(result) => scheme.show(result)
-      case Left(e)       => fail(s"$request against '$base' was rejected: ${e.message}")
+      case Left(e)       => fail(s"$request against '$base' was rejected: ${e.getMessage}")
 
   private def advance(base: String, intent: Intent): String = applied(base, Request.Advance(intent))
 

@@ -37,21 +37,22 @@ sbt check       # Verify formatting compliance
 
 ### Module Structure
 
-| Module               | Scope              | Dependencies                          |
-|----------------------|--------------------|---------------------------------------|
-| `version`            | Version model      | boilerplate                           |
-| `version-resolution` | Version derivation | version, JGit (JVM), libgit2 (Native) |
-| `version-cli`        | CLI application    | version-resolution, scopt             |
-| `sbt-version`        | sbt plugin         | version-resolution                    |
-| `version-testkit`    | Test utilities     | (no external dependencies)            |
+| Module               | Scope                                                 | Dependencies                          |
+|----------------------|-------------------------------------------------------|---------------------------------------|
+| `version`            | Version algebra, directive grammar, target derivation | boilerplate                           |
+| `version-resolution` | Repository reading                                    | version, JGit (JVM), libgit2 (Native) |
+| `version-cli`        | CLI application                                       | version-resolution, scopt             |
+| `sbt-version`        | sbt plugin                                            | version-resolution                    |
+| `version-testkit`    | Test utilities                                        | (no external dependencies)            |
 
 ### Version Resolution
 
-The resolution engine in `version-resolution` follows the [Specification](versioning/specification.md). Key components:
+Derivation follows the [Specification](versioning/specification.md), split so that everything needing no repository is
+usable without one. Key components:
 
-- `KeywordParser` - extracts directives from commit messages
-- `TargetVersionCalculator` - computes target version from keywords
-- `Resolver` - orchestrates the full resolution workflow
+- `Directive` - the commit-message grammar, in `version`
+- `Derivation` - the target a range of directives asks for, in `version`
+- `Resolver` - reads the repository and orchestrates the workflow, in `version-resolution`
 
 Per-platform Git backends:
 

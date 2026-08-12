@@ -17,22 +17,10 @@ package version.resolution
 
 import version.DevelopmentMetadata
 
-/** Assembles [[DevelopmentMetadata]] from pre-gathered resolution values.
-  *
-  * Pure function - no Git dependency. The resolver gathers the values via [[GitRepository]], then passes them here for
-  * assembly. The branch name is preserved verbatim (no sanitisation) so consumers see the actual Git ref; rendering
-  * adjustments belong to the chosen [[version.VersionScheme VersionScheme]].
-  */
-object MetadataBuilder:
+// The branch name is carried verbatim: rendering it is the scheme's decision, and sanitising here would take that
+// decision away from every scheme at once.
+private[resolution] object MetadataBuilder:
 
-  /** Assemble development metadata from pre-gathered values.
-    *
-    * `branchOverride` takes precedence over `branchDetected`. `None` for both means HEAD is detached or the branch was
-    * otherwise unavailable; the scheme decides how to render that.
-    *
-    * `commitTime` is seconds since the Unix epoch (UTC). Pass `None` when no basis commit is available (e.g., an
-    * unborn HEAD), otherwise pass the basis commit's committer time.
-    */
   def assemble(
     branchOverride: Option[String],
     branchDetected: Option[String],
