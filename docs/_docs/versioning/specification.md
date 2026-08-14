@@ -50,6 +50,10 @@ explicit `major` moves the major even where an intent would not.
 | `directives`                           | The words this scheme's commit messages are read for, and the request each stands for |
 | `v.snapshot`                           | Whether the version names an in-development build           |
 
+These three are the whole of what derivation reads. A scheme whose ecosystem also defines a language for written
+constraints supplies `RangeScheme[V, R]` over a range type of its own, described under
+[Ranges](../schemes/ranges.md).
+
 Tag parsing is configured separately via `config.tagParser: String => Option[V]`, which typically strips a `v`/`V`
 prefix and delegates to `scheme.parse`. Versions named by a `target:` directive are read by `scheme.parse` itself, so a
 scheme accepts the spellings it means to accept.

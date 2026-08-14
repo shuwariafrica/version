@@ -41,6 +41,7 @@ a scheme that cannot do something has no instance to summon.
 | Advancement         | `VersionArithmetic[V]`   | what a version becomes when a change is applied to it     |
 | Compatibility       | `CompatibilityPolicy[V]` | whether one version may stand in for another              |
 | Release workflow    | `ResolvableScheme[V]`    | where a project starts, how snapshots and directives look |
+| Ranges              | `RangeScheme[V, R]`      | what a written constraint admits, and how it is rewritten |
 
 Only the first is mandatory. A scheme that merely orders published versions - a plain list of numbers, say - supplies
 that one alone, and an attempt to advance such a version then fails to compile rather than at run time.
@@ -111,6 +112,21 @@ CompatibilityPolicy.strict[SemVer] // admits a version only in place of an equal
 
 See [SemVer Operations](semver/operations.md) for what each SemVer rule decides.
 
+## Ranges
+
+Where an ecosystem defines a language for written constraints - `^1.2.3`, `>=1.2.3 <2.0.0` - the scheme owns a range
+type of its own and supplies `RangeScheme[V, R]` over it. A range is a value distinct from a version: it is read,
+rendered, tested for membership and rewritten around a new version, all in the form its author wrote.
+
+```scala
+import version.semver.*
+
+val range = SemVerRange.parse("^1.2.3").toOption.get
+range.admits(SemVer.parseUnsafe("1.9.9")) // true
+```
+
+See [Ranges](ranges.md) for the surface, the membership rule, and the rewrite strategies.
+
 ## Implementing a Scheme
 
 Supply `VersionScheme[V]` in the companion of `V`, and add the other capabilities only where the scheme really defines
@@ -122,3 +138,5 @@ them. Beyond the signatures, the contract is:
   positions.
 - `stable` and `release` concern below-release qualifiers. A scheme with no such concept answers `true` and returns
   the value unchanged, and should do so deliberately rather than by accident.
+
+A range language brings its own type and its own contract - see [Ranges](ranges.md#supplying-ranges-for-another-scheme).

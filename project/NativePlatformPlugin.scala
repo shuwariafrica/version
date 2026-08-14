@@ -87,6 +87,12 @@ object NativePlatformPlugin extends AutoPlugin:
     )
   )
 
+  // The cats-effect runtime builds its blocking pool from a cached thread pool, so a module carrying it links with
+  // thread support where the direct-style modules link without it.
+  val multithreadedSettings: List[Setting[?]] = nativeSettings ++ List(
+    nativeConfig := Def.uncached(nativeConfig.value.withMultithreading(true))
+  )
+
   val applicationSettings: List[Setting[?]] = nativeSettings ++ List(
     nativeConfig := Def.uncached {
       val prev = nativeConfig.value

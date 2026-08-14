@@ -11,12 +11,13 @@ integration.
 
 ## Modules
 
-| Module               | Platforms   | Description                             |
-|----------------------|-------------|-----------------------------------------|
-| `version`            | JVM, JS, Native | Version model, parsing, operations  |
-| `version-resolution` | JVM, Native | Automatic version derivation from Git   |
-| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
-| `sbt-version`        | sbt 2.x     | Build integration                       |
+| Module               | Platforms       | Description                                |
+|----------------------|-----------------|--------------------------------------------|
+| `version`            | JVM, JS, Native | Version model, parsing, operations, ranges  |
+| `version-resolution` | JVM, Native     | Automatic version derivation from Git      |
+| `version-eff`        | JVM, Native     | Derivation as a cats-effect program        |
+| `version-cli`        | Native          | CLI binary (shipped on GitHub Releases)    |
+| `sbt-version`        | sbt 2.x         | Build integration                          |
 
 ```scala
 // Core library
@@ -24,6 +25,9 @@ libraryDependencies += "africa.shuwari" %%% "version" % "@VERSION@"
 
 // Automatic versioning
 libraryDependencies += "africa.shuwari" %%% "version-resolution" % "@VERSION@"
+
+// Automatic versioning inside a cats-effect application
+libraryDependencies += "africa.shuwari" %%% "version-eff" % "@VERSION@"
 
 // sbt plugin
 addSbtPlugin("africa.shuwari" % "sbt-version" % "@VERSION@")
@@ -66,6 +70,7 @@ The resolution engine and sbt plugin derive versions from Git state:
 - [Automatic Versioning](versioning/overview.md) - Git-based version derivation
 - [sbt Plugin](sbt/overview.md) - build integration
 - [Command-Line Tool](cli/overview.md) - the `version` binary
+- [Effect Integration](eff/overview.md) - derivation as a cats-effect program
 
 ---
 

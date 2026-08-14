@@ -66,7 +66,7 @@ private[semver] object Parser:
 
   // Empty segments are retained rather than dropped, so that a leading, doubled, or trailing separator reaches
   // identifier validation and is rejected there.
-  private def segments(value: String): List[String] =
+  def segments(value: String): List[String] =
     @tailrec def loop(from: Int, acc: List[String]): List[String] =
       value.indexOf('.'.toInt, from) match
         case -1 => (value.substring(from) :: acc).reverse

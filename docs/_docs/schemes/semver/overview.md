@@ -32,11 +32,12 @@ One import brings in the types, the extensions, and every capability instance.
 | `PreRelease`           | Dot-separated identifier list        | `[0-9A-Za-z-]+` per identifier            |
 | `Metadata`             | Build identifiers                    | `[0-9A-Za-z-]+` per identifier            |
 | `SemVer`               | Complete version                     | `MAJOR.MINOR.PATCH[-PRERELEASE][+META]`   |
+| `SemVerRange`          | Written constraint                   | the range language npm publishes          |
 
 ## Capabilities
 
-SemVer supplies all four: reading and ranking, advancement, release workflow, and two named compatibility rules
-(compatibility is never a `given` - see [Version Schemes](../overview.md)).
+SemVer supplies every one: reading and ranking, advancement, release workflow, ranges over `SemVerRange`, and two
+named compatibility rules (compatibility is never a `given` - see [Version Schemes](../overview.md)).
 
 ## Quick Reference
 
@@ -79,3 +80,4 @@ Builds for the JVM, Scala.js, and Scala Native.
 - [Types](types.md) - each component type in detail
 - [Parsing](parsing.md) - what is accepted, what is rejected, and why
 - [Operations](operations.md) - advancement, compatibility, and rendering
+- [Ranges](../ranges.md) - written constraints, membership, and rewriting
