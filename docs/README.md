@@ -3,7 +3,7 @@
 A modular **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
 build integration.
 
-Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary.
+Cross-platform (JVM, JS, Scala Native) with sbt integration and a CLI binary.
 
 ## Overview
 
@@ -83,12 +83,13 @@ reached with an explicit `target: 1.0.0` or `version: major: 1`.
 
 ## Modules
 
-| Module               | Platforms   | Description                             |
-|----------------------|-------------|-----------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations      |
-| `version-resolution` | JVM, Native | Git-based version derivation            |
-| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
-| `sbt-version`        | sbt 2.x     | Build integration                       |
+| Module               | Platforms       | Description                             |
+|----------------------|-----------------|------------------------------------------|
+| `version`            | JVM, JS, Native | Version model, parsing, operations      |
+| `version-resolution` | JVM, Native     | Git-based version derivation            |
+| `version-eff`        | JVM, Native     | Derivation as a cats-effect program     |
+| `version-cli`        | Native          | CLI binary (shipped on GitHub Releases) |
+| `sbt-version`        | sbt 2.x         | Build integration                       |
 
 ---
 
