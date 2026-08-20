@@ -319,10 +319,11 @@ object CliOptions:
 
   private def parseEmit(spec: String): Either[CliError, OutputSink] =
     val split = spec.split("=", 2)
-    val (left, rightOptOrErr): (String, Either[CliError, Option[String]]) = split match
+    val splitResult: (String, Either[CliError, Option[String]]) = split match
       case Array(l, r) if r.nonEmpty => (l, Right(Some(r)))
       case Array(l, r) if r.isEmpty  => (l, Left(CliError.EmptyEmitPath(spec)))
       case Array(l)                  => (l, Right(None))
+    val (left, rightOptOrErr) = splitResult
     rightOptOrErr match
       case Left(err)       => Left(err)
       case Right(rightOpt) => SinkKind.parse(left).map(kind => OutputSink(kind, rightOpt.map(java.nio.file.Path.of(_))))

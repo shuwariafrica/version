@@ -16,6 +16,15 @@ Contributions are welcome. This guide covers project conventions and workflow.
 - **Clang / LLVM**: For Scala Native tests
 - **cmake**: For building the vendored libgit2 (Native backend)
 
+#### Windows
+
+Native builds target the MSVC ABI exclusively. Use the Visual Studio-bundled LLVM
+by sourcing `vcvarsall.bat` once per shell session before running `sbt`, for example:
+
+```powershell
+cmd /c '"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat" x64 && set' | ForEach-Object { if ($_ -match '^(\w+)=(.*)$') { Set-Item "Env:\$($matches[1])" $matches[2] } }; $env:PATH = "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Tools\Llvm\x64\bin;$env:PATH"
+```
+
 ### Running Tests
 
 ```bash

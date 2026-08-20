@@ -1,11 +1,11 @@
 scalaVersion := Libraries.scala3.revision
 organization := "africa.shuwari"
 description := "Simple utilities and data structures for the management of application versioning."
-homepage := Some(url("https://dev.shuwari.africa/version/docs/"))
+homepage := Some(uri("https://dev.shuwari.africa/version/docs/"))
 startYear := Some(2023)
 semanticdbEnabled := true
 scmInfo := ScmInfo(
-  url("https://github.com/shuwariafrica/version"),
+  uri("https://github.com/shuwariafrica/version"),
   "scm:git:https://github.com/shuwariafrica/version.git",
   Some("scm:git:git@github.com:shuwariafrica/version.git")
 ).some

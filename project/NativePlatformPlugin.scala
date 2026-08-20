@@ -103,6 +103,9 @@ object NativePlatformPlugin extends AutoPlugin:
 
   val nativeSettings: List[Setting[?]] = List(
     Test / parallelExecution := true,
+    // Unbounded, Scala Native's GC on Windows eagerly commits real memory proportional to the
+    // host's total RAM per process.
+    Test / envVars += "GC_MAXIMUM_HEAP_SIZE" -> "512m",
     Compile / unmanagedResourceDirectories +=
       (Compile / sourceDirectory).value / "resources-native",
     Test / unmanagedResourceDirectories +=
