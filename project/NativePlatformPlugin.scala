@@ -1,13 +1,13 @@
 import sbt.*
 import sbt.Keys.*
 
-import scala.scalanative.build.{LTO, Mode}
+import scala.scalanative.build.{BuildException, Discover, LTO, Mode}
 import scala.scalanative.sbtplugin.ScalaNativePlugin
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object NativePlatformPlugin extends AutoPlugin:
 
-  override def trigger: PluginTrigger = noTrigger
+  override def trigger: PluginTrigger = allRequirements
   override def requires: Plugins = ScalaNativePlugin
 
   enum Os:
@@ -73,6 +73,34 @@ object NativePlatformPlugin extends AutoPlugin:
   val cHardening: Seq[String] =
     if os == Os.Linux then Seq("-fstack-protector-strong", "-D_FORTIFY_SOURCE=2") else Nil
 
+  // The upstream `nativeConfig` default resolves the LLVM toolchain by probing PATH, and sbt 2.x
+  // ActionCaches it against inputs that cannot include PATH - so a disk cache restored across a
+  // runner-image change replays toolchain paths that no longer exist on the host. Re-probing here,
+  // uncached and at build scope, holds every native row - including rows that add no settings of
+  // their own - on the toolchain the host actually has; per-project `nativeConfig` composes on top.
+  override def buildSettings: Seq[Setting[?]] = List(
+    ThisBuild / nativeConfig := Def.uncached {
+      val replayed = (Scope.Global / nativeConfig).value
+      probing {
+        replayed
+          .withClang(Discover.clang())
+          .withClangPP(Discover.clangpp())
+          .withCompileOptions(Discover.compileOptions())
+          .withLinkingOptions(Discover.linkingOptions())
+          .withLTO(Discover.LTO())
+          .withGC(Discover.GC())
+          .withMode(Discover.mode())
+          .withOptimize(Discover.optimize())
+      }
+    }
+  )
+
+  // Discovery signals a missing toolchain by throwing; sbt renders MessageOnlyException as the
+  // message alone, without a stack trace.
+  private def probing[A](discovery: => A): A =
+    try discovery
+    catch case e: BuildException => throw new MessageOnlyException(e.getMessage)
+
   val nativeSettings: List[Setting[?]] = List(
     Test / parallelExecution := true,
     Compile / unmanagedResourceDirectories +=
@@ -80,20 +108,11 @@ object NativePlatformPlugin extends AutoPlugin:
     Test / unmanagedResourceDirectories +=
       (Test / sourceDirectory).value / "resources-native",
     libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
-    nativeConfig := Def.uncached {
-      // The upstream nativeConfig default is an ActionCached task whose clang discovery probes
-      // PATH - an input sbt cannot hash - so a restored CI cache replays toolchain paths from
-      // the image revision that produced it. Overwriting the paths here keeps the value
-      // deterministic: macOS pins the image's own toolchain shims.
-      val base = nativeConfig.value
+    nativeConfig := Def.uncached(
+      nativeConfig.value
         .withMultithreading(false)
         .withMode(Mode.releaseFast)
-      if os == Os.MacOs then
-        base
-          .withClang(java.nio.file.Paths.get("/usr/bin/clang"))
-          .withClangPP(java.nio.file.Paths.get("/usr/bin/clang++"))
-      else base
-    }
+    )
   )
 
   // The cats-effect runtime builds its blocking pool from a cached thread pool, so a module carrying it links with
