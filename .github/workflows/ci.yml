@@ -1,4 +1,4 @@
-name: "CI"
+name: "ci"
 
 on:
   workflow_dispatch:
@@ -26,7 +26,7 @@ env:
 
 jobs:
   test_jvm:
-    name: "[JDK ${{ matrix.java }}] Tests"
+    name: "jvm / jdk-${{ matrix.java }} / tests"
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
         run: project/scripts/run-sbt.sh "version-jvm/package"
 
   test_js:
-    name: "[Node ${{ matrix.node }}] Tests"
+    name: "js / node-${{ matrix.node }} / tests"
     strategy:
       fail-fast: false
       matrix:
@@ -92,7 +92,7 @@ jobs:
         run: project/scripts/run-sbt.sh "version-js/package"
 
   test_native:
-    name: "[Native: ${{ matrix.target }}] Tests"
+    name: "native / ${{ matrix.target }} / tests"
     strategy:
       fail-fast: false
       matrix:
@@ -249,7 +249,7 @@ jobs:
           if-no-files-found: error
 
   verify_linux_static_portability:
-    name: "[Native: glibc ${{ matrix.arch }}] Verify Static Binary"
+    name: "native / glibc-${{ matrix.arch }} / verify-static-binary"
     needs: test_native
     strategy:
       fail-fast: false
@@ -297,7 +297,7 @@ jobs:
           esac
 
   test_sbt_scripted:
-    name: "[sbt-plugin] Scripted Tests"
+    name: "jvm / sbt-plugin / scripted-tests"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -319,7 +319,7 @@ jobs:
           project/scripts/run-sbt.sh "sbt-version/scripted"
 
   static_analysis:
-    name: Static Analysis
+    name: 'report / analysis'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -362,7 +362,7 @@ jobs:
           fi
 
   docs:
-    name: Assemble Documentation Site
+    name: 'site / assemble'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -406,7 +406,7 @@ jobs:
           if-no-files-found: error
 
   dependency-graph:
-    name: Update Dependency Graph
+    name: 'report / dependency-graph'
     # scalacenter/sbt-dependency-submission manages its own sbt invocation,
     # so this job intentionally does not use run-sbt.sh.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -437,7 +437,7 @@ jobs:
         uses: scalacenter/sbt-dependency-submission@v3
 
   dispatch_release:
-    name: Dispatch Release
+    name: 'release / dispatch'
     # On tag-push only, after every quality gate passes, hand off to release.yml
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs:
