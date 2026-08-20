@@ -3,7 +3,7 @@
 A modular **versioning toolkit** - version types, parsing, manipulation, automatic derivation from Git, and
 build integration.
 
-Cross-platform (JVM, Scala Native) with sbt integration and a CLI binary.
+Cross-platform (JVM, JS, Scala Native) with sbt integration and a CLI binary.
 
 ## Overview
 
@@ -33,7 +33,7 @@ See the [Full documentation](https://dev.shuwari.africa/version/docs/) for detai
 Add to `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("africa.shuwari" % "sbt-version" % "0.9.0")
+addSbtPlugin("africa.shuwari" % "sbt-version" % "0.10.0")
 ```
 
 The plugin automatically derives and sets `version` for all projects.
@@ -41,7 +41,7 @@ The plugin automatically derives and sets `version` for all projects.
 ### Library
 
 ```scala
-//> using dep "africa.shuwari::version::0.9.0"
+//> using dep "africa.shuwari::version::0.10.0"
 
 import version.semver.*
 
@@ -83,12 +83,13 @@ reached with an explicit `target: 1.0.0` or `version: major: 1`.
 
 ## Modules
 
-| Module               | Platforms   | Description                             |
-|----------------------|-------------|-----------------------------------------|
-| `version`            | JVM, Native | Version model, parsing, operations      |
-| `version-resolution` | JVM, Native | Git-based version derivation            |
-| `version-cli`        | Native      | CLI binary (shipped on GitHub Releases) |
-| `sbt-version`        | sbt 2.x     | Build integration                       |
+| Module               | Platforms       | Description                             |
+|----------------------|-----------------|------------------------------------------|
+| `version`            | JVM, JS, Native | Version model, parsing, operations      |
+| `version-resolution` | JVM, Native     | Git-based version derivation            |
+| `version-eff`        | JVM, Native     | Derivation as a cats-effect program     |
+| `version-cli`        | Native          | CLI binary (shipped on GitHub Releases) |
+| `sbt-version`        | sbt 2.x         | Build integration                       |
 
 ---
 
