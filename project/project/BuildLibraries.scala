@@ -9,7 +9,7 @@ object BuildLibraries extends AutoPlugin:
   val `sbt-scalafmt` = sbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.6.2")
   val `sbt-scala-native` = sbtPlugin("org.scala-native" % "sbt-scala-native" % "0.5.12")
   val `sbt-scala-js` = sbtPlugin("org.scala-js" % "sbt-scalajs" % "1.22.0")
-  val `sbt-pgp` = sbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.1")
+  val `sbt-pgp` = sbtPlugin("com.github.sbt" % "sbt-pgp" % "2.3.2")
   val `sbt-buildinfo` = sbtPlugin("com.eed3si9n" % "sbt-buildinfo" % "0.13.1")
   val `sbt-header` = sbtPlugin("com.github.sbt" % "sbt-header" % "5.11.0")
   val `sbt-unidoc` = sbtPlugin("com.github.sbt" % "sbt-unidoc" % "0.6.1")
