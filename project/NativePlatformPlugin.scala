@@ -80,11 +80,20 @@ object NativePlatformPlugin extends AutoPlugin:
     Test / unmanagedResourceDirectories +=
       (Test / sourceDirectory).value / "resources-native",
     libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always",
-    nativeConfig := Def.uncached(
-      nativeConfig.value
+    nativeConfig := Def.uncached {
+      // The upstream nativeConfig default is an ActionCached task whose clang discovery probes
+      // PATH - an input sbt cannot hash - so a restored CI cache replays toolchain paths from
+      // the image revision that produced it. Overwriting the paths here keeps the value
+      // deterministic: macOS pins the image's own toolchain shims.
+      val base = nativeConfig.value
         .withMultithreading(false)
         .withMode(Mode.releaseFast)
-    )
+      if os == Os.MacOs then
+        base
+          .withClang(java.nio.file.Paths.get("/usr/bin/clang"))
+          .withClangPP(java.nio.file.Paths.get("/usr/bin/clang++"))
+      else base
+    }
   )
 
   // The cats-effect runtime builds its blocking pool from a cached thread pool, so a module carrying it links with
