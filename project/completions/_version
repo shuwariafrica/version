@@ -52,6 +52,7 @@ _version() {
                 tag)
                     _arguments -s $globals \
                         '(-m --message)'{-m,--message}'[tag message]:message:' \
+                        '--prefix[lead a derived tag name, e.g. v]:prefix:' \
                         '--no-sign[create the tag unsigned]' \
                         '--dry-run[preview without tagging]' \
                         '1::version:'
@@ -60,8 +61,8 @@ _version() {
                     _arguments -s $globals \
                         '(-n --limit)'{-n,--limit}'[limit to the newest N entries]:count:' \
                         '--final[exclude pre-releases]' \
-                        '--since[releases at or above VERSION]:version:' \
-                        '--until[releases at or below VERSION]:version:' \
+                        '--since[releases at or above VERSION or line (1, 1.x, 1.2)]:bound:' \
+                        '--until[releases at or below VERSION or line (1, 1.x, 1.2)]:bound:' \
                         '--details[show the tag and source-commit date]'
                     ;;
             esac

@@ -25,6 +25,9 @@
 > reload
 > checkAfterCommit
 
+# The published version stays a stable snapshot coordinate
+> checkPublishedRendering
+
 # Mode 1: pre-release tag = concrete pre-release
 > gitTagPreRelease
 > reload

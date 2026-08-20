@@ -4,153 +4,83 @@ title: SemVer Parsing
 
 # SemVer Parsing
 
-The core library provides robust parsing for SemVer 2.0.0 strings via:
-
-- `SemVer.parse(input)` and `SemVer.parseUnsafe(input)` - parse strings to `SemVer`
-- `PreRelease.Resolver` - maps pre-release identifiers to structured `PreRelease`
-
-### Basic Usage
-
 ```scala
 import version.semver.*
 
-// Safe parsing returns Either
-SemVer.parse("1.2.3") // Right(SemVer(1, 2, 3))
-SemVer.parse("1.2.3-alpha.1") // Right(SemVer(1, 2, 3, alpha.1))
-SemVer.parse("invalid") // Left(ParseError(...))
+SemVer.parse("1.2.3-alpha.1")  // Right(1.2.3-alpha.1)
+SemVer.parse("not a version")  // Left(InvalidVersionFormat("not a version"))
 
-// Unsafe variant throws on invalid input
-SemVer.parseUnsafe("1.2.3") // SemVer(1, 2, 3)
-SemVer.parseUnsafe("invalid") // throws ParseError
+SemVer.parseUnsafe("1.2.3")    // 1.2.3
+SemVer.parseUnsafe("nonsense") // throws the same error parse reports
 ```
 
----
+## Accepted Formats
 
-### Accepted Formats
+| Format      | Example                   | Notes                                    |
+|-------------|---------------------------|------------------------------------------|
+| Core        | `1.2.3`                   | Exactly three components, all required   |
+| With prefix | `v1.2.3`, `V1.2.3`        | A leading `v` or `V` is accepted         |
+| Pre-release | `1.2.3-alpha.1`           | After `-`                                |
+| Metadata    | `1.2.3+build.456`         | After `+`                                |
+| Full        | `1.2.3-alpha.1+build.456` | Pre-release precedes build metadata      |
 
-| Format      | Example                   | Notes                       |
-|-------------|---------------------------|-----------------------------|
-| Core        | `1.2.3`                   | Required                    |
-| With prefix | `v1.2.3`, `V1.2.3`        | Optional `v` stripped       |
-| Pre-release | `1.2.3-alpha.1`           | After `-`                   |
-| Metadata    | `1.2.3+build.456`         | After `+`                   |
-| Full        | `1.2.3-alpha.1+build.456` | Pre-release before metadata |
+Components are carried as `Long`, so a date-stamped component such as `20260731093000.0.0` parses.
 
-### Pre-release Formats
+## Identifiers Are Preserved
 
-The default resolver recognises these classifiers:
-
-| Input            | Parsed As                   |
-|------------------|-----------------------------|
-| `1.0.0-alpha.1`  | Alpha, number 1             |
-| `1.0.0-a.1`      | Alpha, number 1             |
-| `1.0.0-beta.2`   | Beta, number 2              |
-| `1.0.0-b.2`      | Beta, number 2              |
-| `1.0.0-rc.3`     | Release Candidate, number 3 |
-| `1.0.0-cr.3`     | Release Candidate, number 3 |
-| `1.0.0-m.1`      | Milestone, number 1         |
-| `1.0.0-dev.1`    | Dev, number 1               |
-| `1.0.0-SNAPSHOT` | Snapshot (canonical)        |
-| `1.0.0-snapshot` | Snapshot (case-insensitive) |
-
-Common variations are normalised:
-
-| Input          | Normalised |
-|----------------|------------|
-| `1.0.0-RC1`    | `rc.1`     |
-| `1.0.0-alpha1` | `alpha.1`  |
-
-### Build Metadata
-
-Metadata identifiers must match `[0-9A-Za-z-]+`:
+Parsing does not rewrite what it reads. An identifier is kept exactly as written, whether or not this library has a
+name for it, and no attempt is made to split a combined form into a label and a number.
 
 ```scala
-SemVer.parse("1.2.3+sha.abc123")
-// Right(SemVer(1, 2, 3, None, Some(Metadata(sha, abc123))))
-
-SemVer.parse("1.2.3+build.456.dirty")
-// Right(..., Some(Metadata(build, 456, dirty)))
+SemVer.parseUnsafe("1.0.0-x.7.z.92").preRelease.map(_.identifiers) // Some(List("x", "7", "z", "92"))
+SemVer.parseUnsafe("1.0.0-rc3").preRelease.map(_.identifiers)      // Some(List("rc3"))
+SemVer.parseUnsafe("1.0.0-rc.3").preRelease.map(_.identifiers)     // Some(List("rc", "3"))
 ```
 
----
+`rc3` and `rc.3` are therefore different versions, and they rank differently - see
+[Ordering](types.md#ordering). Versions this library emits always use the dotted form.
 
-### Custom Pre-release Mapping
-
-Implement `PreRelease.Resolver` to handle non-standard pre-release formats. The resolver receives
-dot-separated identifier tokens and returns `Some(PreRelease)` on success or `None` to reject.
+The classifier a pre-release names, where it names one, is available separately and is matched without regard to case:
 
 ```scala
-import version.semver.*
-
-// Define a custom resolver
-val customResolver: PreRelease.Resolver = new PreRelease.Resolver:
-  extension (identifiers: List[String])
-    def resolve: Option[PreRelease] =
-      identifiers match
-        // Map "nightly" to snapshot
-        case List("nightly") =>
-          Some(PreRelease.snapshot)
-
-        // Map "preview.N" to alpha
-        case List("preview", n) =>
-          n.toIntOption
-            .flatMap(i => PreReleaseNumber.from(i).toOption)
-            .map(PreRelease.alpha)
-
-        // Delegate unrecognised formats to the default resolver
-        case _ =>
-          PreRelease.Resolver.given_Resolver.resolve(identifiers)
-
-// Use the custom resolver
-given PreRelease.Resolver = customResolver
-
-SemVer.parse("1.0.0-nightly")   // Right(SemVer(1, 0, 0, SNAPSHOT))
-SemVer.parse("1.0.0-preview.3") // Right(SemVer(1, 0, 0, alpha.3))
-SemVer.parse("1.0.0-beta.1")    // Right(SemVer(1, 0, 0, beta.1)) - delegated
+SemVer.parseUnsafe("1.0.0-RC.1").preRelease.flatMap(_.classifier) // Some(ReleaseCandidate)
+SemVer.parseUnsafe("1.0.0-rc3").preRelease.flatMap(_.classifier)  // None
 ```
 
-#### Resolver API
+## What Is Rejected
 
-```scala
-trait Resolver:
-  extension (identifiers: List[String]) def resolve: Option[PreRelease]
-```
+Parsing is strict: input outside the grammar is rejected rather than coerced.
 
-The `identifiers` parameter contains the pre-release string split by `.`. For example, `alpha.1` becomes
-`List("alpha", "1")`.
+| Input                        | Rejected because                             | Error                  |
+|------------------------------|----------------------------------------------|------------------------|
+| `1.0`, `1.0.0.0`             | the core is not three components             | `InvalidVersionFormat` |
+| `01.0.0`, `1.0.01`           | a core component carries a leading zero      | `InvalidVersionFormat` |
+| `1.2.3x`, `a.b.c`, `""`      | the shape is not a version at all            | `InvalidVersionFormat` |
+| `99999999999999999999.0.0`   | a component is too large to carry            | `InvalidNumericField`  |
+| `1.0.0-`, `1.0.0-alpha..1`   | a pre-release identifier is empty            | `InvalidPreRelease`    |
+| `1.0.0-alpha_1`              | a pre-release identifier is outside the set  | `InvalidPreRelease`    |
+| `1.0.0-alpha.01`             | a numeric pre-release has a leading zero     | `InvalidPreRelease`    |
+| `1.0.0+`, `1.0.0+build_1`    | a build identifier is empty or outside the set | `InvalidMetadata`    |
 
-#### Default Resolver
+A leading zero is allowed in build metadata, where the specification places no numeric meaning on identifiers:
+`1.0.0+01` parses.
 
-Access the default resolver via `PreRelease.Resolver.given_Resolver`:
-
-```scala
-// Delegate to default for standard formats
-PreRelease.Resolver.given_Resolver.resolve(List("rc", "2"))
-// Some(PreRelease(ReleaseCandidate, Some(2)))
-```
-
----
-
-### Error Handling
-
-Parse errors provide context:
+Every one of these is a `ParseError`, so a consumer can match the shape it cares about and treat the rest uniformly:
 
 ```scala
 import version.errors.*
 
-SemVer.parse("abc") match
-  case Left(err: InvalidVersionFormat) => err.message
-  case Left(err: InvalidNumericField) => err.message
-  case Left(err) => err.message
-  case Right(v) => v.show
+SemVer.parse(input) match
+  case Left(e: InvalidNumericField) => s"component out of range: ${e.getMessage}"
+  case Left(e: ParseError)          => e.getMessage
+  case Right(v)                     => v.show
 ```
 
-### Validation Summary
+## Round Tripping
 
-| Component          | Constraint             | Error                                             |
-|--------------------|------------------------|---------------------------------------------------|
-| Major              | >= 0                   | `InvalidComponent(value, "Major version", ...)`   |
-| Minor              | >= 0                   | `InvalidComponent(value, "Minor version", ...)`   |
-| Patch              | >= 0                   | `InvalidComponent(value, "Patch number", ...)`    |
-| Pre-release number | >= 1                   | `InvalidComponent(value, "Pre-release number", ...)` |
-| Build metadata     | Non-empty, valid chars | `InvalidMetadata`                                 |
+`show` renders the canonical form of every part, build metadata included, and `parse` reads it back as an equal value.
+
+```scala
+val v = SemVer.parseUnsafe("1.2.3-rc.1+sha.5114f85")
+SemVer.parse(v.show) == Right(v) // true
+```

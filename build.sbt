@@ -56,6 +56,21 @@ val `version-resolution` =
           .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-native").getAbsolutePath)
     )
 
+val `version-eff` =
+  projectMatrix
+    .in(file("modules/eff"))
+    .dependsOn(`version-resolution`)
+    .dependsOn(`version-testkit` % Test)
+    .settings(publishSettings)
+    .settings(unitTestSettings)
+    .settings(libraryDependencies += Libraries.boilerplateEffect)
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = Seq(Test / fork := true))
+    .nativePlatform(
+      scalaVersions = Seq(Libraries.scala3.revision),
+      axisValues = Nil,
+      configure = (p: Project) => p.settings(NativePlatformPlugin.multithreadedSettings *).enablePlugins(Libgit2Build)
+    )
+
 val `version-cli` =
   projectMatrix
     .in(file("modules/cli"))
@@ -113,6 +128,7 @@ val `version-jvm` =
       version,
       `version-testkit`,
       `version-resolution`,
+      `version-eff`,
       `version-cli`,
       `sbt-version`
     )
@@ -127,6 +143,7 @@ val `version-native` =
       version,
       `version-testkit`,
       `version-resolution`,
+      `version-eff`,
       `version-cli`
     )
 
@@ -149,6 +166,7 @@ val docs =
       ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
         version.jvm(Libraries.scala3.revision),
         `version-resolution`.jvm(Libraries.scala3.revision),
+        `version-eff`.jvm(Libraries.scala3.revision),
         `sbt-version`.jvm(Libraries.scala3.revision)
       )
     )

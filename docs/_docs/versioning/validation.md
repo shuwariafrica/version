@@ -74,12 +74,13 @@ target: 2.0.0  ->  accepted (equality with pre-release)
 
 ### D. Malformed
 
-Invalid targets are ignored:
+A target the scheme cannot read is ignored, and the reason is reported to the caller:
 
 - Partial cores: `target: 1.2`
 - Non-numeric: `target: a.b.c`
 - Negative values: `target: 1.-1.0`
-- Overflow: `target: 999999999999.0.0`
+- Leading zeros: `target: 01.2.3`
+- Beyond the range a component holds: `target: 99999999999999999999.0.0`
 
 ### E. Multiple Targets
 

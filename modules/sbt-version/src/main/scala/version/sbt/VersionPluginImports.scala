@@ -25,17 +25,20 @@ import sjsonnew.IsoString
   */
 object VersionPluginImports:
 
-  /** Marker type for any value the plugin resolves to. */
-  type Version = version.Version
+  /** A version paired with the scheme that reads it, which is how the plugin's typed keys carry one. */
+  type Versioned = version.Versioned
+
+  /** Companion of [[Versioned]], for constructing and comparing carried versions. */
+  val Versioned: version.Versioned.type = version.Versioned
 
   /** Bundled scheme + tag parser + formatter. */
-  type VersionResolver[V <: version.Version] = version.VersionResolver[V]
+  type VersionResolver[V] = version.resolution.VersionResolver[V]
 
   /** Companion of [[VersionResolver]] for `withDefaults[V]` and combinators. */
-  val VersionResolver: version.VersionResolver.type = version.VersionResolver
+  val VersionResolver: version.resolution.VersionResolver.type = version.resolution.VersionResolver
 
   /** Rendering strategy for a version of scheme `V`. */
-  type Formatter[V <: version.Version] = version.Formatter[V]
+  type Formatter[V] = version.Formatter[V]
 
   /** Alias for [[version.semver.SemVer]] to enable unqualified use in build definitions. */
   type SemVer = version.semver.SemVer
@@ -46,13 +49,10 @@ object VersionPluginImports:
   /** Alias for [[version.errors.VersionError]] to enable unqualified use in build definitions. */
   type VersionError = version.errors.VersionError
 
-  /** Companion object for [[VersionError]], providing error case classes. */
-  val VersionError: version.errors.VersionError.type = version.errors.VersionError
-
   /** Alias for [[version.semver.PreRelease]] to enable unqualified use in build definitions. */
   type PreRelease = version.semver.PreRelease
 
-  /** Companion object for [[PreRelease]], providing factory methods and the [[PreRelease.Resolver]] type. */
+  /** Companion object for [[PreRelease]], providing factory methods and operations. */
   val PreRelease: version.semver.PreRelease.type = version.semver.PreRelease
 
   /** [[sjsonnew.IsoString IsoString]] instance for [[SemVer]] enabling sbt 2.x task caching.
@@ -74,35 +74,34 @@ object VersionPluginImports:
 
   /** Bundle of scheme, tag parser, and rendering formatter for version resolution.
     *
-    * The default is `VersionResolver.withDefaults[SemVer]` (SemVer scheme, `v`/`V`-stripping tag parser, no rendering
-    * formatter so `Keys.version` falls back to canonical `v.show`).
-    *
-    * Customise via the builder methods:
+    * The default is `VersionResolver.withDefaults[SemVer].withFormatter(SemVer.Formatter.Standard)`: the SemVer
+    * scheme, a `v`/`V`-stripping tag parser, and the rendering that keeps `version` a stable `<core>-SNAPSHOT`
+    * publishing coordinate. Override the formatter to publish build metadata instead:
     * {{{
     * versionResolver := VersionResolver.withDefaults[SemVer]
     *   .withFormatter(SemVer.Formatter.Full.withShaLength(7))
     * }}}
     */
-  val versionResolver: SettingKey[VersionResolver[? <: Version]] =
+  val versionResolver: SettingKey[VersionResolver[?]] =
     settingKey("Version resolver bundle (scheme + tag parser + formatter).")
 
   /** The resolved version for the current repository state.
     *
-    * Typed against the [[Version]] marker. Pattern-match to recover scheme-specific accessors:
+    * Rendered with `.show`; match `.value` to reach the scheme's own accessors:
     * {{{
-    * resolvedVersion.value match
+    * resolvedVersion.value.value match
     *   case v: SemVer => s"${v.major.value}.${v.minor.value}.${v.patch.value}"
     * }}}
     */
-  val resolvedVersion: SettingKey[Version] =
+  val resolvedVersion: SettingKey[Versioned] =
     settingKey("Resolved version for the current repository state.")
 
   /** The target release version the working tree is heading toward.
     *
-    * On a clean release tag this equals [[resolvedVersion]] - the tag itself. Otherwise it is the next release core the
+    * On a clean release tag this equals [[resolvedVersion]] - the tag itself. Otherwise it is the next release the
     * resolution computed: the version a release cut from the current state would carry, without development metadata
     * (for example `1.0.1` while [[resolvedVersion]] renders `1.0.1-SNAPSHOT+...`).
     */
-  val versionTarget: SettingKey[Version] =
+  val versionTarget: SettingKey[Versioned] =
     settingKey("Target release version the working tree is heading toward.")
 end VersionPluginImports

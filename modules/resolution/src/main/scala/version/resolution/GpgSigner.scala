@@ -55,12 +55,12 @@ private[resolution] object GpgSigner:
       stdin.close()
       val output = process.getInputStream.unsafe.readAllBytes().unsafe
       val exit = process.waitFor()
-      if exit != 0 then Left(GitError.SigningFailure(s"gpg signing failed (exit code $exit)"))
+      if exit != 0 then Left(GitError.SigningFailure(s"gpg signing failed (exit code $exit)", None))
       else
         val armoured = trimTrailing(new String(output, StandardCharsets.UTF_8))
-        if armoured.isEmpty then Left(GitError.SigningFailure("gpg produced an empty signature"))
+        if armoured.isEmpty then Left(GitError.SigningFailure("gpg produced an empty signature", None))
         else Right(armoured)
-    catch case NonFatal(e) => Left(GitError.SigningFailure(s"gpg invocation failed: ${describe(e)}"))
+    catch case NonFatal(e) => Left(GitError.SigningFailure(s"gpg invocation failed: ${describe(e)}", Some(e)))
 
   private def trimTrailing(s: String): String =
     s.substring(0, s.lastIndexWhere(!_.isWhitespace) + 1)

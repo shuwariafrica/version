@@ -14,10 +14,12 @@ addSbtPlugin("africa.shuwari" % "sbt-version" % "@VERSION@")
 
 ## Behaviour
 
-A clean, annotated tag resolves to that exact version; otherwise the plugin produces a snapshot with build metadata.
+A clean, annotated tag resolves to that exact version; otherwise the plugin resolves a snapshot of the release the
+working tree is heading towards.
 
-By default, `version` renders as `v.show` (core plus pre-release, **excludes** build metadata). Configure
-[`versionResolver`](settings.md#versionresolver) with a formatter to include it:
+By default, `version` renders the numbers and any pre-release and stops there - `1.2.4-SNAPSHOT` - so the coordinate a
+dependent build pins stays stable across publishes. Configure [`versionResolver`](settings.md#versionresolver) with a
+formatter to publish the build metadata as well:
 
 ```scala
 versionResolver := VersionResolver.withDefaults[SemVer]

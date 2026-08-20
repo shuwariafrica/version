@@ -15,12 +15,11 @@
  ****************************************************************************/
 package version
 
-/** Rendering strategy for a version of scheme `V`.
+/** A rendering of a version other than its canonical one.
   *
-  * Each scheme provides its own formatter instances in its companion (for example,
-  * [[version.semver.SemVer.Formatter SemVer.Formatter.Standard]] and
-  * [[version.semver.SemVer.Formatter SemVer.Formatter.Full]]). Scheme-specific configuration (such as SHA truncation
-  * for SemVer) lives on those instances, not on this trait.
+  * Schemes name their renderings, and any configuration a rendering takes, in their own companions - see
+  * [[version.semver.SemVer$.Formatter SemVer.Formatter]]. The canonical rendering needs no formatter: it is
+  * [[VersionScheme]]'s `show`.
   */
-trait Formatter[V <: Version]:
+trait Formatter[V]:
   def format(v: V): String

@@ -18,9 +18,7 @@ package version.cli.logging
 import version.resolution.logging.LogEntry
 import version.resolution.logging.LogLevel
 import version.resolution.logging.Logger
-import version.semver.SemVer
 
-/** Configuration for logging behaviour. */
 final case class LogConfig(
   isVerbose: Boolean,
   isCI: Boolean
@@ -29,16 +27,11 @@ final case class LogConfig(
 object LogConfig:
   given CanEqual[LogConfig, LogConfig] = CanEqual.derived
 
-/** ANSI colour codes for terminal output. */
 object AnsiColours:
   val Reset = "\u001b[0m"
-  val Green = "\u001b[32m" // Final releases
-  val Yellow = "\u001b[33m" // Pre-releases
-  val Red = "\u001b[31m" // Snapshots
-  val Gray = "\u001b[90m" // Debug/verbose output
-  val Bold = "\u001b[1m"
+  val Red = "\u001b[31m"
+  val Gray = "\u001b[90m"
 
-/** Configuration for coloured output behaviour. */
 final case class ColourConfig(enableColours: Boolean, isCI: Boolean)
 
 object ColourConfig:
@@ -47,13 +40,9 @@ object ColourConfig:
 
   given CanEqual[ColourConfig, ColourConfig] = CanEqual.derived
 
-  /** Create colour configuration based on environment. */
   def fromEnvironment(isCI: Boolean): ColourConfig =
-    // We avoid java.io.Console (not available on Scala Native). Rules:
-    //  - Disable colours in CI (unless FORCE_COLOR explicitly set)
-    //  - Honour NO_COLOR to forcibly disable
-    //  - Honour FORCE_COLOR to forcibly enable
-    //  - Otherwise enable when TERM is set and not "dumb"
+    // Terminal detection reads the environment because java.io.Console is absent from Scala Native's javalib.
+    // NO_COLOR and FORCE_COLOR are the cross-tool conventions for overriding whatever it concludes.
     val env = scala.sys.env
     val forceDisable = env.contains("NO_COLOR")
     val forceEnable = env.get("FORCE_COLOR").exists(_.nonEmpty)
@@ -62,44 +51,27 @@ object ColourConfig:
     ColourConfig(enableColours = enable, isCI = isCI)
 
   extension (config: ColourConfig)
-    /** Apply `colour` around `text` with automatic reset when colour is enabled, otherwise return plain text. */
     inline def colourise(text: String, colour: String): String =
       if config.enableColours then s"$colour$text${AnsiColours.Reset}" else text
 end ColourConfig
 
-/** Shared log routing to avoid duplication in concrete loggers. */
 abstract class BaseLogger(protected val logConfig: LogConfig) extends Logger:
   protected def formatEntry(entry: LogEntry): String
+
+  final def verboseEnabled: Boolean = logConfig.isVerbose
 
   final inline def log(entry: LogEntry): Unit =
     entry.level match
       case LogLevel.Error =>
         System.err.println(formatEntry(entry))
-      case LogLevel.Verbose if logConfig.isVerbose =>
+      case LogLevel.Verbose if verboseEnabled =>
         System.err.println(formatEntry(entry))
       case _ => ()
 
-/** Writes [[Logger]] entries to stdout/stderr with optional ANSI colour.
-  *
-  * Error entries and verbose diagnostics go to stderr; the resolved version (when emitted via [[outputVersion]]) goes
-  * to stdout. Colour application is gated on [[ColourConfig]].
-  */
 final class StandardLogger(
   logConfig: LogConfig,
   colourConfig: ColourConfig
 ) extends BaseLogger(logConfig):
-
-  /** Format a version with appropriate colours based on its type. */
-  private inline def formatVersion(version: SemVer): String =
-    val versionStr = SemVer.Formatter.Full.format(version)
-    if version.preRelease.isEmpty then colourConfig.colourise(versionStr, AnsiColours.Green)
-    else if version.snapshot then colourConfig.colourise(versionStr, AnsiColours.Red)
-    else colourConfig.colourise(versionStr, AnsiColours.Yellow)
-
-  /** Output a version to stdout with appropriate formatting. */
-  def outputVersion(version: SemVer): Unit =
-    val formatted = if colourConfig.isCI then SemVer.Formatter.Full.format(version) else formatVersion(version)
-    println(formatted)
 
   private inline def levelPrefix(level: LogLevel): String = level match
     case LogLevel.Error   => "ERROR: "
@@ -118,7 +90,6 @@ final class StandardLogger(
 end StandardLogger
 
 object StandardLogger:
-  /** Create a standard logger with the given configurations. */
   def apply(logConfig: LogConfig, colourConfig: ColourConfig): StandardLogger =
     new StandardLogger(logConfig, colourConfig)
 
@@ -134,17 +105,5 @@ object StandardLogger:
     val ms = (millis % 1000L).toInt
     f"$hour%02d:$min%02d:$sec%02d.$ms%03d"
 
-  /** Create a standard logger with default colour detection. */
   def apply(logConfig: LogConfig): StandardLogger =
     new StandardLogger(logConfig, ColourConfig.fromEnvironment(logConfig.isCI))
-
-/** Simple logger that outputs plain text without colours. Useful for testing. */
-final class PlainLogger(logConfig: LogConfig) extends BaseLogger(logConfig):
-  override protected def formatEntry(entry: LogEntry): String =
-    val contextStr = entry.context.fold("")(ctx => s"[$ctx] ")
-    entry.level match
-      case LogLevel.Error   => s"ERROR: $contextStr${entry.message}"
-      case LogLevel.Verbose => s"DEBUG: $contextStr${entry.message}"
-
-object PlainLogger:
-  def apply(logConfig: LogConfig): PlainLogger = new PlainLogger(logConfig)

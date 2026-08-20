@@ -17,41 +17,14 @@ package version
 
 import version.errors.VersionError
 
-/** Component manipulation for version schemes that support programmatic increment and set operations.
+/** Interpretation of an advancement [[Request]], for schemes that define one.
   *
-  * Separated from [[ResolvableScheme]] because not all arithmetic-capable schemes support Git-based resolution (e.g.,
-  * .NET Official supports increment/set but has no pre-release concept for resolution).
-  *
-  * @tparam V
-  *   The version type.
+  * A scheme whose advancement is a matter of policy rather than of its own algebra supplies no instance, so code that
+  * needs to advance a version says so in its context bounds and the absence is answered at compile time.
   */
-trait VersionArithmetic[V <: Version] extends VersionScheme[V]:
+trait VersionArithmetic[V]:
 
-  /** Advance the version by incrementing the component at the given index.
-    *
-    * Reset semantics for lower-precedence components are scheme-specific. For example, incrementing the major component
-    * in SemVer resets minor and patch to zero.
-    *
-    * @param index
-    *   Zero-based component position in scheme order.
+  /** `Left` where the scheme cannot express the request: an unknown component name, or a value the addressed
+    * component does not admit.
     */
-  extension (v: V) def incrementComponent(index: Int): V
-
-  /** Set the component at the given index to a specific value.
-    *
-    * Reset semantics for lower-precedence components are scheme-specific, matching [[incrementComponent]]. For SemVer:
-    * setting major resets minor and patch; setting minor resets patch.
-    *
-    * @param index
-    *   Zero-based component position in scheme order.
-    * @param value
-    *   The value to set.
-    * @return
-    *   `Right(V)` on success, `Left(VersionError)` if the value is out of bounds for the scheme.
-    */
-  extension (v: V) def setComponent(index: Int, value: Int): Either[VersionError, V]
-end VersionArithmetic
-
-object VersionArithmetic:
-  /** Summons the contextual [[VersionArithmetic]] instance. */
-  inline def apply[V <: Version](using va: VersionArithmetic[V]): VersionArithmetic[V] = va
+  def apply(v: V, request: Request): Either[VersionError, V]

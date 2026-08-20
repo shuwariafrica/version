@@ -27,29 +27,51 @@ version wins.
 
 ## Keyword Mapping
 
-| Keyword                    | Component | Effect                                       |
-|----------------------------|-----------|----------------------------------------------|
-| `major`, `breaking`        | Major     | Increment major, reset minor and patch       |
-| `minor`, `feat`, `feature` | Minor     | Increment minor, reset patch                 |
-| `patch`, `fix`             | Patch     | No effect - patch is the default advancement |
+SemVer reads two kinds of word. One names a kind of change and leaves the choice of component to the scheme; the other
+names a component and is obeyed literally.
 
-Each keyword works in all three [directive forms](directives.md) - `version: major`, `breaking: <text>`, `[breaking]` -
-and as an absolute set, `version: major: 3`. `target: 2.0.0` sets the version explicitly, subject to
-[validation](validation.md).
+| Keyword             | Stands for           | Above `1.0.0`, from `1.4.5`      |
+|---------------------|----------------------|-----------------------------------|
+| `breaking`          | A breaking change    | `2.0.0`                           |
+| `feat`, `feature`   | A feature            | `1.5.0`                           |
+| `fix`               | A fix                | `1.4.6`                           |
+| `stable`            | The first stable release | `1.4.5` - already there       |
+| `major`             | The major component  | `2.0.0`                           |
+| `minor`             | The minor component  | `1.5.0`                           |
+| `patch`             | The patch component  | `1.4.6`                           |
+
+Each works in every [directive form](directives.md) - `version: breaking`, `breaking: <text>`, `[breaking]` - and the
+three component names additionally take a value, as `version: minor: 9`.
+
+Advancing a component resets every component below it, and discards any pre-release and build metadata the base
+carried.
 
 ## Initial Development (Major Version 0)
 
-While the major version is `0` the public API is not yet stable, so a `major`/`breaking` bump advances the minor
-component instead of the major - a breaking change during initial development never forces a premature `1.0.0`.
-Reaching `1.0.0` is deliberate: an explicit `target: 1.0.0`, or an absolute set such as `version: major: 1`.
+Below `1.0.0` the public API is not yet settled, so a kind of change means one component less than it would above it: a
+breaking change advances the minor, and a feature or fix advances the patch. Below `0.1.0`, where nothing at all is
+settled, every kind of change advances the patch.
 
-| Base     | Directive           | Result core |
-|----------|---------------------|-------------|
-| `0.93.9` | `version: major`    | `0.94.0`    |
-| `0.93.9` | `version: minor`    | `0.94.0`    |
-| `0.93.9` | `version: major: 1` | `1.0.0`     |
-| `0.93.9` | `target: 1.0.0`     | `1.0.0`     |
-| `1.4.5`  | `version: major`    | `2.0.0`     |
+A component named outright is exempt: `version: major` means the major, at any base. So is `stable`, which is how a
+project graduates when it decides it has, rather than when a change happens to be breaking:
+`stable: the public API is settled`.
+
+| Base     | Directive           | Result   |
+|----------|---------------------|----------|
+| `0.93.9` | `version: breaking` | `0.94.0` |
+| `0.93.9` | `version: feat`     | `0.93.10`|
+| `0.0.7`  | `version: breaking` | `0.0.8`  |
+| `0.93.9` | `version: major`    | `1.0.0`  |
+| `0.93.9` | `version: stable`   | `1.0.0`  |
+| `0.93.9` | `version: major: 1` | `1.0.0`  |
+| `1.4.5`  | `version: breaking` | `2.0.0`  |
+
+## Releasing a Pending Pre-release
+
+Where the base is a pre-release, a request whose boundary that pre-release already sits on is satisfied by releasing
+it rather than by advancing past it: from `1.3.0-rc.1`, a feature yields `1.3.0`, not `1.4.0`. A request that reaches
+beyond it still advances - from `1.3.0-rc.1`, a breaking change yields `2.0.0`. Setting a component with a value is
+never absorbed this way.
 
 ## Default Behaviour
 

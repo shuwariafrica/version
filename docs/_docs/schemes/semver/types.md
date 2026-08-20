@@ -4,204 +4,153 @@ title: SemVer Components
 
 # SemVer Component Types
 
-The `SemVer` scheme composes these component types.
+## Numeric Components
 
----
-
-## Core Version
-
-### `Major`
-
-The major version number. Must be non-negative.
+`Major`, `Minor`, and `Patch` are opaque wrappers over `Long`, so a component derived from a date stamp or a build
+counter stays representable. Each rejects a negative value; `PreReleaseNumber` requires a positive one.
 
 ```scala
 import version.semver.*
 
-// Literal construction, checked at compile time (a negative literal fails to compile)
+// A literal is checked at compile time - a negative one does not compile
 val major = Major(2)
 
-// Runtime value, validated: Either[InvalidComponent, Major]
-Major.from(2)  // Right(Major(2))
-Major.from(-1) // Left(InvalidComponent(-1, "Major version", "a non-negative number (>= 0)"))
+// A runtime value is validated
+Major.from(2L)  // Right(2)
+Major.from(-1L) // Left(InvalidComponent(-1, "Major version", "a non-negative number (>= 0)"))
 
-// Runtime value, unchecked (throws on an invalid value)
-Major.fromUnsafe(2)
+// Or validated and thrown on
+Major.fromUnsafe(2L)
 
-major.value     // 2
-major.increment // Major(3)
-major.isStable  // true (> 0)
-Major.reset     // Major(0)
+major.value     // 2L
+major.increment // 3
+Major.reset     // 0
 ```
 
-### `Minor`
+`increment` is total: it saturates at `Long.MaxValue` rather than wrapping.
 
-The minor version number. Must be non-negative.
+| Type               | Minimum | Reset value |
+|--------------------|---------|-------------|
+| `Major`            | 0       | 0           |
+| `Minor`            | 0       | 0           |
+| `Patch`            | 0       | 0           |
+| `PreReleaseNumber` | 1       | 1           |
+
+## `PreRelease`
+
+A pre-release is the identifier list the specification describes - non-empty, dot-separated, each identifier drawn
+from `[0-9A-Za-z-]`, and no leading zero on a purely numeric identifier. Any list satisfying that is representable,
+including labels this library has no name for.
 
 ```scala
-val minor = Minor(5)
-minor.value     // 5
-minor.increment // Minor(6)
-Minor.reset     // Minor(0)
+import version.semver.*
+
+PreRelease.from(List("x", "7", "z", "92")) // Right(x.7.z.92)
+PreRelease.from(List("alpha", "01"))       // Left(InvalidPreRelease(List("alpha", "01")))
+PreRelease.from(Nil)                       // Left(InvalidPreRelease(Nil))
+
+val pr = PreRelease.alpha(PreReleaseNumber(1))
+pr.identifiers // List("alpha", "1")
+pr.show        // "alpha.1"
+pr.classifier  // Some(Alpha)
+pr.increment   // alpha.2
 ```
 
-### `Patch`
+`increment` advances the trailing numeric identifier, and leaves a label ending in no number - `SNAPSHOT` - alone.
 
-The patch version number. Must be non-negative.
+## `PreReleaseClassifier`
 
-```scala
-val patch = Patch(3)
-patch.value     // 3
-patch.increment // Patch(4)
-Patch.reset     // Patch(0)
-```
+The labels this library builds and recognises by name. They are a convenience for construction and for the `next`
+ladder; they are not what precedence is computed from, and a pre-release need not use one.
 
-### `PreReleaseNumber`
-
-The pre-release version number. Must be positive (>= 1).
-
-```scala
-val prn = PreReleaseNumber(1)
-PreReleaseNumber.from(0) // Left(InvalidComponent(0, "Pre-release number", "a positive number (>= 1)"))
-prn.value     // 1
-prn.increment // PreReleaseNumber(2)
-```
-
----
-
-## Pre-release Types
-
-### `PreReleaseClassifier`
-
-An enumeration of constrained classifiers with defined precedence (lowest to highest):
-
-| Classifier         | Aliases                | Requires Number |
-|--------------------|------------------------|-----------------|
-| `Dev`              | `dev`                  | Yes             |
-| `Milestone`        | `milestone`, `m`       | Yes             |
-| `Alpha`            | `alpha`, `a`           | Yes             |
-| `Beta`             | `beta`, `b`            | Yes             |
-| `ReleaseCandidate` | `rc`, `cr`             | Yes             |
-| `Snapshot`         | `SNAPSHOT`             | No              |
+| Classifier         | Aliases          | Numbered |
+|--------------------|------------------|----------|
+| `Dev`              | `dev`            | Yes      |
+| `Milestone`        | `milestone`, `m` | Yes      |
+| `Alpha`            | `alpha`, `a`     | Yes      |
+| `Beta`             | `beta`, `b`      | Yes      |
+| `ReleaseCandidate` | `rc`, `cr`       | Yes      |
+| `Snapshot`         | `SNAPSHOT`       | No       |
 
 ```scala
 import version.semver.PreReleaseClassifier
 import version.semver.PreReleaseClassifier.*
 
-// Properties
-Alpha.show // "alpha"
-Alpha.aliases // List("alpha", "a")
-Alpha.versioned // true
+Alpha.show         // "alpha" - the canonical alias
+Alpha.aliases      // List("alpha", "a")
 Snapshot.versioned // false
 
-// Parsing from alias
-PreReleaseClassifier.fromAlias("rc") // Some(ReleaseCandidate)
-PreReleaseClassifier.fromAlias("a") // Some(Alpha)
+PreReleaseClassifier.fromAlias("RC")  // Some(ReleaseCandidate) - case is ignored
 PreReleaseClassifier.fromAlias("foo") // None
 
-// Pattern matching
 "beta" match
   case PreReleaseClassifier(c) => c // Beta
 ```
 
-### `PreRelease`
-
-Combines a classifier with an optional version number:
+Pairing a classifier with a number is validated, since two of the combinations are contradictory:
 
 ```scala
-import version.semver.{PreRelease, PreReleaseNumber}
-
-// Factory methods (no validation needed)
-PreRelease.snapshot // SNAPSHOT
-PreRelease.alpha(PreReleaseNumber(1)) // alpha.1
-PreRelease.beta(PreReleaseNumber(2)) // beta.2
-PreRelease.releaseCandidate(PreReleaseNumber(1)) // rc.1
-
-// Safe construction with validation
 PreRelease.from(PreReleaseClassifier.Alpha, Some(PreReleaseNumber(1)))
-// Right(PreRelease(Alpha, Some(1)))
+// Right(alpha.1)
 
 PreRelease.from(PreReleaseClassifier.Alpha, None)
 // Left(MissingQualifierNumber("alpha"))
 
 PreRelease.from(PreReleaseClassifier.Snapshot, Some(PreReleaseNumber(1)))
 // Left(UnexpectedQualifierNumber("SNAPSHOT", 1))
-
-// Operations
-val pr = PreRelease.alpha(PreReleaseNumber(1))
-pr.show // "alpha.1"
-pr.increment // PreRelease(Alpha, Some(2))
-pr.isAlpha // true
 ```
-
----
 
 ## `Metadata`
 
-Build metadata identifiers. Each must match `[0-9A-Za-z-]+`.
+Build metadata is a non-empty, dot-separated identifier list over the same `[0-9A-Za-z-]` set, but unlike a
+pre-release it may carry leading zeros, and it takes no part in precedence.
 
 ```scala
 import version.semver.Metadata
 
-// Construction
-Metadata.from(List("build", "456"))
-// Right(Metadata(List("build", "456")))
+Metadata.from(List("build", "0456")) // Right(build.0456)
+Metadata.from(List(""))              // Left(InvalidMetadata(List("")))
+Metadata.from(List("a@b"))           // Left(InvalidMetadata(List("a@b")))
 
-Metadata.from(List("")) // Left(InvalidMetadata(...))
-Metadata.from(List("a@b")) // Left(InvalidMetadata(...))
-
-// Access
 val bm = Metadata(List("build", "456"))
 bm.identifiers // List("build", "456")
-bm.show // "build.456"
+bm.show        // "build.456"
 ```
 
----
-
 ## `SemVer`
-
-The complete SemVer 2.0.0 representation:
 
 ```scala
 import version.semver.*
 
-// Construction via apply overloads
-SemVer(major, minor, patch) // Final release
-SemVer(major, minor, patch, preRelease) // With pre-release
-SemVer(major, minor, patch, metadata) // With metadata
-SemVer(major, minor, patch, preRelease, meta) // Full form
+SemVer(major, minor, patch)                       // a release
+SemVer(major, minor, patch, preRelease)           // with a pre-release
+SemVer(major, minor, patch, metadata)             // with build metadata
+SemVer(major, minor, patch, preRelease, metadata) // with both
 
-// Full example
-val v = SemVer(
-  Major(1),
-  Minor(2),
-  Patch(3),
-  Some(PreRelease.alpha(PreReleaseNumber(1))),
-  None
-)
+val v = SemVer(Major(1), Minor(2), Patch(3), PreRelease.alpha(PreReleaseNumber(1)))
 v.show // "1.2.3-alpha.1"
 ```
 
----
-
 ## Ordering
 
-All types provide `Ordering` instances following SemVer precedence:
+`Ordering[SemVer]` implements clause 11 of the specification.
+
+1. Major, minor, and patch are compared numerically, in that order.
+2. A version carrying a pre-release ranks below the release with the same numbers.
+3. Pre-releases are compared identifier by identifier: a numeric identifier ranks below an alphanumeric one, numeric
+   identifiers compare as numbers, and alphanumeric identifiers compare by ASCII order. Where one list runs out first
+   and everything before matched, the shorter ranks lower.
+4. Build metadata is ignored.
+
+Two consequences of comparing identifiers rather than named labels are worth stating outright, because both differ
+from the ordering Java tooling conventionally applies:
+
+- `1.0.0-SNAPSHOT` ranks **below** `1.0.0-rc.1`, because ASCII order puts `S` before `r`.
+- `1.0.0-rc.4` ranks **below** `1.0.0-rc3`, because `rc3` is a single identifier and `rc` sorts before `rc3`.
 
 ```scala
-val versions = List(
-  SemVer.parseUnsafe("1.0.0"),
-  SemVer.parseUnsafe("1.0.0-alpha.1"),
-  SemVer.parseUnsafe("1.0.0-beta.1"),
-  SemVer.parseUnsafe("0.9.0")
-)
+val versions = List("1.0.0", "1.0.0-alpha.1", "1.0.0-beta.1", "0.9.0").map(SemVer.parseUnsafe)
 
 versions.sorted
 // List(0.9.0, 1.0.0-alpha.1, 1.0.0-beta.1, 1.0.0)
 ```
-
-Precedence rules:
-
-1. Major, minor, patch compared numerically
-2. Pre-release versions rank below final releases of the same core
-3. Pre-releases compared by classifier precedence, then number
-4. Build metadata does not affect precedence

@@ -17,18 +17,17 @@ package version.cli
 
 import scala.util.control.NoStackTrace
 
-import version.resolution.ResolutionError
-
-/** Argument-parsing and output-configuration failures surfaced by the CLI, each carrying a user-facing [[message]]. */
+/** A command line the CLI cannot act on, carrying the text to show the user who wrote it.
+  *
+  * Instances may be constructed via [[CliError$ CliError]].
+  */
 sealed trait CliError extends RuntimeException with NoStackTrace with Product with Serializable:
   def message: String
   final override def getMessage: String = message
 
+/** Provides the failure cases for [[CliError]]. */
 object CliError:
   given CanEqual[CliError, CliError] = CanEqual.derived
-
-  final case class ResolutionFailed(cause: ResolutionError) extends CliError:
-    def message: String = cause.message
 
   final case class InvalidSink(value: String) extends CliError:
     def message: String = s"Unknown sink '$value' (expected console|raw|json)"

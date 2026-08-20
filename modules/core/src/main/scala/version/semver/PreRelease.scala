@@ -15,9 +15,19 @@
  ****************************************************************************/
 package version.semver
 
-/** Supported pre-release classifiers in order of precedence (lowest to highest).
+import boilerplate.OpaqueType
+
+import scala.annotation.tailrec
+
+import version.errors.InvalidPreRelease
+import version.errors.InvalidQualifierCombination
+import version.errors.MissingQualifierNumber
+import version.errors.UnexpectedQualifierNumber
+
+/** The pre-release labels this library builds and recognises by name.
   *
-  * Declaration order defines precedence.
+  * A pre-release may carry any identifiers the specification allows; these are the ones the construction and
+  * increment helpers understand.
   *
   * @see
   *   [[PreReleaseClassifier$ PreReleaseClassifier]] companion for behaviour.
@@ -40,12 +50,12 @@ object PreReleaseClassifier:
   type Snapshot = PreReleaseClassifier.Snapshot.type
 
   extension (c: PreReleaseClassifier)
-    /** Returns `true` if the classifier requires a [[PreReleaseNumber]]. */
+    /** Whether the classifier is written with a number following it. */
     inline def versioned: Boolean = c match
       case Snapshot => false
       case _        => true
 
-    /** Returns the recognised aliases (first is canonical). */
+    /** Every spelling the classifier is recognised under, canonical form first. */
     inline def aliases: List[String] = c match
       case Dev              => List("dev")
       case Milestone        => List("milestone", "m")
@@ -54,17 +64,13 @@ object PreReleaseClassifier:
       case ReleaseCandidate => List("rc", "cr")
       case Snapshot         => List("SNAPSHOT")
 
-    /** Returns the canonical string form of the classifier. */
+    /** The canonical spelling. */
     inline def show: String = c.aliases.head
 
   private val aliasMap: Map[String, PreReleaseClassifier] =
     PreReleaseClassifier.values.flatMap(c => c.aliases.map(_.toLowerCase -> c)).toMap
 
-  /** Attempts to find a [[PreReleaseClassifier]] corresponding to the given string alias.
-    *
-    * @param alias
-    *   The string alias (case-insensitive).
-    */
+  /** The classifier spelled `alias`, matched without regard to case. */
   inline def fromAlias(alias: String): Option[PreReleaseClassifier] =
     import boilerplate.nullable.*
     alias.toLowerCase.option.flatMap(aliasMap.get)
@@ -72,95 +78,98 @@ object PreReleaseClassifier:
   /** Provides an extractor for matching string aliases. */
   inline def unapply(alias: String): Option[PreReleaseClassifier] = fromAlias(alias)
 
-  given Ordering[PreReleaseClassifier] = Ordering.by(_.ordinal)
   given CanEqual[PreReleaseClassifier, PreReleaseClassifier] = CanEqual.derived
 end PreReleaseClassifier
 
-/** Structured pre-release version information.
+/** A pre-release: a non-empty, dot-separated list of `[0-9A-Za-z-]` identifiers, ranking below the release carrying
+  * the same numbers.
   *
-  * Instances are constructed via [[PreRelease$ PreRelease]] companion factory methods.
+  * Any identifier list the specification admits is representable, so labels this library has no name for - `x.7.z.92`
+  * - survive parsing and ordering unchanged.
   *
-  * @param classifier
-  *   The type of pre-release.
-  * @param number
-  *   The version number associated with the classifier, if applicable.
+  * Instances may be constructed via [[PreRelease$ PreRelease]].
   */
-final case class PreRelease private (
-  classifier: PreReleaseClassifier,
-  number: Option[PreReleaseNumber]
-)
+opaque type PreRelease = List[String]
 
 /** Provides factory methods, instances, and operations for [[PreRelease]]. */
-object PreRelease:
+object PreRelease extends OpaqueType[PreRelease, List[String]], OpaqueType.Eq[PreRelease]:
+  type Error = InvalidPreRelease
 
-  import version.errors.InvalidQualifierCombination
-  import version.errors.MissingQualifierNumber
-  import version.errors.UnexpectedQualifierNumber
+  protected inline def wrap(ids: List[String]): PreRelease = ids
+  def unwrap(pr: PreRelease): List[String] = pr
+  inline def apply(inline identifiers: List[String]): PreRelease = ofUnsafe(identifiers)
 
-  /** Safe construction with validation. */
-  def from(
+  protected inline def validate(ids: List[String]): Either[Error, List[String]] =
+    if ids.nonEmpty && ids.forall(id => Identifier.valid(id) && !(Identifier.numeric(id) && Identifier.leadingZero(id)))
+    then Right(ids)
+    else Left(InvalidPreRelease(ids))
+
+  /** The label marking an in-development build. */
+  val snapshot: PreRelease = wrap(List(PreReleaseClassifier.Snapshot.show))
+
+  /** The pre-release naming `classifier`, rejecting a number the classifier does not take and the absence of one it
+    * requires.
+    */
+  def of(
     classifier: PreReleaseClassifier,
     number: Option[PreReleaseNumber]
   ): Either[InvalidQualifierCombination, PreRelease] =
-    if classifier.versioned && number.isEmpty then Left(MissingQualifierNumber(classifier.show))
-    else if !classifier.versioned && number.nonEmpty then Left(UnexpectedQualifierNumber(classifier.show, number.get.value))
-    else Right(PreRelease(classifier, number))
+    (classifier.versioned, number) match
+      case (true, Some(n))  => Right(numbered(classifier, n))
+      case (true, None)     => Left(MissingQualifierNumber(classifier.show))
+      case (false, None)    => Right(wrap(List(classifier.show)))
+      case (false, Some(n)) => Left(UnexpectedQualifierNumber(classifier.show, n.value))
 
-  /** Unsafe construction - throws on validation failure. */
-  def fromUnsafe(
-    classifier: PreReleaseClassifier,
-    number: Option[PreReleaseNumber]
-  ): PreRelease =
-    from(classifier, number) match
+  /** The pre-release naming `classifier`, throwing where [[of]] rejects the combination. */
+  def ofUnsafe(classifier: PreReleaseClassifier, number: Option[PreReleaseNumber]): PreRelease =
+    of(classifier, number) match
       case Right(pr) => pr
       case Left(err) => throw err // scalafix:ok
 
-  val snapshot: PreRelease = PreRelease(PreReleaseClassifier.Snapshot, None)
+  def dev(number: PreReleaseNumber): PreRelease = numbered(PreReleaseClassifier.Dev, number)
+  def milestone(number: PreReleaseNumber): PreRelease = numbered(PreReleaseClassifier.Milestone, number)
+  def alpha(number: PreReleaseNumber): PreRelease = numbered(PreReleaseClassifier.Alpha, number)
+  def beta(number: PreReleaseNumber): PreRelease = numbered(PreReleaseClassifier.Beta, number)
+  def releaseCandidate(number: PreReleaseNumber): PreRelease = numbered(PreReleaseClassifier.ReleaseCandidate, number)
 
-  def dev(number: PreReleaseNumber): PreRelease = PreRelease(PreReleaseClassifier.Dev, Some(number))
-  def milestone(number: PreReleaseNumber): PreRelease = PreRelease(PreReleaseClassifier.Milestone, Some(number))
-  def alpha(number: PreReleaseNumber): PreRelease = PreRelease(PreReleaseClassifier.Alpha, Some(number))
-  def beta(number: PreReleaseNumber): PreRelease = PreRelease(PreReleaseClassifier.Beta, Some(number))
-  def releaseCandidate(number: PreReleaseNumber): PreRelease =
-    PreRelease(PreReleaseClassifier.ReleaseCandidate, Some(number))
+  /** The first pre-release of `classifier`, numbered from one where the classifier takes a number. */
+  private[semver] def initial(classifier: PreReleaseClassifier): PreRelease =
+    if classifier.versioned then numbered(classifier, PreReleaseNumber.minimum)
+    else wrap(List(classifier.show))
+
+  private def numbered(classifier: PreReleaseClassifier, number: PreReleaseNumber): PreRelease =
+    wrap(List(classifier.show, number.value.toString))
 
   extension (pr: PreRelease)
-    /** Returns the SemVer-compliant string form (e.g., "alpha.1", "snapshot"). */
-    inline def show: String =
-      pr.number.fold(pr.classifier.show)(n => s"${pr.classifier.show}.${n.value}")
+    inline def identifiers: List[String] = unwrap(pr)
 
-    /** Returns a new [[PreRelease]] with the number incremented, if versioned. */
-    inline def increment: PreRelease =
-      if pr.classifier.versioned then PreRelease(pr.classifier, pr.number.map(_.increment))
-      else pr
+    inline def show: String = unwrap(pr).mkString(".")
 
-    inline def isDev: Boolean = pr.classifier.equals(PreReleaseClassifier.Dev)
-    inline def isMilestone: Boolean = pr.classifier.equals(PreReleaseClassifier.Milestone)
-    inline def isAlpha: Boolean = pr.classifier.equals(PreReleaseClassifier.Alpha)
-    inline def isBeta: Boolean = pr.classifier.equals(PreReleaseClassifier.Beta)
-    inline def isReleaseCandidate: Boolean = pr.classifier.equals(PreReleaseClassifier.ReleaseCandidate)
-    inline def isSnapshot: Boolean = pr.classifier.equals(PreReleaseClassifier.Snapshot)
-  end extension
+    /** The classifier named by the leading identifier, where it names one. */
+    def classifier: Option[PreReleaseClassifier] = unwrap(pr).headOption.flatMap(PreReleaseClassifier.fromAlias)
 
-  given Ordering[PreRelease] = Ordering.by(pr => (pr.classifier, pr.number))
+    /** The label with its trailing number advanced, unchanged where the label ends in no number. */
+    def increment: PreRelease =
+      val ids = unwrap(pr)
+      ids.lastOption.flatMap(_.toLongOption).fold(pr)(n => wrap(ids.init :+ (n + 1).toString))
 
-  given CanEqual[PreRelease, PreRelease] = CanEqual.derived
+  given Ordering[PreRelease]:
+    def compare(x: PreRelease, y: PreRelease): Int = compareIdentifiers(unwrap(x), unwrap(y))
 
-  /** Strategy for mapping raw SemVer pre-release identifiers to the structured [[PreRelease]] type.
-    *
-    * Enables pluggable behaviour for interpreting non-standard pre-release formats.
-    */
-  trait Resolver:
-    extension (identifiers: List[String]) def resolve: Option[PreRelease]
+  @tailrec
+  private def compareIdentifiers(a: List[String], b: List[String]): Int = (a, b) match
+    case (Nil, Nil)         => 0
+    case (Nil, _)           => -1
+    case (_, Nil)           => 1
+    case (x :: xs, y :: ys) =>
+      val c = compareIdentifier(x, y)
+      if c != 0 then c else compareIdentifiers(xs, ys)
 
-  object Resolver:
-    given Resolver:
-      extension (identifiers: List[String])
-        def resolve: Option[PreRelease] =
-          identifiers match
-            case List(PreReleaseClassifier(c)) if !c.versioned =>
-              Some(PreRelease(c, None))
-            case List(PreReleaseClassifier(c), n) if c.versioned =>
-              n.toIntOption.flatMap(i => PreReleaseNumber.from(i).toOption).map(num => PreRelease(c, Some(num)))
-            case _ => None
+  private def compareIdentifier(a: String, b: String): Int =
+    (Identifier.numeric(a), Identifier.numeric(b)) match
+      // A numeric identifier carries no leading zero, so the longer of two is unambiguously the larger number.
+      case (true, true)  => if a.length != b.length then Integer.compare(a.length, b.length) else a.compareTo(b)
+      case (true, false) => -1
+      case (false, true) => 1
+      case _             => a.compareTo(b)
 end PreRelease

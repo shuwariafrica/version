@@ -15,50 +15,46 @@
  ****************************************************************************/
 package version.resolution
 
-import version.Version
 import version.resolution.domain.RawCommit
 import version.resolution.domain.Release
 
-/** Distinguishes how a resolved version was arrived at.
+/** How a resolved version was arrived at.
   *
   * Instances are compared via [[ResolutionMode$ ResolutionMode]].
   */
 enum ResolutionMode:
 
-  /** The basis commit carries a valid annotated tag and the worktree is clean; the resolved
-    * version is that tag verbatim, so target and resolved coincide.
-    */
+  /** The basis commit carries a version tag and the working tree is clean, so the tag itself is the version. */
   case Concrete
 
-  /** No clean tagged basis; the resolved version is a development version constructed from the
-    * computed target core and commit metadata.
+  /** The basis is untagged or the working tree is modified, so the version is an in-development one built from the
+    * target and the state of the repository.
     */
   case Development
 
+/** Provides instances for [[ResolutionMode]]. */
 object ResolutionMode:
   given CanEqual[ResolutionMode, ResolutionMode] = CanEqual.derived
 
-/** Outcome of a resolution run.
+/** What a resolution run arrived at.
   *
-  * `resolved` is what consumers normally render; `target` is the release core the resolution computed - equal to
-  * `resolved` under [[ResolutionMode.Concrete]], the core underlying the development version under
-  * [[ResolutionMode.Development]]. `basis` is the commit the version was resolved at (its `commitTime` is the last
-  * commit date); it is `None` only for an empty (unborn) repository. `base` is the release this resolution is anchored
-  * to - the resolved release under [[ResolutionMode.Concrete]], the base release the development version builds from
-  * under [[ResolutionMode.Development]], or `None` when no release is reachable; the time of its commit is the release
-  * time. Instances are produced by [[Resolver$ Resolver]] (`resolveAll`).
+  * `resolved` is the version to render; `target` is the release it is working towards, which equals `resolved` under
+  * [[ResolutionMode.Concrete]]. `basis` is the commit resolved at, absent only for an unborn repository. `base` is the
+  * release the run is anchored to, absent when none is reachable. `repository` is the root that was actually read -
+  * the working tree, or the Git directory of a bare repository - which discovery may have found above the path asked
+  * for.
   *
-  * @tparam V
-  *   The version type for the scheme in use.
+  * Instances are produced by [[Resolver$ Resolver]].
   */
-final case class ResolutionResult[V <: Version](
+final case class ResolutionResult[V](
   resolved: V,
   target: V,
   mode: ResolutionMode,
   basis: Option[RawCommit],
-  base: Option[Release[V]]
+  base: Option[Release[V]],
+  repository: String
 )
 
 /** Provides equality for [[ResolutionResult]]. */
 object ResolutionResult:
-  given [V <: Version](using CanEqual[V, V]): CanEqual[ResolutionResult[V], ResolutionResult[V]] = CanEqual.derived
+  given [V](using CanEqual[V, V]): CanEqual[ResolutionResult[V], ResolutionResult[V]] = CanEqual.derived

@@ -17,62 +17,56 @@ package version.resolution
 
 import scala.annotation.targetName
 
-import version.ResolvableScheme
-import version.Version
+import version.VersionScheme
 import version.resolution.domain.CiMetadata
 
-/** Pure configuration for a version resolution run.
+/** What a resolution run is given before it opens anything.
   *
-  * `repoPath` is a platform-neutral string; each backend's `open` factory performs platform-appropriate path
-  * resolution. `tagParser` converts raw Git tag names to version values.
+  * `repoPath` is platform-neutral; the `open` function passed alongside it performs the platform's own path
+  * resolution. `basisCommit` names the revision to resolve at, and is `None` for HEAD - the only setting an
+  * unborn repository tolerates. `tagParser` decides which tag names carry a version, and what version each carries.
   *
-  * @tparam V
-  *   The version type for the scheme in use.
+  * Instances may be constructed via [[ResolutionConfig$ ResolutionConfig]].
   */
-final case class ResolutionConfig[V <: Version] private[version] (
+final case class ResolutionConfig[V] private[version] (
   repoPath: String,
-  basisCommit: String,
+  basisCommit: Option[String],
   prNumber: Option[Int],
   branchOverride: Option[String],
-  verbose: Boolean,
   tagParser: String => Option[V]
 )
 
 /** Provides factory methods and extensions for [[ResolutionConfig]]. */
 object ResolutionConfig:
-  given [V <: Version](using CanEqual[V, V]): CanEqual[ResolutionConfig[V], ResolutionConfig[V]] = CanEqual.derived
+  given [V](using CanEqual[V, V]): CanEqual[ResolutionConfig[V], ResolutionConfig[V]] = CanEqual.derived
 
-  /** Validated construction. Returns `Left` if `basisCommit` is empty. */
-  def from[V <: Version](
+  /** Validated construction, reading `"HEAD"` as the unpinned basis and rejecting an empty one. */
+  def from[V](
     repoPath: String,
     basisCommit: String,
     prNumber: Option[Int],
     branchOverride: Option[String],
-    verbose: Boolean,
     tagParser: String => Option[V]
   ): Either[ResolutionError, ResolutionConfig[V]] =
     if basisCommit.isEmpty then Left(ResolutionError.InvalidBasisCommit(basisCommit))
-    else Right(new ResolutionConfig(repoPath, basisCommit, prNumber, branchOverride, verbose, tagParser))
+    else Right(new ResolutionConfig(repoPath, Option.unless(basisCommit == "HEAD")(basisCommit), prNumber, branchOverride, tagParser))
 
-  /** Default configuration for the given repository path, using the scheme's parser with `v`/`V` prefix stripping. */
-  def default[V <: Version](repoPath: String)(using scheme: ResolvableScheme[V]): ResolutionConfig[V] =
+  /** Configuration resolving `repoPath` at HEAD, reading tags with [[VersionResolver.defaultTagParser]]. */
+  def default[V](repoPath: String)(using VersionScheme[V]): ResolutionConfig[V] =
     ResolutionConfig(
       repoPath = repoPath,
-      basisCommit = "HEAD",
+      basisCommit = None,
       prNumber = None,
       branchOverride = None,
-      verbose = false,
-      tagParser = name =>
-        val raw = if name.startsWith("v") || name.startsWith("V") then name.drop(1) else name
-        scheme.parse(raw).toOption
+      tagParser = VersionResolver.defaultTagParser[V]
     )
 
   /** Companion alias for the multi-parameter [[mergeWith]] extension. */
-  inline def mergeWith[V <: Version](config: ResolutionConfig[V], metadata: Option[CiMetadata]): ResolutionConfig[V] =
+  inline def mergeWith[V](config: ResolutionConfig[V], metadata: Option[CiMetadata]): ResolutionConfig[V] =
     config.mergeWith(metadata)
 
-  extension [V <: Version](config: ResolutionConfig[V])
-    /** Merge CI-detected metadata into this configuration, filling in PR number and branch override where absent. */
+  extension [V](config: ResolutionConfig[V])
+    /** Fills in the pull-request number and branch override from `metadata` where this configuration states neither. */
     @targetName("ext_mergeWith")
     inline def mergeWith(metadata: Option[CiMetadata]): ResolutionConfig[V] =
       metadata match

@@ -15,16 +15,17 @@
  ****************************************************************************/
 package version.semver
 
+import boilerplate.ValueCodec
+
 import scala.annotation.targetName
 
 import version.*
 import version.errors.ClassifierNotVersioned
-import version.errors.InvalidVersionFormat
+import version.errors.ParseError
+import version.errors.UnsupportedComponent
 import version.errors.VersionError
 
-/** Represents a version conforming to the Semantic Versioning 2.0.0 specification.
-  *
-  * Format: `MAJOR.MINOR.PATCH[-PRERELEASE][+BUILDMETADATA]`.
+/** A version under the Semantic Versioning 2.0.0 specification: `MAJOR.MINOR.PATCH[-PRERELEASE][+BUILDMETADATA]`.
   *
   * Instances may be constructed via [[SemVer$ SemVer]].
   */
@@ -34,48 +35,38 @@ final case class SemVer(
   patch: Patch,
   preRelease: Option[PreRelease],
   metadata: Option[Metadata]
-) extends Version:
-  override def show: String = SemVer.Formatter.Standard.format(this)
+)
 
 /** Provides factory methods, type class instances, and extensions for [[SemVer]]. */
 object SemVer:
 
-  /** Describes how to bump a version given a specific component type `F`.
-    *
-    * Enables the generic `version.next[F]` operation.
-    */
+  /** Advances a version towards the component or classifier named by the phantom type `F`. Consumed by `next`. */
   trait Increment[F]:
     extension (v: SemVer) def increment: SemVer
 
+  /** Provides the [[Increment]] instances for the numeric components and the named classifiers. */
   object Increment:
     import PreReleaseClassifier.*
 
     given Increment[Major]:
-      extension (v: SemVer)
-        def increment: SemVer =
-          SemVer(v.major.increment, Minor.reset, Patch.reset)
+      extension (v: SemVer) def increment: SemVer = SemVer(v.major.increment, Minor.reset, Patch.reset)
 
     given Increment[Minor]:
-      extension (v: SemVer)
-        def increment: SemVer =
-          SemVer(v.major, v.minor.increment, Patch.reset)
+      extension (v: SemVer) def increment: SemVer = SemVer(v.major, v.minor.increment, Patch.reset)
 
     given Increment[Patch]:
-      extension (v: SemVer)
-        def increment: SemVer =
-          SemVer(v.major, v.minor, v.patch.increment)
+      extension (v: SemVer) def increment: SemVer = SemVer(v.major, v.minor, v.patch.increment)
 
-    private inline def classifierIncrement(v: SemVer, target: PreReleaseClassifier): SemVer =
-      val pr1 = PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset))
+    private def classifierIncrement(v: SemVer, target: PreReleaseClassifier): SemVer =
+      val restarted = PreRelease.initial(target)
       v.preRelease match
-        case None =>
-          SemVer(v.major, v.minor, v.patch, pr1)
-        case Some(pr) if pr.classifier == target =>
-          SemVer(v.major, v.minor, v.patch, pr.increment)
-        case Some(pr) if pr.classifier.ordinal < target.ordinal =>
-          SemVer(v.major, v.minor, v.patch, pr1)
-        case Some(_) =>
-          SemVer(v.major, v.minor, v.patch.increment, pr1)
+        case None                                       => SemVer(v.major, v.minor, v.patch, restarted)
+        case Some(pr) if pr.classifier.contains(target) => SemVer(v.major, v.minor, v.patch, pr.increment)
+        // Restarting the label only advances the version where the new label outranks the old one; where it does
+        // not, the patch moves first so that the result still succeeds what it came from.
+        case Some(pr) if summon[Ordering[PreRelease]].gt(restarted, pr) =>
+          SemVer(v.major, v.minor, v.patch, restarted)
+        case Some(_) => SemVer(v.major, v.minor, v.patch.increment, restarted)
 
     given Increment[Dev]:
       extension (v: SemVer) def increment: SemVer = classifierIncrement(v, PreReleaseClassifier.Dev)
@@ -93,10 +84,11 @@ object SemVer:
       extension (v: SemVer) def increment: SemVer = classifierIncrement(v, PreReleaseClassifier.ReleaseCandidate)
   end Increment
 
-  /** Captures a concrete pre-release classifier as a type `C`. */
+  /** Names a concrete [[PreReleaseClassifier]] at the type level, so that `as` can be addressed by type. */
   trait PreReleaseClass[C]:
     def classifier: PreReleaseClassifier
 
+  /** Provides the [[PreReleaseClass]] instance for each classifier. */
   object PreReleaseClass:
     import PreReleaseClassifier.*
 
@@ -127,34 +119,30 @@ object SemVer:
   inline def apply(major: Major, minor: Minor, patch: Patch, preRelease: PreRelease): SemVer =
     SemVer(major, minor, patch, Some(preRelease), None)
 
+  @targetName("apply_with_metadata")
   inline def apply(major: Major, minor: Minor, patch: Patch, metadata: Metadata): SemVer =
     SemVer(major, minor, patch, None, Some(metadata))
 
   inline def apply(major: Major, minor: Minor, patch: Patch, preRelease: PreRelease, metadata: Metadata): SemVer =
     SemVer(major, minor, patch, Some(preRelease), Some(metadata))
 
-  private[version] inline def fromParsed(p: Parser.ParsedVersion): SemVer =
-    SemVer(p.major, p.minor, p.patch, p.preRelease, p.metadata)
+  /** Reads a version string, accepting the conventional leading `v` or `V`. */
+  def parse(input: String): Either[ParseError, SemVer] = Parser.parse(input)
 
-  /** Parse a SemVer string using the contextual [[PreRelease.Resolver]] for pre-release identifier mapping. */
-  def parse(input: String)(using PreRelease.Resolver): Either[version.errors.ParseError, SemVer] =
-    Parser.parse(input).map(fromParsed)
-
-  /** Parse a SemVer string, throwing on failure. */
-  def parseUnsafe(input: String)(using PreRelease.Resolver): SemVer =
+  /** Reads a version string, throwing the [[version.errors.ParseError ParseError]] on rejection. */
+  def parseUnsafe(input: String): SemVer =
     parse(input) match
       case Right(v) => v
       case Left(e)  => throw e // scalafix:ok
 
-  /** Named [[version.Formatter Formatter]] instances for SemVer rendering. */
+  /** Provides the [[version.Formatter Formatter]] instances that render a version other than canonically. */
   object Formatter:
-    // Commit SHAs in build metadata are lowercase hex of full hash length (40 for SHA-1, 64 for SHA-256).
-    // The shape distinguishes them from the other emitted identifiers (12-digit timestamp, branch slug, pr<N>, dirty).
+    // A commit SHA is lowercase hex of full digest length; none of the other identifiers this library emits into
+    // build metadata - a 12-digit timestamp, a branch slug, `pr<N>`, `dirty` - can take that shape.
     private inline def isShaIdentifier(id: String): Boolean =
       (id.length == 40 || id.length == 64) &&
         id.forall(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
 
-    // Append into a caller-supplied StringBuilder to elide per-call intermediate Strings.
     private inline def appendCore(sb: StringBuilder, v: SemVer): Unit =
       sb.append(v.major.value).append('.').append(v.minor.value).append('.').append(v.patch.value): Unit
 
@@ -163,7 +151,7 @@ object SemVer:
 
     private def appendMetadata(sb: StringBuilder, v: SemVer, shaTrunc: Option[Int]): Unit =
       // scalafix:off DisableSyntax.var
-      // Single traversal over identifiers; var tracks whether to emit the leading `.`.
+      // Single traversal over the identifiers; the var tracks whether a separator is due.
       v.metadata.foreach: m =>
         sb.append('+'): Unit
         var first = true
@@ -176,7 +164,7 @@ object SemVer:
           sb.append(toAppend): Unit
       // scalafix:on DisableSyntax.var
 
-    /** Renders core plus pre-release; omits build metadata. Equivalent to `v.show`. */
+    /** Renders the numbers and the pre-release, omitting build metadata. */
     case object Standard extends version.Formatter[SemVer]:
       def format(v: SemVer): String =
         val sb = StringBuilder(24)
@@ -184,9 +172,7 @@ object SemVer:
         appendPreRelease(sb, v)
         sb.result()
 
-    /** Renders core plus pre-release plus build metadata. Commit SHAs are emitted verbatim; round-trips through
-      * [[SemVer$.parse SemVer.parse]] return an equal value.
-      */
+    /** Renders every part, matching the canonical form `show` produces. */
     case object Full extends version.Formatter[SemVer]:
       def format(v: SemVer): String =
         val sb = StringBuilder(64)
@@ -195,9 +181,8 @@ object SemVer:
         appendMetadata(sb, v, None)
         sb.result()
 
-      /** Returns a [[version.Formatter Formatter]] that truncates the commit-SHA build-metadata identifier to
-        * `length` characters. Other identifiers are emitted verbatim. `length` must be in `[7, 64]` (SHA-1 = 40,
-        * SHA-256 = 64).
+      /** As [[Full]], but truncating a commit-SHA build-metadata identifier to `length` characters. `length` must be
+        * in `[7, 64]`.
         */
       def withShaLength(length: Int): version.Formatter[SemVer] =
         require(length >= 7 && length <= 64, s"shaLength must be in [7, 64], got $length")
@@ -215,32 +200,177 @@ object SemVer:
 
   given Ordering[SemVer]:
     def compare(x: SemVer, y: SemVer): Int =
-      val compareNumbers =
-        summon[Ordering[(Major, Minor, Patch)]].compare(
-          (x.major, x.minor, x.patch),
-          (y.major, y.minor, y.patch)
-        )
-      compareNumbers match
-        case 0 =>
-          (x.preRelease, y.preRelease) match
-            case (None, None)         => 0
-            case (Some(_), None)      => -1
-            case (None, Some(_))      => 1
-            case (Some(px), Some(py)) => summon[Ordering[PreRelease]].compare(px, py)
-        case n => n
+      val numbers = summon[Ordering[(Major, Minor, Patch)]].compare(
+        (x.major, x.minor, x.patch),
+        (y.major, y.minor, y.patch)
+      )
+      if numbers != 0 then numbers
+      else
+        (x.preRelease, y.preRelease) match
+          case (None, None)       => 0
+          case (Some(_), None)    => -1
+          case (None, Some(_))    => 1
+          case (Some(a), Some(b)) => summon[Ordering[PreRelease]].compare(a, b)
 
   given CanEqual[SemVer, SemVer] = CanEqual.derived
 
-  /** Sanitise an arbitrary branch label for use as a SemVer build-metadata identifier.
-    *
-    * The SemVer 2.0.0 grammar restricts identifiers to `[0-9A-Za-z-]`. This helper lowercases the input, replaces any
-    * other character with `-`, collapses runs of `-`, trims leading/trailing `-`, and returns `"detached"` for an
-    * empty result. The input is not mutated; consumers retain the original branch label in
-    * [[version.DevelopmentMetadata DevelopmentMetadata]].
+  given scheme: VersionScheme[SemVer]:
+    def name: String = "semver"
+
+    def parse(input: String): Either[VersionError, SemVer] = Parser.parse(input)
+
+    def precedence: Ordering[SemVer] = summon[Ordering[SemVer]]
+
+    def difference(a: SemVer, b: SemVer): Difference =
+      if a.major != b.major then Difference.Release(0)
+      else if a.minor != b.minor then Difference.Release(1)
+      else if a.patch != b.patch then Difference.Release(2)
+      else if differs(a.preRelease, b.preRelease) then Difference.Qualifier
+      else if differs(a.metadata, b.metadata) then Difference.Build
+      else Difference.None
+
+    extension (v: SemVer)
+      def show: String = Formatter.Full.format(v)
+      def stable: Boolean = v.preRelease.isEmpty
+      def release: SemVer = SemVer(v.major, v.minor, v.patch)
+      def numbers: IArray[Long] = IArray(v.major.value, v.minor.value, v.patch.value)
+
+  given arithmetic: VersionArithmetic[SemVer]:
+    def apply(v: SemVer, request: Request): Either[VersionError, SemVer] = request match
+      case Request.Advance(intent) => Right(advance(v, intent))
+      case Request.Bump(component) =>
+        axis(component).map(a => step(v.release, v.preRelease.nonEmpty, a))
+      case Request.Assign(component, value) =>
+        axis(component).flatMap(a => assign(v.release, a, value))
+
+  given resolvable: ResolvableScheme[SemVer]:
+    def initialVersion: SemVer = SemVer(Major(0), Minor(1), Patch(0))
+
+    def developmentVersion(release: SemVer, metadata: DevelopmentMetadata): SemVer =
+      // The spine `<timestamp>.<branch>.<sha>` is invariant, and the 12-character UTC timestamp leads so that raw
+      // string comparison of snapshots of one base sorts them chronologically. Conditional flags trail.
+      val branch = metadata.branch.map(sanitiseBranchIdentifier).getOrElse("detached")
+      val identifiers = List(
+        metadata.commitTime.map(Utc.compact),
+        Some(branch),
+        metadata.commitSha,
+        metadata.prNumber.map(n => s"pr${Math.max(0, n)}"),
+        Option.when(metadata.isDirty)("dirty")
+      ).flatten
+      SemVer(release.major, release.minor, release.patch, Some(PreRelease.snapshot), Metadata.of(identifiers).toOption)
+
+    def defaultTarget(base: SemVer): SemVer = advance(base, Intent.Fix)
+
+    def directives: Map[String, Request] = Map(
+      "major" -> Request.Bump("major"),
+      "minor" -> Request.Bump("minor"),
+      "patch" -> Request.Bump("patch"),
+      "breaking" -> Request.Advance(Intent.Breaking),
+      "feature" -> Request.Advance(Intent.Feature),
+      "feat" -> Request.Advance(Intent.Feature),
+      "fix" -> Request.Advance(Intent.Fix),
+      "stable" -> Request.Advance(Intent.Stable)
+    )
+
+    extension (v: SemVer) def snapshot: Boolean = v.preRelease.exists(_.classifier.contains(PreReleaseClassifier.Snapshot))
+  end resolvable
+
+  /** Binds a version to the text carrying it - a path segment, a query parameter, a header - for a service that reads
+    * and writes versions at a wire boundary.
     */
-  private[version] def sanitiseBranchIdentifier(name: String): String =
+  given valueCodec: ValueCodec.Aux[SemVer, VersionError] = ValueCodec(Parser.parse(_), v => v.show)
+
+  /** Provides the named compatibility rules for [[SemVer]]. No instance is given: the two rules disagree below
+    * `1.0.0`, and choosing between them is the consumer's commitment.
+    */
+  object Compatibility:
+
+    /** Clause 8 read strictly: both stable, at or above `1.0.0`, and sharing a major. */
+    val sameMajor: CompatibilityPolicy[SemVer] = (a: SemVer, b: SemVer) => a.stable && b.stable && a.major.value >= 1 && a.major == b.major
+
+    /** The caret rule of Cargo, npm and Composer: both stable, and sharing their leftmost non-zero component. */
+    val leftmostNonZero: CompatibilityPolicy[SemVer] = (a: SemVer, b: SemVer) =>
+      a.stable && b.stable && {
+        if a.major.value > 0 || b.major.value > 0 then a.major == b.major
+        else if a.minor.value > 0 || b.minor.value > 0 then a.minor == b.minor
+        else a.patch == b.patch
+      }
+
+  def as[C](v: SemVer, n: Long)(using PreReleaseClass[C]): Either[VersionError, SemVer] = v.as[C](n)
+
+  extension (v: SemVer)
+    def next[F](using Increment[F]): SemVer = v.increment
+
+    @targetName("ext_as_with_number")
+    def as[C](n: Long)(using cls: PreReleaseClass[C]): Either[VersionError, SemVer] =
+      val target = cls.classifier
+      if !target.versioned then Left(ClassifierNotVersioned(target.show))
+      else
+        for
+          number <- PreReleaseNumber.of(n)
+          label <- PreRelease.of(target, Some(number))
+        yield SemVer(v.major, v.minor, v.patch, label)
+
+    def as[C](using cls: PreReleaseClass[C]): SemVer =
+      SemVer(v.major, v.minor, v.patch, PreRelease.initial(cls.classifier))
+  end extension
+
+  private def advance(v: SemVer, intent: Intent): SemVer =
+    val base = v.release
+    val pending = v.preRelease.nonEmpty
+    intent match
+      case Intent.Stable   => if base.major.value >= 1 then base else SemVer(Major(1), Minor(0), Patch(0))
+      case Intent.Breaking => step(base, pending, tier(base))
+      case Intent.Feature  => step(base, pending, below(base, 1))
+      case Intent.Fix      => step(base, pending, below(base, 2))
+
+  // The compatibility axis is the leftmost non-zero component. `Breaking` moves it and the lesser intents move below
+  // it, bounded by the patch, which yields the >= 1.0.0, 0.y.z and 0.0.z advancement tiers from a single rule.
+  private def tier(base: SemVer): Int =
+    if base.major.value > 0 then 0
+    else if base.minor.value > 0 then 1
+    else 2
+
+  private def below(base: SemVer, positions: Int): Int = math.min(tier(base) + positions, 2)
+
+  // A pending pre-release whose components below the axis are all zero already sits on the requested boundary, so the
+  // request is satisfied by releasing it rather than by advancing past it.
+  private def step(base: SemVer, pending: Boolean, axis: Int): SemVer =
+    if pending && onBoundary(base, axis) then base else bump(base, axis)
+
+  private def onBoundary(base: SemVer, axis: Int): Boolean = axis match
+    case 0 => base.minor.value == 0 && base.patch.value == 0
+    case 1 => base.patch.value == 0
+    case _ => true
+
+  private def bump(base: SemVer, axis: Int): SemVer = axis match
+    case 0 => SemVer(base.major.increment, Minor.reset, Patch.reset)
+    case 1 => SemVer(base.major, base.minor.increment, Patch.reset)
+    case _ => SemVer(base.major, base.minor, base.patch.increment)
+
+  private def assign(base: SemVer, axis: Int, value: Long): Either[VersionError, SemVer] = axis match
+    case 0 => Major.of(value).map(m => SemVer(m, Minor.reset, Patch.reset))
+    case 1 => Minor.of(value).map(m => SemVer(base.major, m, Patch.reset))
+    case _ => Patch.of(value).map(p => SemVer(base.major, base.minor, p))
+
+  private def axis(component: String): Either[VersionError, Int] = component match
+    case "major" => Right(0)
+    case "minor" => Right(1)
+    case "patch" => Right(2)
+    case _       => Left(UnsupportedComponent("semver", component))
+
+  private def differs[A](x: Option[A], y: Option[A])(using CanEqual[A, A]): Boolean = (x, y) match
+    case (Some(a), Some(b)) => a != b
+    case (None, None)       => false
+    case _                  => true
+
+  // A branch label is emitted as one build-metadata identifier, whose grammar admits only `[0-9A-Za-z-]`, so
+  // anything else is replaced and runs are collapsed to keep it a single identifier. A label left with nothing
+  // usable becomes `detached`, which is also what an absent branch yields. The label itself is never altered - it
+  // stays in DevelopmentMetadata for callers that want it.
+  private def sanitiseBranchIdentifier(name: String): String =
     // scalafix:off DisableSyntax.var
-    // Use a var tracker to drop the per-char boxing of a fold-with-tuple shape.
+    // A var tracker drops the per-character boxing a fold-with-tuple shape would incur.
     val lower = name.toLowerCase
     val sb = new StringBuilder(lower.length)
     var prevHyphen = false
@@ -263,93 +393,5 @@ object SemVer:
     if trimmed.isEmpty then "detached" else trimmed
     // scalafix:on DisableSyntax.var
   end sanitiseBranchIdentifier
-
-  given ResolvableScheme[SemVer] with
-    def name: String = "semver"
-
-    def layout: IArray[ComponentDescriptor] = IArray(
-      ComponentDescriptor("major", ComponentRole.Breaking),
-      ComponentDescriptor("minor", ComponentRole.Feature),
-      ComponentDescriptor("patch", ComponentRole.Fix)
-    )
-
-    def parse(input: String): Either[VersionError, SemVer] =
-      Parser.parse(input)(using PreRelease.Resolver.given_Resolver).map(fromParsed)
-
-    def ordering: Ordering[SemVer] = summon[Ordering[SemVer]]
-
-    def keywordAliases: Map[String, Int] = Map(
-      "major" -> 0,
-      "breaking" -> 0,
-      "minor" -> 1,
-      "feature" -> 1,
-      "feat" -> 1,
-      "patch" -> 2,
-      "fix" -> 2
-    )
-
-    def initialVersion: SemVer = SemVer(Major(0), Minor(1), Patch(0))
-
-    def developmentVersion(targetCore: SemVer, meta: DevelopmentMetadata): SemVer =
-      // Spine `<timestamp>.<branch>.<short-sha>` is invariant. The 12-character UTC
-      // timestamp first lets raw string comparison of snapshots of the same base sort
-      // chronologically. Tail-conditional flags (`pr<N>`, `dirty`) trail.
-      val branchId = meta.branch.map(SemVer.sanitiseBranchIdentifier).getOrElse("detached")
-      val ids = List(
-        meta.commitTime.map(Utc.compact),
-        Some(branchId),
-        meta.commitSha,
-        meta.prNumber.map(n => s"pr${Math.max(0, n)}"),
-        if meta.isDirty then Some("dirty") else None
-      ).flatten
-      val md = Metadata.from(ids).toOption
-      SemVer(targetCore.major, targetCore.minor, targetCore.patch, Some(PreRelease.snapshot), md)
-
-    extension (v: SemVer)
-      def components: IArray[Int] = IArray(v.major.value, v.minor.value, v.patch.value)
-      def isFinal: Boolean = v.preRelease.isEmpty
-      override def isSnapshot: Boolean = v.preRelease.exists(_.isSnapshot)
-      def core: SemVer = SemVer(v.major, v.minor, v.patch)
-      def incrementComponent(index: Int): SemVer = index match
-        case 0 => SemVer(v.major.increment, Minor.reset, Patch.reset)
-        case 1 => SemVer(v.major, v.minor.increment, Patch.reset)
-        case 2 => SemVer(v.major, v.minor, v.patch.increment)
-        case _ => v
-      def setComponent(index: Int, value: Int): Either[VersionError, SemVer] = index match
-        case 0 => Major.from(value).map(m => SemVer(m, Minor.reset, Patch.reset))
-        case 1 => Minor.from(value).map(m => SemVer(v.major, m, Patch.reset))
-        case 2 => Patch.from(value).map(p => SemVer(v.major, v.minor, p))
-        case _ => Left(InvalidVersionFormat(s"Invalid component index: $index"))
-      override def keywordBump(index: Int): SemVer =
-        // Major version 0 is SemVer's initial-development phase: the API is not yet stable, so a breaking bump
-        // (major, index 0) advances the minor (index 1) rather than forcing a premature 1.0.0.
-        val effective = if index == 0 && !v.major.isStable then 1 else index
-        v.incrementComponent(effective)
-      def defaultBump: SemVer = SemVer(v.major, v.minor, v.patch.increment)
-      def promoteToRelease: SemVer = v.copy(preRelease = None, metadata = None)
-  end given
-
-  inline def as[C](v: SemVer, n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, SemVer] =
-    v.as[C](n)
-
-  extension (v: SemVer)
-    inline def stable: Boolean = v.major.isStable && !v.snapshot
-    inline def snapshot: Boolean = v.preRelease.exists(_.isSnapshot)
-    inline def next[F](using Increment[F]): SemVer = v.increment
-
-    @targetName("ext_as_with_number")
-    inline def as[C](n: Int)(using cls: PreReleaseClass[C]): Either[VersionError, SemVer] =
-      val target = cls.classifier
-      if !target.versioned then Left(ClassifierNotVersioned(target.show))
-      else
-        PreReleaseNumber.from(n) match
-          case Left(err)  => Left(err)
-          case Right(num) => Right(SemVer(v.major, v.minor, v.patch, PreRelease.fromUnsafe(target, Some(num))))
-
-    inline def as[C](using cls: PreReleaseClass[C]): SemVer =
-      val target = cls.classifier
-      val pr = if target.versioned then PreRelease.fromUnsafe(target, Some(PreReleaseNumber.reset)) else PreRelease.snapshot
-      SemVer(v.major, v.minor, v.patch, pr)
-  end extension
 
 end SemVer

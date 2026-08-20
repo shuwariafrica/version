@@ -15,41 +15,33 @@
  ****************************************************************************/
 package version.resolution
 
-import scala.util.control.NoStackTrace
+import boilerplate.TypedError
 
-/** Errors produced by Git backend operations.
+/** A failure reported by the Git backend while reading or writing a repository.
   *
-  * Each case maps to a specific failure mode in the JGit or libgit2 backends. Module-scoped sealed ADT - does not
-  * extend [[version.errors.VersionError]].
+  * Instances may be constructed via [[GitError$ GitError]].
   */
-sealed trait GitError extends RuntimeException with NoStackTrace with Product with Serializable:
-  def message: String
-  final override def getMessage: String = message
+sealed abstract class GitError(message: String, cause: Option[Throwable]) extends TypedError(message, cause)
 
+/** Provides the failure cases for [[GitError]]. */
 object GitError:
-  given CanEqual[GitError, GitError] = CanEqual.derived
 
   /** The specified path does not contain a Git repository. */
-  final case class RepositoryNotFound(path: String) extends GitError:
-    def message: String = s"Not a Git repository: $path"
+  final case class RepositoryNotFound(path: String) extends GitError(s"Not a Git repository: $path", None)
 
   /** A revision spec could not be resolved to a commit. */
-  final case class RevisionNotFound(rev: String) extends GitError:
-    def message: String = s"Revision not found: $rev"
+  final case class RevisionNotFound(rev: String) extends GitError(s"Revision not found: $rev", None)
 
   /** A short object ID matched multiple objects. */
-  final case class AmbiguousRevision(rev: String) extends GitError:
-    def message: String = s"Ambiguous revision: $rev"
+  final case class AmbiguousRevision(rev: String) extends GitError(s"Ambiguous revision: $rev", None)
 
   /** A specific object could not be found in the repository. */
-  final case class ObjectNotFound(id: String) extends GitError:
-    def message: String = s"Object not found: $id"
+  final case class ObjectNotFound(id: String) extends GitError(s"Object not found: $id", None)
 
-  /** GPG signing of a commit or tag failed. */
-  final case class SigningFailure(detail: String) extends GitError:
-    def message: String = detail
+  /** GPG signing of a commit or tag failed, carrying whatever the signer raised where it raised anything. */
+  final case class SigningFailure(detail: String, cause: Option[Throwable]) extends GitError(detail, cause)
 
-  /** Catch-all for unexpected backend failures. */
-  final case class BackendFailure(detail: String) extends GitError:
-    def message: String = detail
+  /** The backend failed for a reason it does not classify, carrying what it raised where it raised anything. */
+  final case class BackendFailure(detail: String, cause: Option[Throwable]) extends GitError(detail, cause)
+
 end GitError

@@ -20,6 +20,7 @@ def assertPrefix(actual: String, prefix: String): Unit =
 @transient lazy val checkAfterCommit = taskKey[Unit]("After commit: snapshot with metadata")
 @transient lazy val checkPreRelease = taskKey[Unit]("Pre-release tag: exact pre-release")
 @transient lazy val checkMetadata = taskKey[Unit]("Snapshot metadata structure")
+@transient lazy val checkPublishedRendering = taskKey[Unit]("Published version: stable, no build metadata")
 
 gitInit := {
   val base = baseDirectory.value
@@ -53,18 +54,26 @@ dirty := {
   IO.write(baseDirectory.value / "dirty.txt", "dirty")
 }
 
-def asSemVer(v: Version): SemVer = v match
+def asSemVer(v: Versioned): SemVer = v.value match
   case s: SemVer => s
   case other     => sys.error(s"Expected SemVer, got ${other.getClass.getSimpleName}")
 
 checkFallback := {
-  check(resolvedVersion.value.show, "0.1.0-SNAPSHOT")
+  check(version.value, "0.1.0-SNAPSHOT")
   check(versionTarget.value.show, "0.1.0")
 }
 
 checkConcreteTag := {
+  check(version.value, "1.0.0")
   check(resolvedVersion.value.show, "1.0.0")
   check(versionTarget.value.show, "1.0.0")
+}
+
+// The published coordinate stays a stable snapshot; the carrier keeps the canonical rendering behind it.
+checkPublishedRendering := {
+  val published = version.value
+  assert(!published.contains("+"), s"'$published' should carry no build metadata")
+  assertPrefix(asSemVer(resolvedVersion.value).show, published)
 }
 
 checkDirtyTag := {

@@ -15,6 +15,7 @@
  ****************************************************************************/
 package version.sbt
 
+import boilerplate.nullable.*
 import sbt.*
 import sbt.Keys.{version as _, *}
 import sbt.util.Logger as SbtLogger
@@ -22,36 +23,34 @@ import sbt.util.Logger as SbtLogger
 import version.DevelopmentMetadata
 import version.Formatter
 import version.ResolvableScheme
-import version.Version
-import version.VersionResolver
+import version.VersionArithmetic
+import version.VersionScheme
+import version.Versioned
 import version.resolution.GitError
 import version.resolution.ResolutionConfig
 import version.resolution.ResolutionError
-import version.resolution.ResolutionMode
-import version.resolution.ResolutionResult
-import version.resolution.VersionCliCore
+import version.resolution.Resolver
+import version.resolution.VersionResolver
+import version.resolution.discoverRepository
 import version.resolution.domain.CiMetadata
 import version.resolution.environment.CiDetector
 import version.resolution.logging.LogEntry
 import version.resolution.logging.LogLevel
 import version.resolution.logging.Logger as CoreLogger
-import version.resolution.logging.Verbose
-import version.resolution.openRepository
 import version.sbt.VersionPluginImports.*
 import version.semver.SemVer
 
-/** sbt plugin for automatic version resolution from Git state.
+/** Sets a build's version from the state of the Git repository it lives in.
   *
-  * Provides the following keys:
-  *   - `versionResolver`: bundled scheme + tag parser + formatter (default: SemVer)
-  *   - `versionBranchOverride`: optional branch override for CI environments
-  *   - `resolvedVersion`: resolved [[Version]] for the repository state
-  *   - `versionTarget`: target release version the working tree is heading toward
-  *   - `version` (sbt built-in): rendered version string for publishing
-  *   - `isSnapshot` (sbt built-in): scheme-defined snapshot state
+  * The repository is discovered upwards from the build's root, so a build in a linked worktree or a subdirectory of a
+  * monorepo resolves against the repository that actually contains it. Where no repository is found the plugin falls
+  * back to the scheme's initial development version rather than failing the build.
+  *
+  * Sets `version` and `isSnapshot`, and adds `versionResolver`, `versionBranchOverride`, `resolvedVersion` and
+  * `versionTarget`.
   *
   * @see
-  *   [[VersionPluginImports$ VersionPluginImports]] for all available settings and types.
+  *   [[VersionPluginImports$ VersionPluginImports]] for the settings and types this plugin auto-imports.
   */
 object VersionPlugin extends AutoPlugin:
 
@@ -60,22 +59,20 @@ object VersionPlugin extends AutoPlugin:
 
   val autoImport: VersionPluginImports.type = VersionPluginImports
 
-  /** Every released version parsed from the repository's annotated version tags, as a `Def.Initialize[Set[Version]]`
-    * to splice into a setting with `.value`. It lives on the plugin object rather than in [[autoImport]] because
-    * evaluating it walks the Git tags; keeping it off the default import surface means only builds that ask for it pay
-    * that cost. The plugin object is already in scope in a `build.sbt`, so deriving `mimaPreviousArtifacts` needs no
-    * import:
+  /** Every released version the repository's annotated version tags name, as a `Def.Initialize` to splice into a
+    * setting with `.value`. It lives on the plugin object rather than in [[autoImport]] because evaluating it walks
+    * the Git tags; keeping it off the default import surface means only builds that ask for it pay that cost. The
+    * plugin object is already in scope in a `build.sbt`, so deriving `mimaPreviousArtifacts` needs no import:
     *
     * {{{
     * mimaPreviousArtifacts := VersionPlugin.versionHistory.value.collect {
-    *   case v: SemVer if v.isFinal => organization.value %% moduleName.value % v.show
+    *   case v if v.stable => organization.value %% moduleName.value % v.show
     * }
     * }}}
     *
-    * Empty when the base directory is not a Git repository. Filter and order with the scheme's own API
-    * (`isFinal`, `Ordering`).
+    * Empty where no repository contains the build.
     */
-  val versionHistory: Def.Initialize[Set[Version]] = Def.setting {
+  val versionHistory: Def.Initialize[Set[Versioned]] = Def.setting {
     internal.history(
       versionResolver.value,
       (LocalRootProject / baseDirectory).value.getAbsolutePath,
@@ -83,14 +80,14 @@ object VersionPlugin extends AutoPlugin:
     )
   }
 
-  // Private graph-node backing for the resolution result
-  private val resolvedTyped: SettingKey[internal.VersionResult[? <: Version]] =
-    settingKey[internal.VersionResult[? <: Version]]("(internal) typed resolution result")
+  // One resolution per build, shared by every key that needs part of it.
+  private val resolvedTyped: SettingKey[internal.VersionResult[?]] =
+    settingKey[internal.VersionResult[?]]("(internal) typed resolution result")
 
   override def buildSettings: Seq[Setting[?]] =
     Seq(
       versionBranchOverride := sys.env.get("VERSION_BRANCH"),
-      versionResolver := VersionResolver.withDefaults[SemVer],
+      versionResolver := internal.defaultResolver,
       resolvedTyped := internal.resolve(
         versionResolver.value,
         versionBranchOverride.value,
@@ -99,11 +96,11 @@ object VersionPlugin extends AutoPlugin:
       ),
       resolvedVersion := (
         resolvedTyped.value match
-          case r: internal.VersionResult[v] => r.value: Version
+          case r: internal.VersionResult[v] => Versioned.of(r.value, r.scheme)
       ),
       versionTarget := (
         resolvedTyped.value match
-          case r: internal.VersionResult[v] => r.target: Version
+          case r: internal.VersionResult[v] => Versioned.of(r.target, r.scheme)
       ),
       Keys.version := (
         resolvedTyped.value match
@@ -111,16 +108,13 @@ object VersionPlugin extends AutoPlugin:
       ),
       isSnapshot := (
         resolvedTyped.value match
-          case r: internal.VersionResult[v] =>
-            given ResolvableScheme[v] = r.scheme
-            r.value.isSnapshot
+          case r: internal.VersionResult[v] => r.workflow.snapshot(r.value)
       )
     )
 
   override def projectSettings: Seq[Setting[?]] = Seq.empty
 
-  /** Adapts sbt's [[SbtLogger]] to the resolution module's [[CoreLogger]] interface. */
-  final private class SbtCoreLogger(underlying: SbtLogger) extends CoreLogger:
+  final private class SbtCoreLogger(underlying: SbtLogger, val verboseEnabled: Boolean) extends CoreLogger:
     override def log(entry: LogEntry): Unit =
       val prefix = entry.context.fold("")(ctx => s"[$ctx] ")
       entry.level match
@@ -129,15 +123,23 @@ object VersionPlugin extends AutoPlugin:
 
   private[sbt] object internal:
 
-    final case class VersionResult[V <: Version](
-      scheme: ResolvableScheme[V],
+    // A published version must stay stable for the life of its snapshot line: a dependent build pins
+    // `1.0.1-SNAPSHOT` and expects the next publish to replace it, which a metadata-unique string never would.
+    // Telling individual snapshots apart belongs to the repository, and naming a pre-release is what classifiers are
+    // for, so the published string carries no build metadata and the canonical form stays on `resolvedVersion`.
+    val defaultResolver: VersionResolver[SemVer] =
+      VersionResolver.withDefaults[SemVer].withFormatter(SemVer.Formatter.Standard)
+
+    final case class VersionResult[V](
+      scheme: VersionScheme[V],
+      workflow: ResolvableScheme[V],
       formatter: Option[Formatter[V]],
       value: V,
       target: V
     )
 
-    def render[V <: Version](r: VersionResult[V]): String =
-      r.formatter.fold(r.value.show)(_.format(r.value))
+    def render[V](r: VersionResult[V]): String =
+      r.formatter.fold(r.scheme.show(r.value))(_.format(r.value))
 
     def detectCiMetadata(env: collection.Map[String, String]): Option[CiMetadata] =
       CiDetector.detect(env)
@@ -146,62 +148,50 @@ object VersionPlugin extends AutoPlugin:
       env.get("VERSION_VERBOSE").exists(_.toBooleanOption.getOrElse(true))
 
     def resolve(
-      resolver: VersionResolver[? <: Version],
+      resolver: VersionResolver[?],
       branchOverride: Option[String],
       repoPath: String,
       sbtLog: SbtLogger
-    ): VersionResult[? <: Version] = resolver match
+    ): VersionResult[?] = resolver match
       case r: VersionResolver[v] =>
-        given ResolvableScheme[v] = r.scheme
+        given VersionScheme[v] = r.scheme
+        given VersionArithmetic[v] = r.arithmetic
+        given ResolvableScheme[v] = r.workflow
         val env = sys.env
-        val metadata = detectCiMetadata(env)
-        val base = ResolutionConfig
+        val config = ResolutionConfig
           .default[v](repoPath)
-          .copy(
-            branchOverride = branchOverride,
-            verbose = defaultVerbose(env),
-            tagParser = r.tagParser
-          )
-        val cfg = base.mergeWith(metadata)
-        val result = resolveResult(cfg, sbtLog, r.scheme)
-        VersionResult(r.scheme, r.formatter, result.resolved, result.target)
+          .copy(branchOverride = branchOverride, tagParser = r.tagParser)
+          .mergeWith(detectCiMetadata(env))
+        sbtLog.info(s"sbt-version: resolving version from $repoPath")
+        Resolver.resolveAll(config, path => discoverRepository(path), new SbtCoreLogger(sbtLog, defaultVerbose(env))) match
+          case Right(result) =>
+            sbtLog.info(s"sbt-version: Resolved version: ${r.scheme.show(result.resolved)} from ${result.repository}")
+            VersionResult(r.scheme, r.workflow, r.formatter, result.resolved, result.target)
+          // No repository is a build state, not a resolution outcome: the plugin's own fallback is reported as such.
+          case Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(path))) =>
+            val fallback = r.workflow.developmentVersion(
+              r.workflow.initialVersion,
+              DevelopmentMetadata(None, None, None, None, None, false)
+            )
+            sbtLog.info(s"sbt-version: Not a Git repository at $path, using fallback ${r.scheme.show(fallback)}")
+            VersionResult(r.scheme, r.workflow, r.formatter, fallback, r.workflow.initialVersion)
+          case Left(err) =>
+            sbtLog.info(s"sbt-version: Resolution error: ${err.getClass.getName} - ${err.getMessage.unsafe}")
+            throw new MessageOnlyException(s"sbt-version: ${err.getMessage.unsafe}") // scalafix:ok
 
     def history(
-      resolver: VersionResolver[? <: Version],
+      resolver: VersionResolver[?],
       repoPath: String,
       sbtLog: SbtLogger
-    ): Set[Version] = resolver match
+    ): Set[Versioned] = resolver match
       case r: VersionResolver[v] =>
-        given ResolvableScheme[v] = r.scheme
-        val cfg = ResolutionConfig.default[v](repoPath).copy(verbose = defaultVerbose(sys.env), tagParser = r.tagParser)
-        val logger = new SbtCoreLogger(sbtLog)
-        VersionCliCore.releaseHistory(cfg, openRepository, logger, Verbose(cfg.verbose)) match
-          case Right(releases)                                                  => releases.map(_.version: Version).toSet
+        given VersionScheme[v] = r.scheme
+        val config = ResolutionConfig.default[v](repoPath).copy(tagParser = r.tagParser)
+        val logger = new SbtCoreLogger(sbtLog, defaultVerbose(sys.env))
+        Resolver.releaseHistory(config, path => discoverRepository(path), logger) match
+          case Right(releases) => releases.map(rel => Versioned.of(rel.version, r.scheme)).toSet
           case Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(_))) => Set.empty
-          case Left(err) => throw new MessageOnlyException(s"sbt-version: ${err.message}") // scalafix:ok
-
-    private[sbt] def resolveResult[V <: Version](
-      cfg: ResolutionConfig[V],
-      sbtLog: SbtLogger,
-      scheme: ResolvableScheme[V]
-    ): ResolutionResult[V] =
-      given ResolvableScheme[V] = scheme
-      val logger = new SbtCoreLogger(sbtLog)
-      sbtLog.info(s"sbt-version: resolving version from ${cfg.repoPath}")
-      VersionCliCore.resolveAll(cfg, openRepository, logger, Verbose(cfg.verbose)) match
-        case Left(ResolutionError.GitFailure(GitError.RepositoryNotFound(path))) =>
-          val fallback = scheme.developmentVersion(
-            scheme.initialVersion,
-            DevelopmentMetadata(None, None, None, None, None, false)
-          )
-          sbtLog.info(s"sbt-version: Not a Git repository at $path, using fallback ${fallback.show}")
-          ResolutionResult(fallback, scheme.initialVersion, ResolutionMode.Development, None, None)
-        case Left(err) =>
-          sbtLog.info(s"sbt-version: Resolution error: ${err.getClass.getName} - ${err.message}")
-          throw new MessageOnlyException(s"sbt-version: ${err.message}") // scalafix:ok
-        case Right(result) =>
-          sbtLog.info(s"sbt-version: Resolved version: ${result.resolved.show}")
-          result
+          case Left(err) => throw new MessageOnlyException(s"sbt-version: ${err.getMessage.unsafe}") // scalafix:ok
   end internal
 
 end VersionPlugin

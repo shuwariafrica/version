@@ -19,14 +19,15 @@ complete -c version    -n '__fish_seen_subcommand_from target' -l no-sign -d 'Cr
 
 # tag [version]
 complete -c version    -n '__fish_seen_subcommand_from tag' -s m -l message -r -d 'Tag message'
+complete -c version    -n '__fish_seen_subcommand_from tag' -l prefix -r -d 'Lead a derived tag name, e.g. v'
 complete -c version    -n '__fish_seen_subcommand_from tag' -l no-sign -d 'Create the tag unsigned'
 complete -c version    -n '__fish_seen_subcommand_from tag' -l dry-run -d 'Preview without tagging'
 
 # list
 complete -c version    -n '__fish_seen_subcommand_from list' -s n -l limit -r -d 'Limit to the newest N entries'
 complete -c version    -n '__fish_seen_subcommand_from list' -l final   -d 'Exclude pre-releases'
-complete -c version    -n '__fish_seen_subcommand_from list' -l since -r -d 'Releases at or above VERSION'
-complete -c version    -n '__fish_seen_subcommand_from list' -l until -r -d 'Releases at or below VERSION'
+complete -c version    -n '__fish_seen_subcommand_from list' -l since -r -d 'Releases at or above VERSION or line (1, 1.x, 1.2)'
+complete -c version    -n '__fish_seen_subcommand_from list' -l until -r -d 'Releases at or below VERSION or line (1, 1.x, 1.2)'
 complete -c version    -n '__fish_seen_subcommand_from list' -l details -d 'Show the tag and source-commit date'
 
 # Global options, valid throughout.

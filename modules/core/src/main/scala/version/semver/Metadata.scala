@@ -19,10 +19,7 @@ import boilerplate.OpaqueType
 
 import version.errors.InvalidMetadata
 
-/** Build metadata as defined by the Semantic Versioning 2.0.0 specification.
-  *
-  * Identifiers must comprise only ASCII alphanumerics and hyphens `[0-9A-Za-z-]` and must not be empty. Build metadata
-  * does not affect version precedence.
+/** Build metadata: a non-empty, dot-separated list of `[0-9A-Za-z-]` identifiers that takes no part in precedence.
   *
   * Instances may be constructed via [[Metadata$ Metadata]].
   */
@@ -32,18 +29,13 @@ opaque type Metadata = List[String]
 object Metadata extends OpaqueType[Metadata, List[String]], OpaqueType.Eq[Metadata]:
   type Error = InvalidMetadata
 
-  def wrap(ids: List[String]): Metadata = ids
+  protected inline def wrap(ids: List[String]): Metadata = ids
   def unwrap(bm: Metadata): List[String] = bm
-  inline def apply(inline identifiers: List[String]): Metadata = fromUnsafe(identifiers)
+  inline def apply(inline identifiers: List[String]): Metadata = ofUnsafe(identifiers)
 
-  protected inline def validate(ids: List[String]): Option[Error] =
-    if ids.nonEmpty && ids.forall(isValidIdentifier) then None
-    else Some(InvalidMetadata(ids))
-
-  private inline def isValidIdentifier(id: String): Boolean =
-    id.nonEmpty && id.forall { c =>
-      c.isLetterOrDigit || ("-".indexOf(c) >= 0)
-    }
+  protected inline def validate(ids: List[String]): Either[Error, List[String]] =
+    if ids.nonEmpty && ids.forall(Identifier.valid) then Right(ids)
+    else Left(InvalidMetadata(ids))
 
   extension (metadata: Metadata)
     inline def identifiers: List[String] = unwrap(metadata)

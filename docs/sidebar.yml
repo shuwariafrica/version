@@ -18,6 +18,8 @@ subsection:
             page: schemes/semver/parsing.md
           - title: Operations
             page: schemes/semver/operations.md
+      - title: Ranges
+        page: schemes/ranges.md
 
   - title: Automatic Versioning
     index: versioning/overview.md
@@ -41,6 +43,9 @@ subsection:
 
   - title: Command-Line Tool
     page: cli/overview.md
+
+  - title: Effect Integration
+    page: eff/overview.md
 
   - title: Contributing
     page: contributing.md

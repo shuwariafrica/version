@@ -21,6 +21,7 @@ import java.nio.file.Files
 
 import version.testkit.GpgKeyring
 import version.testkit.Process
+import version.testkit.TestRepoSupport
 
 final class CLISuite extends FunSuite with TestRepoSupport:
 
@@ -58,13 +59,16 @@ final class CLISuite extends FunSuite with TestRepoSupport:
     assert(parse("target", "--set", "2.0.0", "--increment", "minor").isEmpty)
 
   test("tag with no argument"):
-    assertEquals(command("tag"), TagConfig(None, None, noSign = false, dryRun = false))
+    assertEquals(command("tag"), TagConfig(None, None, prefix = "", noSign = false, dryRun = false))
 
   test("tag with version, message, no-sign, dry-run"):
     assertEquals(
       command("tag", "1.2.3", "-m", "Cut 1.2.3", "--no-sign", "--dry-run"),
-      TagConfig(Some("1.2.3"), Some("Cut 1.2.3"), noSign = true, dryRun = true)
+      TagConfig(Some("1.2.3"), Some("Cut 1.2.3"), prefix = "", noSign = true, dryRun = true)
     )
+
+  test("tag --prefix carries the tag-name prefix"):
+    assertEquals(command("tag", "--prefix", "v"), TagConfig(None, None, prefix = "v", noSign = false, dryRun = false))
 
   test("sha-length bounds"):
     assertEquals(parse("--sha-length", "7").get.shaLength, 7)
@@ -126,9 +130,35 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       assert(git(repo, "tag", "-l").linesIterator.contains("9.9.9"), "tag 9.9.9 should exist")
       assertEquals(git(repo, "cat-file", "-t", "9.9.9").trim, "tag", "should be an annotated tag")
 
+  test("tag --prefix leads the derived tag name"):
+    withFreshRepo("cli-tag-prefix"): repo =>
+      val (code, output) = capture("tag", "--prefix", "v", "--no-sign", "--repository", repo.toString)
+      assertEquals(code, 0, clues(output))
+      assert(output.startsWith("Tagged 'v"), clues(output))
+      val name = output.stripPrefix("Tagged '").takeWhile(_ != '\'')
+      assertEquals(git(repo, "cat-file", "-t", name).trim, "tag", clues(name))
+
+  test("tag writes an explicit version exactly as given, whatever the prefix"):
+    withFreshRepo("cli-tag-explicit-prefix"): repo =>
+      assertEquals(CLI.run(Array("tag", "9.9.9", "--prefix", "v", "--no-sign", "--repository", repo.toString)), 0)
+      assert(git(repo, "tag", "-l").linesIterator.contains("9.9.9"), "the explicit name should be used verbatim")
+
+  test("every command discovers the repository from a subdirectory"):
+    withFreshRepo("cli-discovery"): repo =>
+      val nested = Files.createDirectories(repo.resolve("modules").resolve("core"))
+      assertEquals(CLI.run(Array("--repository", nested.toString, "--emit", "raw")), 0)
+
   test("show current resolves and exits zero"):
     withFreshRepo("cli-show"): repo =>
       assertEquals(CLI.run(Array("--repository", repo.toString, "--emit", "raw")), 0)
+
+  test("the pretty rendering names the repository that was read"):
+    withFreshRepo("cli-show-pretty"): repo =>
+      val (code, output) = capture("--repository", repo.toString, "--console-style", "pretty")
+      assertEquals(code, 0, clues(output))
+      val line = output.linesIterator.map(_.trim).find(_.startsWith("repository:")).getOrElse(fail(s"no repository line: $output"))
+      val root = java.nio.file.Paths.get(line.stripPrefix("repository:").trim)
+      assert(Files.isDirectory(root.resolve(".git")), clues(line))
 
   test("list with no flags is a ListConfig"):
     assertEquals(command("list"), ListConfig(None, finalOnly = false, None, None, details = false))
@@ -191,6 +221,22 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       assertEquals(code, 0)
       assert(output.contains("2.0.0") && output.contains("1.0.1"), clues(output))
       assert(!output.contains("4.3.0") && !output.contains("1.0.0"), clues(output))
+
+  test("list bounds accept a line rather than a whole version"):
+    withFreshRepo("cli-list-line"): repo =>
+      def listed(args: String*): List[String] =
+        val (code, output) = capture(("list" +: args) ++ Seq("--repository", repo.toString)*)
+        assertEquals(code, 0, clues(output))
+        output.linesIterator.map(_.takeWhile(_ != ' ')).toList
+      assertEquals(listed("--since", "1", "--until", "1.x"), List("1.1.0-rc.1", "1.0.1", "1.0.0"))
+      assertEquals(listed("--until", "1.0"), List("1.0.1", "1.0.0"))
+      assertEquals(listed("--since", "2"), List("4.3.0", "2.0.0", "2.0.0-rc.1"))
+      assertEquals(listed("--since", "v1", "--until", "V1.X"), List("1.1.0-rc.1", "1.0.1", "1.0.0"))
+
+  test("a bound that is neither a version nor a line is refused"):
+    withFreshRepo("cli-list-bad-bound"): repo =>
+      assertEquals(CLI.run(Array("list", "--since", "one.two", "--repository", repo.toString)), 1)
+      assertEquals(CLI.run(Array("list", "--until", "1.2.3.4", "--repository", repo.toString)), 1)
 
   private val gpgHome: Option[String] = GpgKeyring.home
 
