@@ -64,31 +64,27 @@ class VersionPluginSpec extends FunSuite:
   private def resolvedAt(path: String): internal.VersionResult[?] =
     internal.resolve(internal.defaultResolver, None, path, testLogger)
 
-  private def target(result: internal.VersionResult[?]): String = result match
-    case r: internal.VersionResult[v] => r.scheme.show(r.target)
-
   test("a directory in no repository falls back to the scheme's empty-metadata development version") {
     val outside = Files.createTempDirectory("version-plugin-resolve-")
     try
       val result = resolvedAt(outside.toString)
-      assertEquals(internal.render(result), "0.1.0-SNAPSHOT")
-      assertEquals(target(result), "0.1.0")
+      assertEquals(result.publishedVersion, "0.1.0-SNAPSHOT")
+      assertEquals(result.versionTarget.show, "0.1.0")
     finally Filesystem.removeRecursive(outside)
   }
 
   test("a path that does not exist falls back rather than failing") {
     val result = resolvedAt(Files.createTempDirectory("version-plugin-").resolve("does-not-exist").toString)
-    assertEquals(internal.render(result), "0.1.0-SNAPSHOT")
-    assertEquals(target(result), "0.1.0")
+    assertEquals(result.publishedVersion, "0.1.0-SNAPSHOT")
+    assertEquals(result.versionTarget.show, "0.1.0")
   }
 
   test("the published version drops build metadata that the carrier's own rendering keeps") {
     val outside = Files.createTempDirectory("version-plugin-rendering-")
     try
       val result = resolvedAt(outside.toString)
-      assert(!internal.render(result).contains("+"), clue(internal.render(result)))
-      result match
-        case r: internal.VersionResult[v] => assertEquals(r.scheme.show(r.value), "0.1.0-SNAPSHOT+detached")
+      assert(!result.publishedVersion.contains("+"), clue(result.publishedVersion))
+      assertEquals(result.resolvedVersion.show, "0.1.0-SNAPSHOT+detached")
     finally Filesystem.removeRecursive(outside)
   }
 

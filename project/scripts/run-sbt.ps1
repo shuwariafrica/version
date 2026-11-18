@@ -6,8 +6,9 @@
 #
 # Two host caches are mounted at the same path inside the container -
 # both are content-addressed and safe to share between host and container:
-#   - ~/.cache/coursier: coursier's resolved-artefact cache
-#   - ~/.cache/sbt:      sbt 2.x's content-addressed compile cache (cas/)
+#   - ~/.cache/coursier/v1: coursier's resolved-artefact cache, the directory
+#     a Linux host's coursier uses
+#   - ~/.cache/sbt: sbt 2.x's content-addressed compile cache (cas/)
 # Sharing the cas store keeps `target/` symlinks valid across host and
 # container invocations. ~/.sbt (the launcher's boot/locks dir) is
 # intentionally NOT shared; the container creates its own.
@@ -31,7 +32,7 @@ if ([string]::IsNullOrEmpty($env:DOCKER_IMAGE)) {
     exit $LASTEXITCODE
 }
 
-$coursierCache = Join-Path $HOME '.cache/coursier'
+$coursierCache = Join-Path $HOME '.cache/coursier/v1'
 $sbtCache = Join-Path $HOME '.cache/sbt'
 New-Item -ItemType Directory -Force -Path $coursierCache | Out-Null
 New-Item -ItemType Directory -Force -Path $sbtCache | Out-Null

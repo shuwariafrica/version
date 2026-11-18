@@ -62,7 +62,7 @@ final class JvmGitRepository private (repo: Repository) extends GitRepository:
   def resolve(rev: String): Either[GitError, CommitSha] =
     try repo.resolve(s"$rev^{commit}").either(GitError.RevisionNotFound(rev)).map(oid => CommitSha(oid.name))
     catch
-      case e: AmbiguousObjectException => Left(GitError.AmbiguousRevision(rev))
+      case _: AmbiguousObjectException => Left(GitError.AmbiguousRevision(rev))
       case _: RevisionSyntaxException  => Left(GitError.RevisionNotFound(rev))
       case e: java.io.IOException      => Left(GitError.BackendFailure(e.getMessage.unsafe, Some(e)))
 

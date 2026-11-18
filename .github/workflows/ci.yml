@@ -30,20 +30,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ 17, 21, 25 ]
+        include:
+          - java: 21
+            dockerImage: shuwariafrica/el10-jdk:21@sha256:06f9ac141b63cd2205a19437b37ba0ee38d92709eddbbf18e954a2cba53ea8cd
+          - java: 25
+            dockerImage: shuwariafrica/el10-jdk:25@sha256:e3e1e3d1a486427e4df28b7d0b1671c15256f18125f4229b266339d8e1be9ca4
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      DOCKER_IMAGE: shuwariafrica/el10-jdk:${{ matrix.java }}
+      DOCKER_IMAGE: ${{ matrix.dockerImage }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Execute Unit Tests
         run: project/scripts/run-sbt.sh "version-jvm/test"
@@ -56,34 +60,34 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [ 22, 24 ]
+        node: [ 22, 24, 26 ]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
           check-latest: true
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
 
       - name: Setup sbt
-        uses: sbt/setup-sbt@v1.5.7
+        uses: sbt/setup-sbt@67d461eba2c4753196c230e02da850757ba4775e # v1.5.14
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Execute Unit Tests
         run: project/scripts/run-sbt.sh "version-js/test"
@@ -99,24 +103,24 @@ jobs:
         include:
           - target: linux-musl-x86_64
             runner: ubuntu-24.04
-            dockerImage: shuwariafrica/alpine-jdk:25
+            dockerImage: shuwariafrica/alpine-jdk:25@sha256:5a13a8a028dcd56a387eb22d3a612853ec4786042eff3a926704cc54102a18cd
             archiveTarget: linux-x86_64
             releaseProps: -Dsbt.ci=true -Drelease.binary.static=true
             ship: true
           - target: linux-musl-aarch64
             runner: ubuntu-24.04-arm
-            dockerImage: shuwariafrica/alpine-jdk:25
+            dockerImage: shuwariafrica/alpine-jdk:25@sha256:5a13a8a028dcd56a387eb22d3a612853ec4786042eff3a926704cc54102a18cd
             archiveTarget: linux-aarch64
             releaseProps: -Dsbt.ci=true -Drelease.binary.static=true
             ship: true
           - target: linux-glibc-x86_64
             runner: ubuntu-24.04
-            dockerImage: shuwariafrica/el10-jdk:25
+            dockerImage: shuwariafrica/el10-jdk:25@sha256:e3e1e3d1a486427e4df28b7d0b1671c15256f18125f4229b266339d8e1be9ca4
             archiveTarget: linux-glibc-x86_64
             ship: false
           - target: linux-glibc-aarch64
             runner: ubuntu-24.04-arm
-            dockerImage: shuwariafrica/el10-jdk:25
+            dockerImage: shuwariafrica/el10-jdk:25@sha256:e3e1e3d1a486427e4df28b7d0b1671c15256f18125f4229b266339d8e1be9ca4
             archiveTarget: linux-glibc-aarch64
             ship: false
           - target: macos-aarch64
@@ -136,14 +140,14 @@ jobs:
       SBT_PROPS: ${{ matrix.releaseProps }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: "[host] Setup Java"
         if: matrix.dockerImage == ''
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
@@ -151,10 +155,10 @@ jobs:
 
       - name: "[host] Setup sbt"
         if: matrix.dockerImage == ''
-        uses: sbt/setup-sbt@v1.5.7
+        uses: sbt/setup-sbt@67d461eba2c4753196c230e02da850757ba4775e # v1.5.14
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Resolve libgit2 SHA
         id: libgit2
@@ -162,7 +166,7 @@ jobs:
         run: echo "sha=$(git -C vendor/libgit2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache libgit2 Build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor/libgit2/build
           key: libgit2-v3-${{ matrix.target }}-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
@@ -187,10 +191,13 @@ jobs:
         run: |
           # gnupg.org's Windows build is an NSIS installer that is ALSO a valid
           # 7z archive. Extracting it
-          $file = "gnupg-w32-2.5.20_20260513.exe"
-          $url  = "https://gnupg.org/ftp/gcrypt/binary/$file"
-          $dest = "C:\gnupg"
+          $file   = "gnupg-w32-2.5.24_20260923.exe"
+          $sha256 = "ea6f9dee2cccd83287432625b8b399173805add81d27067fcaf019c0c4da1ad8"
+          $url    = "https://gnupg.org/ftp/gcrypt/binary/$file"
+          $dest   = "C:\gnupg"
           Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\$file"
+          $actual = (Get-FileHash "$env:RUNNER_TEMP\$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $sha256) { throw "$file SHA-256 is $actual, expected $sha256" }
           7z x "$env:RUNNER_TEMP\$file" "-o$dest" -y | Out-Null
           $gpg = Get-ChildItem $dest -Recurse -Filter gpg.exe | Select-Object -First 1
           if (-not $gpg) { throw "gpg.exe not found after extraction" }
@@ -240,7 +247,7 @@ jobs:
 
       - name: Upload Binary Artefact
         if: matrix.ship
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: binary-${{ matrix.archiveTarget }}
           path: ${{ steps.archive.outputs.archive }}
@@ -263,7 +270,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Download Binary Artefact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: binary-linux-${{ matrix.arch }}
           path: bin
@@ -301,16 +308,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      DOCKER_IMAGE: shuwariafrica/el10-jdk:25
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:25@sha256:e3e1e3d1a486427e4df28b7d0b1671c15256f18125f4229b266339d8e1be9ca4
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Execute sbt Scripted Tests
         # Scripted tests run the plugin against synthetic fixtures; the workflow's CI env must not leak in.
@@ -323,16 +330,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
-      DOCKER_IMAGE: shuwariafrica/el10-jdk:25
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:25@sha256:e3e1e3d1a486427e4df28b7d0b1671c15256f18125f4229b266339d8e1be9ca4
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Verify Source Formatting
         id: scalafmt
@@ -366,18 +373,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      # Pinned to JDK 17 so the @JDK_VERSION@ surfaced in mdoc-rendered docs
-      # reflects the project minimum.
-      DOCKER_IMAGE: shuwariafrica/el10-jdk:17
+      DOCKER_IMAGE: shuwariafrica/el10-jdk:21@sha256:06f9ac141b63cd2205a19437b37ba0ee38d92709eddbbf18e954a2cba53ea8cd
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Build Documentation Site
         id: build-site
@@ -392,13 +397,13 @@ jobs:
 
       - name: Upload Pages Artefact
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: ${{ steps.build-site.outputs.site_dir }}
 
       - name: Upload Rendered README
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: readme
           path: ${{ steps.build-site.outputs.readme_path }}
@@ -415,26 +420,26 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: ${{ env.JDK_CURRENT }}
           check-latest: true
 
       - name: Setup sbt
-        uses: sbt/setup-sbt@v1.5.7
+        uses: sbt/setup-sbt@67d461eba2c4753196c230e02da850757ba4775e # v1.5.14
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Submit Dependency Graph
-        uses: scalacenter/sbt-dependency-submission@v3
+        uses: scalacenter/sbt-dependency-submission@d84eef4c09e633bcf5f113bcad7fd5e9af1baee9 # v3.2.3
 
   dispatch_release:
     name: 'release / dispatch'

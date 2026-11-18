@@ -165,11 +165,13 @@ object CLI:
       sink.destination match
         case Some(path) =>
           try
-            java.nio.file.Files.createDirectories(path.getParent)
+            path.toAbsolutePath.getParent.option.foreach(java.nio.file.Files.createDirectories(_))
             java.nio.file.Files.writeString(path, content)
             logger.verbose(s"Wrote ${sink.kind.toString.toLowerCase} output to $path", "CLI")
             fileResults += Right(())
-          catch case th: Throwable => fileResults += Left(s"Failed to write $path: ${th.getMessage}")
+          catch
+            case scala.util.control.NonFatal(e) =>
+              fileResults += Left(s"Failed to write $path: ${e.getMessage.getOrElse(e.getClass.getName)}")
         case None => consoleBuf += content
     }
     (consoleBuf.toList, fileResults.toList)

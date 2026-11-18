@@ -19,7 +19,7 @@ val version =
     .settings(unitTestSettings)
     .settings(publishSettings)
     .settings(libraryDependencies += Libraries.boilerplate)
-    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = jvmSettings)
     .jsPlatform(scalaVersions = Seq(Libraries.scala3.revision))
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
@@ -28,7 +28,7 @@ val `version-testkit` =
     .in(file("modules/testkit"))
     .settings(licenseSettings)
     .settings(publish / skip := true)
-    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = jvmSettings)
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
 val `version-resolution` =
@@ -41,7 +41,7 @@ val `version-resolution` =
     .settings(noticeMappingSettings)
     .jvmPlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
-      settings = Seq(
+      settings = jvmSettings ++ Seq(
         libraryDependencies += Libraries.jgit,
         Test / fork := true,
         Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-jvm").getAbsolutePath
@@ -64,7 +64,7 @@ val `version-eff` =
     .settings(publishSettings)
     .settings(unitTestSettings)
     .settings(libraryDependencies += Libraries.boilerplateEffect)
-    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = Seq(Test / fork := true))
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = jvmSettings :+ (Test / fork := true))
     .nativePlatform(
       scalaVersions = Seq(Libraries.scala3.revision),
       axisValues = Nil,
@@ -74,8 +74,6 @@ val `version-eff` =
 val `version-cli` =
   projectMatrix
     .in(file("modules/cli"))
-    .dependsOn(`version-resolution`)
-    .dependsOn(`version-testkit` % Test)
     .enablePlugins(BuildInfoPlugin)
     .settings(unitTestSettings)
     .settings(licenseSettings)
@@ -85,18 +83,23 @@ val `version-cli` =
     .settings(Compile / run / mainClass := Some("version.cli.CLI"))
     .settings(buildInfoSettings)
     .jvmPlatform(
-      scalaVersions = Seq(Libraries.scala3.revision),
-      settings = Seq(
-        run / fork := true,
-        Test / fork := true,
-        Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-jvm").getAbsolutePath
-      )
-    )
-    .nativePlatform(
-      scalaVersions = Seq(Libraries.scala3.revision),
+      scalaVersions = Seq(Libraries.cliScala3.revision),
       axisValues = Nil,
       configure = (p: Project) =>
-        p.settings(NativePlatformPlugin.applicationSettings *)
+        p.dependsOn(`version-resolution`.jvm(Libraries.scala3.revision), `version-testkit`.jvm(Libraries.scala3.revision) % Test)
+          .settings(jvmSettings *)
+          .settings(
+            run / fork := true,
+            Test / fork := true,
+            Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-jvm").getAbsolutePath
+          )
+    )
+    .nativePlatform(
+      scalaVersions = Seq(Libraries.cliScala3.revision),
+      axisValues = Nil,
+      configure = (p: Project) =>
+        p.dependsOn(`version-resolution`.native(Libraries.scala3.revision), `version-testkit`.native(Libraries.scala3.revision) % Test)
+          .settings(NativePlatformPlugin.applicationSettings *)
           .enablePlugins(Libgit2Build, ActionsPublish)
           .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-native").getAbsolutePath)
     )
@@ -104,7 +107,7 @@ val `version-cli` =
 val `sbt-version` =
   projectMatrix
     .in(file("modules/sbt-version"))
-    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision))
+    .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = jvmSettings)
     .dependsOn(`version-resolution`)
     .dependsOn(`version-testkit` % Test)
     .enablePlugins(SbtPlugin)
@@ -129,9 +132,9 @@ val `version-jvm` =
       `version-testkit`,
       `version-resolution`,
       `version-eff`,
-      `version-cli`,
       `sbt-version`
     )
+    .aggregate(`version-cli`.jvm(Libraries.cliScala3.revision): ProjectReference)
 
 val `version-native` =
   projectMatrix
@@ -143,9 +146,9 @@ val `version-native` =
       version,
       `version-testkit`,
       `version-resolution`,
-      `version-eff`,
-      `version-cli`
+      `version-eff`
     )
+    .aggregate(`version-cli`.native(Libraries.cliScala3.revision): ProjectReference)
 
 val `version-js` =
   projectMatrix
@@ -183,6 +186,10 @@ def noticeMappingSettings: Seq[Setting[?]] = List(
     val notice = (ThisBuild / baseDirectory).value / "NOTICE"
     converter.toVirtualFile(notice.toPath) -> "META-INF/NOTICE"
   }
+)
+
+def jvmSettings: List[Setting[?]] = List(
+  scalacOptions ++= List("-java-output-version", Libraries.jdkRelease.toString)
 )
 
 def unitTestSettings: List[Setting[?]] = List(

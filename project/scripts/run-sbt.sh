@@ -10,8 +10,9 @@
 #
 # Two host caches are mounted at the same path inside the container -
 # both are content-addressed and safe to share between host and container:
-#   - ~/.cache/coursier: coursier's resolved-artefact cache
-#   - ~/.cache/sbt:      sbt 2.x's content-addressed compile cache (cas/)
+#   - ~/.cache/coursier/v1: coursier's resolved-artefact cache, the directory
+#     a Linux host's coursier and coursier/cache-action both use
+#   - ~/.cache/sbt: sbt 2.x's content-addressed compile cache (cas/)
 # Sharing the cas store is what keeps `target/` symlinks valid across
 # host and container invocations. Note: ~/.sbt (the launcher's boot/locks
 # dir) is intentionally NOT shared; the container creates its own.
@@ -35,17 +36,17 @@ if [[ -z "${DOCKER_IMAGE:-}" ]]; then
   exec sbt "${sbt_mode[@]}" "${extra_args[@]}" "$@"
 fi
 
-mkdir -p "$HOME/.cache/coursier" "$HOME/.cache/sbt"
+mkdir -p "$HOME/.cache/coursier/v1" "$HOME/.cache/sbt"
 container_home="/tmp/sbt-build-$(id -u)"
 docker_args=(
   --rm
   --user "$(id -u):$(id -g)"
   -v "$PWD:$PWD"
-  -v "$HOME/.cache/coursier:$HOME/.cache/coursier"
+  -v "$HOME/.cache/coursier/v1:$HOME/.cache/coursier/v1"
   -v "$HOME/.cache/sbt:$HOME/.cache/sbt"
   -w "$PWD"
   -e "HOME=$container_home"
-  -e "COURSIER_CACHE=$HOME/.cache/coursier"
+  -e "COURSIER_CACHE=$HOME/.cache/coursier/v1"
   -e "SBT_LOCAL_CACHE=$HOME/.cache/sbt"
 )
 

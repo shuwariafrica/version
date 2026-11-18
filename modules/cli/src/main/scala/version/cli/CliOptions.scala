@@ -318,12 +318,12 @@ object CliOptions:
     new CliParser(b).parser
 
   private def parseEmit(spec: String): Either[CliError, OutputSink] =
-    val split = spec.split("=", 2)
-    val (left, rightOptOrErr): (String, Either[CliError, Option[String]]) = split match
-      case Array(l, r) if r.nonEmpty => (l, Right(Some(r)))
-      case Array(l, r) if r.isEmpty  => (l, Left(CliError.EmptyEmitPath(spec)))
-      case Array(l)                  => (l, Right(None))
-    rightOptOrErr match
-      case Left(err)       => Left(err)
-      case Right(rightOpt) => SinkKind.parse(left).map(kind => OutputSink(kind, rightOpt.map(java.nio.file.Path.of(_))))
+    val separator = spec.indexOf('=')
+    val destination: Either[CliError, Option[java.nio.file.Path]] =
+      if separator < 0 then Right(None)
+      else
+        val path = spec.substring(separator + 1)
+        if path.isEmpty then Left(CliError.EmptyEmitPath(spec)) else Right(Some(java.nio.file.Path.of(path)))
+    val kind = if separator < 0 then spec else spec.substring(0, separator)
+    destination.flatMap(dest => SinkKind.parse(kind).map(OutputSink(_, dest)))
 end CliOptions
