@@ -70,6 +70,7 @@ object ActionsPublish extends AutoPlugin:
     val licenseExt = if isWindows then ".txt" else ""
     IO.copyFile(rootBase / "LICENSE", staging / s"LICENSE$licenseExt")
     IO.copyFile(rootBase / "NOTICE", staging / s"NOTICE$licenseExt")
+    Libgit2Build.licences(rootBase).foreach((f, name) => IO.copyFile(f, staging / "licenses" / name))
 
     val completionsSrc = rootBase / "project" / "completions"
     val completionFiles =

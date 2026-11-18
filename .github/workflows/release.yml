@@ -70,7 +70,7 @@ jobs:
       contents: write
     steps:
       - name: Download Binaries
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: archives
           pattern: binary-*
@@ -94,7 +94,7 @@ jobs:
 
       - name: Mint Release Bot Token
         id: release-bot
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
@@ -121,19 +121,19 @@ jobs:
     # sbt share one filesystem; avoids bind-mounting the host's ~/.gnupg (with
     # its gpg-agent socket) into a separate `docker run`.
     runs-on: ubuntu-24.04
-    container: shuwariafrica/el10-jdk:17
+    container: shuwariafrica/el10-jdk:21@sha256:06f9ac141b63cd2205a19437b37ba0ee38d92709eddbbf18e954a2cba53ea8cd
     timeout-minutes: 90
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Setup Coursier Cache
-        uses: coursier/cache-action@v8
+        uses: coursier/cache-action@ee0650f98295f27a505e4bfd284c9bfaa913a465 # v9.0.1
 
       - name: Resolve libgit2 SHA
         id: libgit2
@@ -141,13 +141,13 @@ jobs:
         run: echo "sha=$(git -C vendor/libgit2 rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache libgit2 Build
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor/libgit2/build
           key: libgit2-v3-publish-maven-${{ steps.libgit2.outputs.sha }}-${{ hashFiles('project/Libgit2Build.scala', 'project/cmake-overrides/**') }}
 
       - name: Import Signing Key
-        uses: crazy-max/ghaction-import-gpg@v7
+        uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
         with:
           gpg_private_key: ${{ secrets.OSS_PUBLISH_USER_SIGNING_KEY }}
           git_user_signingkey: true
@@ -172,7 +172,7 @@ jobs:
       actions: read
     steps:
       - name: Download Pages Artefact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: github-pages
           path: pages-download
@@ -187,12 +187,12 @@ jobs:
           tar -xf pages-download/artifact.tar -C site
 
       - name: Re-Upload Pages Artefact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: site
 
       - name: Download Rendered README
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: readme
           path: readme-download
@@ -200,7 +200,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Re-Upload Rendered README
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: readme
           path: readme-download/README.md
@@ -221,29 +221,29 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Deploy to GitHub Pages
         id: deploy-pages
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
       - name: Download Processed README
         if: ${{ !contains(github.ref_name, '-') }}
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: readme
           path: readme
 
       - name: Mint Release Bot Token
         id: release-bot
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
       - name: Update README on Main
         if: ${{ !contains(github.ref_name, '-') }}
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         with:

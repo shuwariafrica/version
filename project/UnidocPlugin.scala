@@ -85,10 +85,7 @@ object VersionUnidocPlugin extends AutoPlugin:
       "VERSION" -> version.value,
       "SCALA3_VERSION" -> scalaVersion.value,
       "SCALANATIVE_VERSION" -> scalaNativeVersion.value,
-      "JDK_VERSION" -> {
-        val version = java.lang.Runtime.version()
-        s"${version.feature()}.${version.interim()}.${version.update()}"
-      }
+      "JDK_VERSION" -> Libraries.jdkRelease.toString
     ),
     mdocExtraArguments := Seq("--no-link-hygiene"),
 

@@ -94,22 +94,10 @@ object VersionPlugin extends AutoPlugin:
         (LocalRootProject / baseDirectory).value.getAbsolutePath,
         sLog.value
       ),
-      resolvedVersion := (
-        resolvedTyped.value match
-          case r: internal.VersionResult[v] => Versioned.of(r.value, r.scheme)
-      ),
-      versionTarget := (
-        resolvedTyped.value match
-          case r: internal.VersionResult[v] => Versioned.of(r.target, r.scheme)
-      ),
-      Keys.version := (
-        resolvedTyped.value match
-          case r: internal.VersionResult[v] => internal.render(r)
-      ),
-      isSnapshot := (
-        resolvedTyped.value match
-          case r: internal.VersionResult[v] => r.workflow.snapshot(r.value)
-      )
+      resolvedVersion := resolvedTyped.value.resolvedVersion,
+      versionTarget := resolvedTyped.value.versionTarget,
+      Keys.version := resolvedTyped.value.publishedVersion,
+      isSnapshot := resolvedTyped.value.isSnapshot
     )
 
   override def projectSettings: Seq[Setting[?]] = Seq.empty
@@ -136,10 +124,11 @@ object VersionPlugin extends AutoPlugin:
       formatter: Option[Formatter[V]],
       value: V,
       target: V
-    )
-
-    def render[V](r: VersionResult[V]): String =
-      r.formatter.fold(r.scheme.show(r.value))(_.format(r.value))
+    ):
+      def resolvedVersion: Versioned = Versioned.of(value, scheme)
+      def versionTarget: Versioned = Versioned.of(target, scheme)
+      def publishedVersion: String = formatter.fold(scheme.show(value))(_.format(value))
+      def isSnapshot: Boolean = workflow.snapshot(value)
 
     def detectCiMetadata(env: collection.Map[String, String]): Option[CiMetadata] =
       CiDetector.detect(env)

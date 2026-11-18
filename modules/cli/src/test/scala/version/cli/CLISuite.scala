@@ -148,6 +148,15 @@ final class CLISuite extends FunSuite with TestRepoSupport:
       val nested = Files.createDirectories(repo.resolve("modules").resolve("core"))
       assertEquals(CLI.run(Array("--repository", nested.toString, "--emit", "raw")), 0)
 
+  test("a file sink writes to a relative path that names no directory"):
+    withFreshRepo("cli-emit-relative"): repo =>
+      val name = s"cli-emit-relative-${System.nanoTime}.json"
+      val written = java.nio.file.Path.of(name).toAbsolutePath
+      try
+        assertEquals(CLI.run(Array("--repository", repo.toString, "--emit", s"json=$name")), 0)
+        assert(Files.isRegularFile(written), clues(written))
+      finally Files.deleteIfExists(written): Unit
+
   test("show current resolves and exits zero"):
     withFreshRepo("cli-show"): repo =>
       assertEquals(CLI.run(Array("--repository", repo.toString, "--emit", "raw")), 0)

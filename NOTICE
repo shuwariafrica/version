@@ -5,22 +5,28 @@ Copyright 2023 Shuwari Africa Ltd.
 Third-party software acknowledgements
 =========================================================================
 
-This project includes software developed by third parties.
+This project includes software developed by third parties. The licence texts of
+the components the native artefacts bundle are under licenses/ in each release
+archive and under META-INF/licenses/ in each native jar.
 
 JGit (JVM backend)
   Copyright Eclipse Foundation and JGit contributors.
   Licensed under the Eclipse Distribution License v1.0.
   https://www.eclipse.org/org/documents/edl-v10.php
 
-libgit2 v1.9.2 (Native backend, statically linked)
+libgit2 (Native backend, statically linked)
   Copyright the libgit2 contributors.
   Licensed under GNU General Public License v2 with a Linking Exception.
   libgit2 source code is not modified by this project.
-  See META-INF/licenses/libgit2-COPYING in the native artefact, or
-  vendor/libgit2/COPYING in the source distribution.
+  Licence text: libgit2-COPYING.txt
   https://libgit2.org/
 
 zlib (bundled within the libgit2 static library, Native backend only)
   Copyright Jean-loup Gailly and Mark Adler.
   Licensed under the zlib License.
-  See META-INF/licenses/zlib-LICENSE in the native artefact.
+  Licence text: zlib-LICENSE.txt
+
+PCRE2 (bundled within the libgit2 static library, Native backend only)
+  Copyright University of Cambridge and Philip Hazel.
+  Licensed under the BSD-3-Clause License with the PCRE2 exception.
+  Licence text: pcre2-LICENCE.md
