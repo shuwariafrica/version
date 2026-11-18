@@ -31,7 +31,7 @@ class DirectiveSuite extends FunSuite:
   private def advance(intent: Intent): Directive = Emit(Request.Advance(intent))
 
   test("a keyword names the request its scheme maps it to") {
-    assertEquals(parse("version: major"), List(bump("major")))
+    assertEquals(parse("version: major"), List(advance(Intent.Breaking)))
     assertEquals(parse("version: minor"), List(bump("minor")))
     assertEquals(parse("version: patch"), List(bump("patch")))
     assertEquals(parse("version: breaking"), List(advance(Intent.Breaking)))
@@ -49,7 +49,7 @@ class DirectiveSuite extends FunSuite:
     assertEquals(parse("fix: handle edge case"), List(advance(Intent.Fix)))
     assertEquals(parse("fix: Handle edge case"), List(advance(Intent.Fix)))
     assertEquals(parse("stable: promote"), List(advance(Intent.Stable)))
-    assertEquals(parse("major: rework the public API"), List(bump("major")))
+    assertEquals(parse("major: rework the public API"), List(advance(Intent.Breaking)))
   }
 
   test("a keyword is read wherever it stands in a line, needing no position of its own") {
@@ -116,7 +116,7 @@ class DirectiveSuite extends FunSuite:
   }
 
   test("keywords are matched without regard to case") {
-    assertEquals(parse("VERSION: MAJOR"), List(bump("major")))
+    assertEquals(parse("VERSION: MAJOR"), List(advance(Intent.Breaking)))
     assertEquals(parse("Version: Minor"), List(bump("minor")))
     assertEquals(parse("[BREAKING]"), List(advance(Intent.Breaking)))
   }
@@ -129,11 +129,11 @@ class DirectiveSuite extends FunSuite:
   }
 
   test("every line of a message is read") {
-    assertEquals(parse("version: major\nversion: minor"), List(bump("major"), bump("minor")))
+    assertEquals(parse("version: major\nversion: minor"), List(advance(Intent.Breaking), bump("minor")))
   }
 
   test("a bracketed keyword is the same request as its colon form") {
-    assertEquals(parse("[major]"), List(bump("major")))
+    assertEquals(parse("[major]"), List(advance(Intent.Breaking)))
     assertEquals(parse("[minor] add helper"), List(bump("minor")))
     assertEquals(parse("[breaking] Remove deprecated API"), List(advance(Intent.Breaking)))
     assertEquals(parse("[feat] add caching"), List(advance(Intent.Feature)))
@@ -142,12 +142,12 @@ class DirectiveSuite extends FunSuite:
   }
 
   test("a bracket led by a colon directive yields that directive once") {
-    assertEquals(parse("[version: major]"), List(bump("major")))
+    assertEquals(parse("[version: major]"), List(advance(Intent.Breaking)))
     assertEquals(parse("[version: major: 3]"), List(assign("major", 3)))
     assertEquals(parse("[target: 2.0.0]"), List(Target("2.0.0")))
     assertEquals(parse("[breaking: drop the legacy API]"), List(advance(Intent.Breaking)))
     assertEquals(parse("[feat: add caching]"), List(advance(Intent.Feature)))
-    assertEquals(parse("[version: major rollout]"), List(bump("major")))
+    assertEquals(parse("[version: major rollout]"), List(advance(Intent.Breaking)))
   }
 
   test("a bracket that does not lead with a directive is prose, and hides what it contains") {
@@ -161,8 +161,8 @@ class DirectiveSuite extends FunSuite:
   }
 
   test("a directive outside an opaque bracket still fires") {
-    assertEquals(parse("[foo] version: major"), List(bump("major")))
-    assertEquals(parse("[see version: major]x"), List(bump("major")))
+    assertEquals(parse("[foo] version: major"), List(advance(Intent.Breaking)))
+    assertEquals(parse("[see version: major]x"), List(advance(Intent.Breaking)))
   }
 
   test("an unterminated bracket is prose") {
@@ -187,7 +187,7 @@ class DirectiveSuite extends FunSuite:
 
   test("each bracket of a run is read on its own") {
     assertEquals(parse("[core][breaking] Text"), List(advance(Intent.Breaking)))
-    assertEquals(parse("[major][minor]"), List(bump("major"), bump("minor")))
+    assertEquals(parse("[major][minor]"), List(advance(Intent.Breaking), bump("minor")))
     assertEquals(parse("[breaking][feature] Rework the parser"), List(advance(Intent.Breaking), advance(Intent.Feature)))
     assertEquals(parse("Add request caching [breaking]"), List(advance(Intent.Breaking)))
     assertEquals(parse("[fix][breaking]"), List(advance(Intent.Fix), advance(Intent.Breaking)))
@@ -199,7 +199,7 @@ class DirectiveSuite extends FunSuite:
   test("a stray bracket neither fires nor blocks the one beside it") {
     assertEquals(parse("][breaking]"), List(advance(Intent.Breaking)))
     assertEquals(parse("[breaking]["), List(advance(Intent.Breaking)))
-    assertEquals(parse("[major]]"), List(bump("major")))
+    assertEquals(parse("[major]]"), List(advance(Intent.Breaking)))
   }
 
   test("a keyword spelled outside the ASCII word charset is prose") {
@@ -222,6 +222,8 @@ class DirectiveSuite extends FunSuite:
       "target" -> Request.Advance(Intent.Fix)
     )
 
+    def components: Set[String] = SemVer.resolvable.components
+
     extension (v: SemVer) def snapshot: Boolean = SemVer.resolvable.snapshot(v)
 
   test("the grammar reads the words its scheme maps, and names none of its own") {
@@ -232,7 +234,7 @@ class DirectiveSuite extends FunSuite:
   }
 
   test("the grammar's own heads stay its own, whatever a scheme maps them to") {
-    assertEquals(Directive.parse[SemVer]("version: major")(using custom), List(bump("major")))
+    assertEquals(Directive.parse[SemVer]("version: major")(using custom), List(advance(Intent.Breaking)))
     assertEquals(Directive.parse[SemVer]("target: 2.0.0")(using custom), List(Target("2.0.0")))
   }
 

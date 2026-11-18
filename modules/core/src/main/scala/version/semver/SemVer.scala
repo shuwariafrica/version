@@ -261,8 +261,10 @@ object SemVer:
 
     def defaultTarget(base: SemVer): SemVer = advance(base, Intent.Fix)
 
+    // A bare `major` is the habit of marking a breaking change, so it is read as one; below 1.0.0 that moves the minor,
+    // and leaving initial development takes `stable`, `version: major: 1` or a named target.
     def directives: Map[String, Request] = Map(
-      "major" -> Request.Bump("major"),
+      "major" -> Request.Advance(Intent.Breaking),
       "minor" -> Request.Bump("minor"),
       "patch" -> Request.Bump("patch"),
       "breaking" -> Request.Advance(Intent.Breaking),
@@ -272,6 +274,8 @@ object SemVer:
       "stable" -> Request.Advance(Intent.Stable)
     )
 
+    def components: Set[String] = Set("major", "minor", "patch")
+
     extension (v: SemVer) def snapshot: Boolean = v.preRelease.exists(_.classifier.contains(PreReleaseClassifier.Snapshot))
   end resolvable
 
@@ -280,8 +284,8 @@ object SemVer:
     */
   given valueCodec: ValueCodec.Aux[SemVer, VersionError] = ValueCodec(Parser.parse(_), v => v.show)
 
-  /** Provides the named compatibility rules for [[SemVer]]. No instance is given: the two rules disagree below
-    * `1.0.0`, and choosing between them is the consumer's commitment.
+  /** Provides the named compatibility rules for [[SemVer]]. No instance is given: the rules disagree below `1.0.0`,
+    * and choosing between them is the consumer's commitment.
     */
   object Compatibility:
 
@@ -294,6 +298,15 @@ object SemVer:
         if a.major.value > 0 || b.major.value > 0 then a.major == b.major
         else if a.minor.value > 0 || b.minor.value > 0 then a.minor == b.minor
         else a.patch == b.patch
+      }
+
+    /** sbt's `early-semver`: both stable, and sharing a major at or above `1.0.0` or a minor below it, so `0.0.7` and
+      * `0.0.8` are compatible where the caret rule parts them.
+      */
+    val earlySemVer: CompatibilityPolicy[SemVer] = (a: SemVer, b: SemVer) =>
+      a.stable && b.stable && {
+        if a.major.value > 0 || b.major.value > 0 then a.major == b.major
+        else a.minor == b.minor
       }
 
   def as[C](v: SemVer, n: Long)(using PreReleaseClass[C]): Either[VersionError, SemVer] = v.as[C](n)
@@ -324,12 +337,10 @@ object SemVer:
       case Intent.Feature  => step(base, pending, below(base, 1))
       case Intent.Fix      => step(base, pending, below(base, 2))
 
-  // The compatibility axis is the leftmost non-zero component. `Breaking` moves it and the lesser intents move below
-  // it, bounded by the patch, which yields the >= 1.0.0, 0.y.z and 0.0.z advancement tiers from a single rule.
+  // The compatibility axis is early semantic versioning's: the major from 1.0.0, and below it the minor, even at
+  // 0.0.z. `Breaking` moves the axis and the lesser intents move below it, bounded by the patch.
   private def tier(base: SemVer): Int =
-    if base.major.value > 0 then 0
-    else if base.minor.value > 0 then 1
-    else 2
+    if base.major.value > 0 then 0 else 1
 
   private def below(base: SemVer, positions: Int): Int = math.min(tier(base) + positions, 2)
 

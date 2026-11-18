@@ -53,6 +53,11 @@ trait ResolvableScheme[V]:
   /** The words this scheme recognises in a commit message, and the request each stands for. */
   def directives: Map[String, Request]
 
+  /** The components a commit message may set outright by name, as `version: minor: 9`; that form addresses the named
+    * component whatever request the bare word stands for.
+    */
+  def components: Set[String]
+
   extension (v: V)
     /** Whether the value names an in-development build rather than a release. */
     def snapshot: Boolean

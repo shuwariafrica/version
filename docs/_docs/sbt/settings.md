@@ -102,17 +102,19 @@ mimaPreviousArtifacts := VersionPlugin.versionHistory.value.collect {
 }
 ```
 
-Which past releases the current one must stay compatible with is a commitment the build makes, so SemVer names two
-rules rather than assuming one, and neither is supplied implicitly:
+Which past releases the current one must stay compatible with is a commitment the build makes, so SemVer names three
+rules rather than assuming one, and none is supplied implicitly:
 
+- `SemVer.Compatibility.earlySemVer` - what sbt applies to a library declaring `versionScheme := Some("early-semver")`:
+  both stable, sharing a major from `1.0.0` or a minor below it.
 - `SemVer.Compatibility.sameMajor` - the specification read strictly: both stable, at or above `1.0.0`, sharing a
   major.
 - `SemVer.Compatibility.leftmostNonZero` - the caret rule of Cargo, npm and Composer, which additionally keeps each
-  `0.x` line apart from the next.
+  `0.0.z` release apart from the next.
 
 ```scala
-SemVer.Compatibility.leftmostNonZero.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.4.0")) // true
-SemVer.Compatibility.leftmostNonZero.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.3.9")) // false
+SemVer.Compatibility.earlySemVer.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.4.0")) // true
+SemVer.Compatibility.earlySemVer.compatible(SemVer.parseUnsafe("0.4.2"), SemVer.parseUnsafe("0.3.9")) // false
 ```
 
 The set is empty where no repository contains the build. Order it with the scheme's own precedence, never by string

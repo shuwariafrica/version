@@ -50,17 +50,18 @@ arithmetic(SemVer.parseUnsafe("1.2.3"), Request.Assign("major", 5))      // Righ
 
 ### Which component an intent moves
 
-The component an intent moves is decided by one rule: the compatibility axis is the leftmost non-zero component,
-`Breaking` moves it, and `Feature` and `Fix` move one and two positions below it, never past the patch.
+The component an intent moves is decided by one rule: the compatibility axis is the major from `1.0.0` and the minor
+below it, as early semantic versioning reads it; `Breaking` moves the axis, and `Feature` and `Fix` move one and two
+positions below it, never past the patch.
 
 | Base    | `Breaking` | `Feature` | `Fix`   |
 |---------|------------|-----------|---------|
 | `1.2.3` | `2.0.0`    | `1.3.0`   | `1.2.4` |
 | `0.4.2` | `0.5.0`    | `0.4.3`   | `0.4.3` |
-| `0.0.7` | `0.0.8`    | `0.0.8`   | `0.0.8` |
+| `0.0.7` | `0.1.0`    | `0.0.8`   | `0.0.8` |
 
-Below `1.0.0` this leaves `Feature` and `Fix` indistinguishable, which is the honest consequence of the leading
-component not yet carrying a compatibility promise.
+Below `1.0.0` this leaves `Feature` and `Fix` indistinguishable: both are compatible changes, and while the minor is
+the axis the patch is where a compatible change lands.
 
 `Stable` graduates a version out of initial development, and leaves one that has already graduated alone.
 
@@ -97,6 +98,9 @@ arithmetic(base, Request.Advance(Intent.Breaking)) // Right(0.94.0)
 arithmetic(base, Request.Bump("major"))            // Right(1.0.0)
 ```
 
+A commit message's bare `major` is a `Breaking` intent rather than this `Bump`, so a repository's history graduates a
+project only when it says so.
+
 SemVer names three components. Anything else is rejected, as is a negative assignment:
 
 ```scala
@@ -106,18 +110,21 @@ arithmetic(base, Request.Assign("minor", -1))  // Left(InvalidComponent(-1, "Min
 
 ## Compatibility
 
-Two rules ship, and neither is a `given`: they disagree below `1.0.0`, so the consumer names the one it means.
+Three rules ship, and none is a `given`: they disagree below `1.0.0`, so the consumer names the one it means.
 
-| Rule              | Admits                                                          | `0.4.2` and `0.4.9` |
-|-------------------|-----------------------------------------------------------------|---------------------|
-| `sameMajor`       | stable releases at or above `1.0.0` sharing a major             | Incompatible        |
-| `leftmostNonZero` | stable releases sharing their leftmost non-zero component       | Compatible          |
+| Rule              | Admits                                                         | `0.4.2`, `0.4.9` | `0.0.7`, `0.0.8` |
+|-------------------|----------------------------------------------------------------|------------------|------------------|
+| `sameMajor`       | stable releases at or above `1.0.0` sharing a major            | Incompatible     | Incompatible     |
+| `earlySemVer`     | stable releases sharing a major from `1.0.0`, or a minor below | Compatible       | Compatible       |
+| `leftmostNonZero` | stable releases sharing their leftmost non-zero component      | Compatible       | Incompatible     |
 
 `sameMajor` reads clause 8 strictly, so every `0.x` release is incompatible with every other, including itself.
-`leftmostNonZero` is the caret rule of Cargo, npm, and Composer. Neither admits a pre-release on either side.
+`earlySemVer` is the rule sbt applies to a library declaring `early-semver`, and the one this scheme's advancement
+follows. `leftmostNonZero` is the caret rule of Cargo, npm, and Composer. None admits a pre-release on either side.
 
 ```scala
 SemVer.Compatibility.sameMajor.compatible(a, b)
+SemVer.Compatibility.earlySemVer.compatible(a, b)
 SemVer.Compatibility.leftmostNonZero.compatible(a, b)
 CompatibilityPolicy.strict[SemVer].compatible(a, b) // equal versions only
 ```

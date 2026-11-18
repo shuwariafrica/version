@@ -53,7 +53,7 @@ object Directive:
     * Text matching no directive form is prose and yields nothing, so a message is never rejected.
     */
   def parse[V](message: String)(using workflow: ResolvableScheme[V]): List[Directive] =
-    read(message, vocabulary(workflow.directives))
+    read(message, vocabulary(workflow.directives, workflow.components))
 
   // `version` and `target` head the grammar's own forms, so a scheme that maps either as a keyword of its own cannot
   // shadow the form itself.
@@ -64,11 +64,11 @@ object Directive:
 
   // `interesting` is every character a directive can begin with, so that the scan skips prose a character at a time
   // without attempting a match at each position.
-  final private class Vocabulary(val requests: Map[String, Request], val interesting: Set[Char])
+  final private class Vocabulary(val requests: Map[String, Request], val components: Set[String], val interesting: Set[Char])
 
-  private def vocabulary(requests: Map[String, Request]): Vocabulary =
+  private def vocabulary(requests: Map[String, Request], components: Set[String]): Vocabulary =
     val heads = requests.keys.flatMap(_.headOption.map(c => lower(c))).toSet
-    new Vocabulary(requests, heads ++ Set('v', 't', '['))
+    new Vocabulary(requests, components, heads ++ Set('v', 't', '['))
 
   private transparent inline def isSpace(c: Char): Boolean =
     c == ' ' || c == '\t' || c == '\r' || c == '\n'
@@ -263,11 +263,11 @@ object Directive:
                   val j2 = afterColon(text, j1)
                   if j2 != -1 then
                     val (value, j3) = readNumber(text, j2)
-                    // A magnitude addresses a component, so it is read only where the keyword names one; an intent
-                    // carries no number and the whole form goes unrecognised.
-                    (value, request) match
-                      case (Some(v), Request.Bump(component)) =>
-                        out = out :+ Emit(Request.Assign(component, v))
+                    // A magnitude addresses a component, so it is read only where the keyword names one; elsewhere
+                    // the whole form goes unrecognised.
+                    value match
+                      case Some(v) if vocab.components.contains(name) =>
+                        out = out :+ Emit(Request.Assign(name, v))
                         i = j3
                       case _ => i = j1
                   else
