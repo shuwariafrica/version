@@ -181,6 +181,12 @@ jobs:
           cmd /c "`"$vs\VC\Auxiliary\Build\vcvarsall.bat`" amd64 && set" |
             ForEach-Object { if ($_ -match '^([^=]+)=(.*)$') { "$($Matches[1])=$($Matches[2])" } } |
             Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          # The MSVC STL accepts only the Clang its own Visual Studio release ships, which the image's standalone LLVM
+          # can lag; Scala Native takes clang from LLVM_BIN before PATH.
+          $llvm = "$vs\VC\Tools\Llvm\x64\bin"
+          if (-not (Test-Path "$llvm\clang.exe")) { throw "Visual Studio's Clang is missing at $llvm" }
+          & "$llvm\clang.exe" --version | Select-Object -First 1
+          "LLVM_BIN=$llvm" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: "[Windows] Install GnuPG"
         # Install a native Win32 GnuPG and point the harness at
