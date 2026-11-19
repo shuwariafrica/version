@@ -35,7 +35,7 @@ trait TestRepoSupport:
 
   def initMinimalRepo(repoDir: Path): Unit =
     Filesystem.removeRecursive(repoDir)
-    Files.createDirectories(repoDir)
+    Filesystem.ensureDirectory(repoDir): Unit
     run(repoDir, "init", "-q")
     run(repoDir, "config", "user.name", "Test")
     run(repoDir, "config", "user.email", "test@example.com")

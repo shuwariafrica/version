@@ -27,10 +27,8 @@ import java.nio.file.StandardOpenOption
   */
 object TestRepoBuilder:
 
+  /** Builds the repository in `repoDir`, an empty directory the caller owns. */
   def create(repoDir: Path): Unit =
-    Filesystem.removeRecursive(repoDir)
-    Files.createDirectories(repoDir)
-
     run(repoDir, "init", "-q")
     run(repoDir, "config", "user.name", "Version CLI Test")
     run(repoDir, "config", "user.email", "test@example.com")

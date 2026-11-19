@@ -38,7 +38,7 @@ object GpgKeyring:
   def prepare(gnupgHome: String): String =
     val path = Paths.get(gnupgHome)
     Filesystem.removeRecursive(path)
-    Files.createDirectories(path)
+    Filesystem.ensureDirectory(path): Unit
     // gpg rejects a group/world-accessible home; restrict to the owner where the filesystem supports POSIX permissions.
     try Files.setPosixFilePermissions(path, PosixFilePermissions.fromString("rwx------")): Unit
     catch case NonFatal(_) => ()

@@ -28,6 +28,8 @@ val `version-testkit` =
     .in(file("modules/testkit"))
     .settings(licenseSettings)
     .settings(publish / skip := true)
+    .settings(libraryDependencies += Libraries.boilerplate)
+    .settings(unitTestSettings)
     .jvmPlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = jvmSettings)
     .nativePlatform(scalaVersions = Seq(Libraries.scala3.revision), settings = NativePlatformPlugin.nativeSettings)
 
