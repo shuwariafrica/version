@@ -27,44 +27,47 @@ version wins.
 
 ## Keyword Mapping
 
-SemVer reads two kinds of word. One names a kind of change and leaves the choice of component to the scheme; the other
-names a component and is obeyed literally.
+SemVer reads two kinds of word. A change word names a kind of change and leaves the choice of component to the scheme;
+`minor` and `patch` name a component and are obeyed literally. A bare `major` is read as the breaking change it is
+written to mark, so it never graduates a project by itself.
 
-| Keyword             | Stands for           | Above `1.0.0`, from `1.4.5`      |
-|---------------------|----------------------|-----------------------------------|
-| `breaking`          | A breaking change    | `2.0.0`                           |
-| `feat`, `feature`   | A feature            | `1.5.0`                           |
-| `fix`               | A fix                | `1.4.6`                           |
-| `stable`            | The first stable release | `1.4.5` - already there       |
-| `major`             | The major component  | `2.0.0`                           |
-| `minor`             | The minor component  | `1.5.0`                           |
-| `patch`             | The patch component  | `1.4.6`                           |
+| Keyword             | Stands for               | From `1.4.5`                                  |
+|---------------------|--------------------------|-----------------------------------------------|
+| `breaking`, `major` | A breaking change        | `2.0.0`                                       |
+| `feat`, `feature`   | A feature                | `1.5.0`                                       |
+| `fix`               | A fix                    | `1.4.6`                                       |
+| `stable`            | The first stable release | already stable, so `1.4.6` as with no keyword |
+| `minor`             | The minor component      | `1.5.0`                                       |
+| `patch`             | The patch component      | `1.4.6`                                       |
 
-Each works in every [directive form](directives.md) - `version: breaking`, `breaking: <text>`, `[breaking]` - and the
-three component names additionally take a value, as `version: minor: 9`.
+Each works in every [directive form](directives.md) - `version: breaking`, `breaking: <text>`, `[breaking]` - and
+`version:` additionally sets a component outright when its name is followed by a value, as `version: minor: 9` or
+`version: major: 3`.
 
 Advancing a component resets every component below it, and discards any pre-release and build metadata the base
 carried.
 
 ## Initial Development (Major Version 0)
 
-Below `1.0.0` the public API is not yet settled, so a kind of change means one component less than it would above it: a
-breaking change advances the minor, and a feature or fix advances the patch. Below `0.1.0`, where nothing at all is
-settled, every kind of change advances the patch.
+Below `1.0.0` the minor carries the compatibility promise the major carries above it, as sbt's `early-semver` reads
+it: a breaking change advances the minor, and a feature or fix advances the patch. That holds at `0.0.z` too, so a
+breaking change there reaches `0.1.0`.
 
-A component named outright is exempt: `version: major` means the major, at any base. So is `stable`, which is how a
-project graduates when it decides it has, rather than when a change happens to be breaking:
+A project leaves initial development only when a commit says so - `stable`, a value for the major
+(`version: major: 1`), or a named target (`target: 1.0.0`) - rather than when a change happens to be breaking:
 `stable: the public API is settled`.
 
-| Base     | Directive           | Result   |
-|----------|---------------------|----------|
-| `0.93.9` | `version: breaking` | `0.94.0` |
-| `0.93.9` | `version: feat`     | `0.93.10`|
-| `0.0.7`  | `version: breaking` | `0.0.8`  |
-| `0.93.9` | `version: major`    | `1.0.0`  |
-| `0.93.9` | `version: stable`   | `1.0.0`  |
-| `0.93.9` | `version: major: 1` | `1.0.0`  |
-| `1.4.5`  | `version: breaking` | `2.0.0`  |
+| Base     | Directive           | Result    |
+|----------|---------------------|-----------|
+| `0.93.9` | `version: breaking` | `0.94.0`  |
+| `0.93.9` | `version: major`    | `0.94.0`  |
+| `0.93.9` | `version: feat`     | `0.93.10` |
+| `0.0.7`  | `version: breaking` | `0.1.0`   |
+| `0.0.7`  | `version: feat`     | `0.0.8`   |
+| `0.93.9` | `version: stable`   | `1.0.0`   |
+| `0.93.9` | `version: major: 1` | `1.0.0`   |
+| `0.93.9` | `target: 1.0.0`     | `1.0.0`   |
+| `1.4.5`  | `version: breaking` | `2.0.0`   |
 
 ## Releasing a Pending Pre-release
 

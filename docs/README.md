@@ -79,7 +79,7 @@ fix: Handle edge case               # Patch increment
 ```
 
 During initial development (major version `0`), a `major`/`breaking` change advances the minor component; `1.0.0` is
-reached with an explicit `target: 1.0.0` or `version: major: 1`.
+reached only with `stable`, `target: 1.0.0` or `version: major: 1`.
 
 ## Modules
 

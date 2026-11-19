@@ -100,17 +100,18 @@ In priority order:
 
 1. **Named outright**: the highest version a `target:` directive names that survives [validation](#target-validation),
    reduced to its `release`
-2. **Requested**: `arithmetic(base, request)` for every surviving request, the highest result by `scheme.precedence`
-   winning. Every request contributes a candidate; none is discarded for being of a different kind from another
+2. **Requested**: `arithmetic(base, request)` for every surviving request whose result outranks `base`, the highest by
+   `scheme.precedence` winning. Every such request contributes a candidate; none is discarded for being of a different
+   kind from another. A request already satisfied at `base`, such as `stable` on a stable release, asks for nothing
 3. **Default**: `workflow.defaultTarget(base)`
 
 A request the scheme refuses contributes no candidate and is returned beside the target as a `VersionError`, so a
 caller can report it. Refusal is never fatal: the remaining requests still decide, and step 3 always yields a version.
 
 Aggregating by precedence rather than by kind means the outcome does not depend on the order commits are read in, and
-that a scheme's own policy - not the grammar - decides how far each request moves the version. Where SemVer caps an
-intent below `1.0.0`, a `major` named as a component is exempt, so `1.0.0` is reached deliberately rather than by
-accident.
+that a scheme's own policy - not the grammar - decides how far each request moves the version. SemVer's vocabulary
+reads a bare `major` as a breaking change, so below `1.0.0` it moves the minor, and `1.0.0` is reached only through
+`stable`, a value for the major or a named target - deliberately rather than by accident.
 
 #### Step 4: Assembly
 

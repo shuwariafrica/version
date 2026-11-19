@@ -59,8 +59,8 @@ class SemVerWorkflowSuite extends FunSuite:
     assertEquals(workflow.directives.get("fix"), Some(Request.Advance(Intent.Fix)))
   }
 
-  test("the directive vocabulary maps component names to bumps and change words to intents") {
-    assertEquals(workflow.directives.get("major"), Some(Request.Bump("major")))
+  test("the directive vocabulary reads a bare major as a breaking change and the lesser component names as bumps") {
+    assertEquals(workflow.directives.get("major"), Some(Request.Advance(Intent.Breaking)))
     assertEquals(workflow.directives.get("minor"), Some(Request.Bump("minor")))
     assertEquals(workflow.directives.get("patch"), Some(Request.Bump("patch")))
     assertEquals(workflow.directives.get("breaking"), Some(Request.Advance(Intent.Breaking)))
@@ -68,6 +68,10 @@ class SemVerWorkflowSuite extends FunSuite:
     assertEquals(workflow.directives.get("feat"), Some(Request.Advance(Intent.Feature)))
     assertEquals(workflow.directives.get("stable"), Some(Request.Advance(Intent.Stable)))
     assertEquals(workflow.directives.get("unknown"), None)
+  }
+
+  test("a message may set each of the three components outright") {
+    assertEquals(workflow.components, Set("major", "minor", "patch"))
   }
 
   test("a version is a snapshot exactly when its pre-release names the SNAPSHOT classifier") {

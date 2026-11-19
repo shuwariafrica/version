@@ -59,6 +59,17 @@ class DerivationSuite extends FunSuite:
     assertEquals(target("1.2.3", List(emit(Request.Assign("minor", 7)), emit(Request.Assign("patch", 2)))), "1.7.0")
   }
 
+  test("a request already satisfied at the base asks for nothing") {
+    assertEquals(target("1.2.3", List(emit(Request.Advance(Intent.Stable)))), "1.2.4")
+    assertEquals(target("1.2.3", List(emit(Request.Advance(Intent.Stable)), emit(Request.Advance(Intent.Feature)))), "1.3.0")
+  }
+
+  test("graduating and releasing a pending pre-release still advance past the base") {
+    assertEquals(target("0.9.3", List(emit(Request.Advance(Intent.Stable)))), "1.0.0")
+    assertEquals(target("1.0.0-rc.2", List(emit(Request.Advance(Intent.Stable)))), "1.0.0")
+    assertEquals(target("1.2.3-rc.1", List(emit(Request.Advance(Intent.Fix)))), "1.2.3")
+  }
+
   test("a request the scheme refuses is reported and the rest still decides") {
     val result = derive("1.2.3", List(emit(Request.Bump("epoch")), emit(Request.Advance(Intent.Fix))))
     assertEquals(scheme.show(result.target), "1.2.4")

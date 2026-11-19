@@ -80,8 +80,8 @@ class SemVerArithmeticSuite extends FunSuite:
     assertEquals(advance("0.4.2", Intent.Fix), "0.4.3")
   }
 
-  test("below 0.1.0 every intent moves the patch") {
-    assertEquals(advance("0.0.7", Intent.Breaking), "0.0.8")
+  test("below 0.1.0 the minor is still the axis a breaking change moves") {
+    assertEquals(advance("0.0.7", Intent.Breaking), "0.1.0")
     assertEquals(advance("0.0.7", Intent.Feature), "0.0.8")
     assertEquals(advance("0.0.7", Intent.Fix), "0.0.8")
   }

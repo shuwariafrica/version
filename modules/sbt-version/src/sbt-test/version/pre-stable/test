@@ -8,7 +8,12 @@
 > reload
 > checkPrefix 0.94.0-SNAPSHOT
 
-# A positional bump is not held below 1.0.0
+# A bare major is a breaking change, so it too stays on the 0.x line
 > gitCommitMsg version: major
+> reload
+> checkPrefix 0.94.0-SNAPSHOT
+
+# Leaving initial development is a decision stated outright
+> gitCommitMsg stable: the public API is settled
 > reload
 > checkPrefix 1.0.0-SNAPSHOT

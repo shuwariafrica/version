@@ -25,6 +25,7 @@ class SemVerCompatibilitySuite extends FunSuite:
 
   private val sameMajor = SemVer.Compatibility.sameMajor
   private val leftmostNonZero = SemVer.Compatibility.leftmostNonZero
+  private val earlySemVer = SemVer.Compatibility.earlySemVer
   private val strict = CompatibilityPolicy.strict[SemVer]
 
   test("sameMajor admits any two stable releases sharing a major at or above one") {
@@ -53,15 +54,33 @@ class SemVerCompatibilitySuite extends FunSuite:
     assert(!leftmostNonZero.compatible(v("0.0.3"), v("0.0.4")))
   }
 
-  test("the two policies disagree below 1.0.0, which is why neither is the default") {
-    assert(leftmostNonZero.compatible(v("0.4.2"), v("0.4.9")))
-    assert(!sameMajor.compatible(v("0.4.2"), v("0.4.9")))
+  test("earlySemVer admits two stable releases sharing a major from 1.0.0, or a minor below it") {
+    assert(earlySemVer.compatible(v("1.2.3"), v("1.9.9")))
+    assert(earlySemVer.compatible(v("0.4.2"), v("0.4.9")))
+    assert(earlySemVer.compatible(v("0.0.7"), v("0.0.8")))
   }
 
-  test("neither policy admits a pre-release on either side") {
+  test("earlySemVer refuses a change of major from 1.0.0, or of minor below it") {
+    assert(!earlySemVer.compatible(v("1.2.3"), v("2.0.0")))
+    assert(!earlySemVer.compatible(v("0.4.2"), v("0.5.0")))
+    assert(!earlySemVer.compatible(v("0.0.7"), v("0.1.0")))
+    assert(!earlySemVer.compatible(v("0.9.3"), v("1.0.0")))
+  }
+
+  test("the policies disagree below 1.0.0, which is why none is the default") {
+    assert(leftmostNonZero.compatible(v("0.4.2"), v("0.4.9")))
+    assert(earlySemVer.compatible(v("0.4.2"), v("0.4.9")))
+    assert(!sameMajor.compatible(v("0.4.2"), v("0.4.9")))
+    assert(earlySemVer.compatible(v("0.0.7"), v("0.0.8")))
+    assert(!leftmostNonZero.compatible(v("0.0.7"), v("0.0.8")))
+  }
+
+  test("no named policy admits a pre-release on either side") {
     assert(!sameMajor.compatible(v("1.2.3-rc.1"), v("1.2.4")))
     assert(!sameMajor.compatible(v("1.2.3"), v("1.2.4-rc.1")))
     assert(!leftmostNonZero.compatible(v("1.2.3-rc.1"), v("1.2.4")))
+    assert(!earlySemVer.compatible(v("0.4.2-rc.1"), v("0.4.3")))
+    assert(!earlySemVer.compatible(v("0.4.2"), v("0.4.3-rc.1")))
   }
 
   test("strict admits a version only in place of an equal one") {

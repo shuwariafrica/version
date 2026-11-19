@@ -29,7 +29,9 @@ object Derivation:
   given [V]: CanEqual[Derivation[V], Derivation[V]] = CanEqual.derived
 
   /** The version `directives` advance `base` to: one they name outright where the tags admit it, otherwise the highest
-    * version any of their requests reaches, otherwise the scheme's own policy for a range that asked for nothing.
+    * version any of their requests reaches past `base`, otherwise the scheme's own policy for a range that asked for
+    * nothing. A request already satisfied at `base`, such as graduating a version that is already stable, asks for
+    * nothing.
     *
     * A directive the scheme refuses is discarded rather than fatal, and its error returned beside the target.
     *
@@ -46,7 +48,7 @@ object Derivation:
     val named = directives.collect { case Directive.Target(raw) => scheme.parse(raw) }
     val requested = directives.collect { case Directive.Emit(request) => arithmetic(base, request) }
     val admitted = admit(named.collect { case Right(v) => v }, reachable, repository)
-    val highest = requested.collect { case Right(v) => v }.maxOption(using scheme.precedence)
+    val highest = requested.collect { case Right(v) if scheme.precedence.gt(v, base) => v }.maxOption(using scheme.precedence)
     Derivation(
       admitted.orElse(highest).getOrElse(workflow.defaultTarget(base)),
       (named ++ requested).collect { case Left(error) => error }

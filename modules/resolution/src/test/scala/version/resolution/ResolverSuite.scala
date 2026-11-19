@@ -80,16 +80,36 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       val v = res.toOption.get
       assert(v.show.startsWith("0.1.0-SNAPSHOT"), s"Expected 0.1.0-SNAPSHOT, got ${v.show}")
 
-  test("Pre-1.0 base: a positional bump is not held below 1.0.0"):
-    withTempRepo("pre1-positional"): tmp =>
+  test("Pre-1.0 base: a bare major is a breaking change and stays on the 0.x line"):
+    withTempRepo("pre1-major"): tmp =>
       initMinimalRepo(tmp)
       tag(tmp, "v0.93.9", "Release 0.93.9")
       commit(tmp, "version: major"): Unit
       val res = Resolver.resolveAll(cfg(tmp.toString), path => openEither(path))
       assert(res.isRight, clues(res))
       val r = res.toOption.get
-      assertEquals(r.target.show, "1.0.0")
-      assert(r.resolved.show.startsWith("1.0.0-SNAPSHOT"), clue(r.resolved.show))
+      assertEquals(r.target.show, "0.94.0")
+      assert(r.resolved.show.startsWith("0.94.0-SNAPSHOT"), clue(r.resolved.show))
+
+  test("Pre-1.0 base: stable graduates to 1.0.0"):
+    withTempRepo("pre1-stable"): tmp =>
+      initMinimalRepo(tmp)
+      tag(tmp, "v0.93.9", "Release 0.93.9")
+      commit(tmp, "stable: the public API is settled"): Unit
+      val res = Resolver.resolveAll(cfg(tmp.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      assertEquals(res.toOption.get.target.show, "1.0.0")
+
+  test("Stable base: a stable directive asks for nothing and the default target applies"):
+    withTempRepo("stable-stable"): tmp =>
+      initMinimalRepo(tmp)
+      tag(tmp, "v1.2.3", "Release 1.2.3")
+      commit(tmp, "stable: still settled"): Unit
+      val res = Resolver.resolveAll(cfg(tmp.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      val r = res.toOption.get
+      assertEquals(r.target.show, "1.2.4")
+      assert(r.resolved.show.startsWith("1.2.4-SNAPSHOT"), clue(r.resolved.show))
 
   test("Pre-1.0 base: a breaking intent stays on the 0.x line"):
     withTempRepo("pre1-breaking"): tmp =>
