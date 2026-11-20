@@ -119,6 +119,22 @@ abstract class GitRepositorySuite extends FunSuite, GitRepositoryTestSupport:
         assertEquals(result.toOption.get, false)
       finally gr.close()
 
+  test("clean returns true when only gitignored build output is present"):
+    withMinimalRepo("clean-gitignored"): repo =>
+      Files.writeString(repo.resolve(".gitignore"), "target/\n"): Unit
+      git(repo, "add", ".gitignore"): Unit
+      git(repo, "commit", "--no-gpg-sign", "-m", "add gitignore"): Unit
+      Files.createDirectories(repo.resolve("target").resolve("scala-3")): Unit
+      Files.writeString(repo.resolve("target").resolve("scala-3").resolve("out.jar"), "artifact"): Unit
+      Files.createDirectories(repo.resolve("project").resolve("target")): Unit
+      Files.writeString(repo.resolve("project").resolve("target").resolve("x"), "nested"): Unit
+      val gr = openTestRepository(repo)
+      try
+        val result = gr.clean
+        assert(result.isRight, s"Expected Right, got $result")
+        assertEquals(result.toOption.get, true)
+      finally gr.close()
+
   test("tags returns annotated and lightweight tags with correct kind"):
     withMinimalRepo("tags-kinds"): repo =>
       tag(repo, "v1.0.0", "Release 1.0.0")

@@ -61,6 +61,21 @@ abstract class ResolverSuite extends FunSuite, GitRepositoryTestSupport:
       val full = SemVer.Formatter.Full.format(v)
       assert(full.contains("dirty"), s"expected 'dirty' in $full")
 
+  test("Mode 1: gitignored build output does not dirty a tagged release"):
+    withTempRepo("gitignored-build"): tmp =>
+      initMinimalRepo(tmp)
+      Files.writeString(tmp.resolve(".gitignore"), "target/\n"): Unit
+      git(tmp, "add", ".gitignore"): Unit
+      git(tmp, "commit", "--no-gpg-sign", "-m", "Add .gitignore"): Unit
+      tag(tmp, "v1.2.3", "Release 1.2.3")
+      Files.createDirectories(tmp.resolve("target").resolve("scala-3")): Unit
+      Files.writeString(tmp.resolve("target").resolve("scala-3").resolve("out.jar"), "artifact"): Unit
+      Files.createDirectories(tmp.resolve("project").resolve("target")): Unit
+      Files.writeString(tmp.resolve("project").resolve("target").resolve("x"), "nested"): Unit
+      val res = Resolver.resolve(cfg(tmp.toString), path => openEither(path))
+      assert(res.isRight, clues(res))
+      assertEquals(res.toOption.get.show, "1.2.3")
+
   test("Mode 2: metadata leads with a 12-digit UTC timestamp identifier"):
     withFreshRepo("mode2-timestamp"): repo =>
       checkout(repo, "v1.0.0")
