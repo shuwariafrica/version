@@ -15,6 +15,8 @@
  ****************************************************************************/
 package version.testkit
 
+import boilerplate.nullable.*
+
 import java.io.IOException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -23,6 +25,20 @@ import java.nio.file.SimpleFileVisitor
 import java.nio.file.attribute.BasicFileAttributes
 
 object Filesystem:
+
+  /** Creates `path` and any missing parent. A failure names the path and what stands at it and at its parent: Scala
+    * Native raises a failed `mkdir` as an `IOException` with no message, which leaves a CI failure undiagnosable.
+    */
+  def ensureDirectory(path: Path): Path =
+    // scalafix:off DisableSyntax.throw
+    try Files.createDirectories(path)
+    catch case e: IOException => throw new IOException(s"cannot create directory $path: ${state(path)}", e)
+      // scalafix:on
+
+  private def state(path: Path): String =
+    def at(p: Path): String = s"exists=${Files.exists(p)}, directory=${Files.isDirectory(p)}"
+    val parent = path.getParent.option.fold("no parent")(p => s"parent $p ${at(p)}")
+    s"${at(path)}; $parent"
 
   def removeRecursive(path: Path): Unit =
     if Files.exists(path) then Files.walkFileTree(path, deletingVisitor): Unit
