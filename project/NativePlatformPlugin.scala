@@ -63,6 +63,14 @@ object NativePlatformPlugin extends AutoPlugin:
 
   val isStaticLink: Boolean = sys.props.get("release.binary.static").contains("true")
 
+  /** The directory a Scala Native process on this host takes as `java.io.tmpdir`. It differs from sbt's own on macOS,
+    * where the JVM uses the per-user directory under `/var/folders`, so a path a native test must create beside its
+    * other temporary files is placed here.
+    */
+  val nativeTempDirectory: File =
+    if os == Os.Windows then file(sys.props("java.io.tmpdir"))
+    else file(Seq("TMPDIR", "TEMPDIR", "TMP", "TEMP").flatMap(sys.env.get).headOption.getOrElse("/tmp"))
+
   // macOS needs LTO.full - LTO.thin drops libunwind __unw_* symbols there. Linux and Windows use LTO.thin
   // (Linux unblocked by scala-native#4904 and #4908, both shipped in 0.5.12).
   val applicationLto: LTO =

@@ -55,7 +55,7 @@ val `version-resolution` =
       configure = (p: Project) =>
         p.settings(NativePlatformPlugin.nativeSettings *)
           .enablePlugins(Libgit2Build)
-          .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-native").getAbsolutePath)
+          .settings(Test / envVars += "GNUPGHOME" -> (NativePlatformPlugin.nativeTempDirectory / "version-gnupg-native").getAbsolutePath)
     )
 
 val `version-eff` =
@@ -103,7 +103,8 @@ val `version-cli` =
         p.dependsOn(`version-resolution`.native(Libraries.scala3.revision), `version-testkit`.native(Libraries.scala3.revision) % Test)
           .settings(NativePlatformPlugin.applicationSettings *)
           .enablePlugins(Libgit2Build, ActionsPublish)
-          .settings(Test / envVars += "GNUPGHOME" -> (file(sys.props("java.io.tmpdir")) / "version-gnupg-cli-native").getAbsolutePath)
+          .settings(
+            Test / envVars += "GNUPGHOME" -> (NativePlatformPlugin.nativeTempDirectory / "version-gnupg-cli-native").getAbsolutePath)
     )
 
 val `sbt-version` =
