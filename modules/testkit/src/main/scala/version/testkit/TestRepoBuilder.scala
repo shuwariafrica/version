@@ -122,13 +122,13 @@ object TestRepoBuilder:
   end create
 
   private def git(repoDir: Path, args: String*): String =
-    Process.runChecked("git" +: args, repoDir)
+    Git.runChecked(repoDir, args*)
 
   private def run(repoDir: Path, args: String*): Unit =
-    Process.runChecked("git" +: args, repoDir): Unit
+    Git.runChecked(repoDir, args*): Unit
 
   private def runIgnoreError(repoDir: Path, args: String*): Unit =
-    Process.run("git" +: args, repoDir): Unit
+    Git.run(repoDir, args*): Unit
 
   private def writeReadme(repoDir: Path, content: String): Unit =
     Files.writeString(repoDir.resolve("README.md"), content): Unit

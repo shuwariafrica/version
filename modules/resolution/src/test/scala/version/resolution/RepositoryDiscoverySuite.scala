@@ -104,7 +104,7 @@ class RepositoryDiscoverySuite extends FunSuite, TestRepoSupport:
       val repo = tmp.resolve("repo")
       initMinimalRepo(repo)
       val bare = tmp.resolve("bare.git")
-      Process.runChecked(Seq("git", "clone", "--bare", "--no-hardlinks", "-q", repo.toString, bare.toString), tmp): Unit
+      Process.runChecked(Seq("git", "clone", "--bare", "--no-hardlinks", "-q", repo.toString, bare.toString)): Unit
       markGitDirectory(bare)
       withRepository(openRepository(bare.toString)): repository =>
         assert(repository.isBare)
