@@ -28,11 +28,15 @@ object Process:
   final case class Result(exitCode: Int, stdout: String, stderr: String):
     def successful: Boolean = exitCode == 0
 
-  def run(command: Seq[String], cwd: Path): Result =
+  // No command takes a working directory of its own. Scala Native starts such a command by forking rather than
+  // through posix_spawn wherever it detects no posix_spawn chdir, which on Linux is every libc but glibc (musl
+  // included), and a forked child can stall a multithreaded process's GC until the runtime aborts it. Retire the rule
+  // once Scala Native detects musl's posix_spawn_file_actions_addchdir_np.
+  def run(command: Seq[String]): Result =
     val stdoutFile = Files.createTempFile("version-testkit-stdout-", ".log")
     val stderrFile = Files.createTempFile("version-testkit-stderr-", ".log")
     try
-      val process = startWithRetry(command, cwd, stdoutFile, stderrFile)
+      val process = startWithRetry(command, stdoutFile, stderrFile)
       val exitCode = process.waitFor()
       Result(exitCode, readUtf8(stdoutFile), readUtf8(stderrFile))
     finally
@@ -40,8 +44,8 @@ object Process:
       Files.deleteIfExists(stderrFile): Unit
 
   // scalafix:off DisableSyntax.throw
-  def runChecked(command: Seq[String], cwd: Path): String =
-    val result = run(command, cwd)
+  def runChecked(command: Seq[String]): String =
+    val result = run(command)
     if result.successful then result.stdout
     else throw Failure(command, result)
   // scalafix:on
@@ -50,14 +54,8 @@ object Process:
   private val InitialBackoffMillis = 10L
   private val MaxBackoffMillis = 500L
 
-  private def startWithRetry(
-    command: Seq[String],
-    cwd: Path,
-    stdoutFile: Path,
-    stderrFile: Path
-  ): java.lang.Process =
+  private def startWithRetry(command: Seq[String], stdoutFile: Path, stderrFile: Path): java.lang.Process =
     val pb = new ProcessBuilder(command.asJava)
-      .directory(cwd.toFile)
       .redirectOutput(stdoutFile.toFile)
       .redirectError(stderrFile.toFile)
     attemptStart(pb, 1)

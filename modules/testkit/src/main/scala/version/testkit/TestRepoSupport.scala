@@ -51,7 +51,7 @@ trait TestRepoSupport:
     run(repoDir, "branch", "-M", "main")
 
   def git(repo: Path, args: String*): String =
-    Process.runChecked("git" +: args, repo)
+    Git.runChecked(repo, args*)
 
   def checkout(repo: Path, ref: String): Unit =
     run(repo, "checkout", "-q", ref)
@@ -85,6 +85,6 @@ trait TestRepoSupport:
     tag(repo, tagName, tagName)
 
   private def run(repo: Path, args: String*): Unit =
-    Process.runChecked("git" +: args, repo): Unit
+    Git.runChecked(repo, args*): Unit
 
 end TestRepoSupport

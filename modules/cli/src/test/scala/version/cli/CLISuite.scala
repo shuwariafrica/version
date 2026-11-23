@@ -19,8 +19,8 @@ import munit.FunSuite
 
 import java.nio.file.Files
 
+import version.testkit.Git
 import version.testkit.GpgKeyring
-import version.testkit.Process
 import version.testkit.TestRepoSupport
 
 final class CLISuite extends FunSuite with TestRepoSupport:
@@ -265,7 +265,7 @@ final class CLISuite extends FunSuite with TestRepoSupport:
           val after = git(repo, "rev-parse", "HEAD").trim
           assertNotEquals(after, before)
           assert(git(repo, "log", "-1", "--format=%B").contains("version: patch"))
-          val verify = Process.run(Seq("git", "verify-commit", after), repo)
+          val verify = Git.run(repo, "verify-commit", after)
           assert(verify.successful, clues(verify.stderr))
   end match
 end CLISuite

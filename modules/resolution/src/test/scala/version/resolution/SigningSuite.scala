@@ -24,8 +24,8 @@ import scala.util.control.NonFatal
 
 import version.resolution.domain.AuthorSignature
 import version.testkit.Filesystem
+import version.testkit.Git
 import version.testkit.GpgKeyring
-import version.testkit.Process
 
 /** Shared signing tests: exercise the GPG-backed createTag/createCommit paths end to end against a throwaway key.
   *
@@ -69,7 +69,7 @@ abstract class SigningSuite extends FunSuite, GitRepositoryTestSupport:
             assert(result.isRight, clues(result))
             val obj = git(repo, "cat-file", "tag", "v1.2.3")
             assert(obj.contains("-----BEGIN PGP SIGNATURE-----"), clues(obj))
-            val verify = Process.run(Seq("git", "verify-tag", "v1.2.3"), repo)
+            val verify = Git.run(repo, "verify-tag", "v1.2.3")
             assert(verify.successful, clues(verify.stderr, obj))
           finally gr.close()
 
@@ -86,7 +86,7 @@ abstract class SigningSuite extends FunSuite, GitRepositoryTestSupport:
             assertEquals(gr.loadCommit(sha).toOption.map(_.parentIds.map(_.value).toList), Some(List(parent.value)))
             val obj = git(repo, "cat-file", "commit", sha.value)
             assert(obj.contains("gpgsig") && obj.contains("-----BEGIN PGP SIGNATURE-----"), clues(obj))
-            val verify = Process.run(Seq("git", "verify-commit", sha.value), repo)
+            val verify = Git.run(repo, "verify-commit", sha.value)
             assert(verify.successful, clues(verify.stderr, obj))
           finally gr.close()
   end match
